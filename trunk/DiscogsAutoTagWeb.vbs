@@ -4,12 +4,15 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v4.48"
+Const VersionStr = "v4.50"
+
+'Changes from 4.48 to 4.50 by crap_inhuman in 07.2014
+'	Bug removed with utf-8 characters in searchstring (with big help from tillmanj !!)
+
 
 'Changes from 4.47 to 4.48 by crap_inhuman in 07.2014
 '	In the options menu you can now enter the access token manually
 '	Bug removed in Keywords routine
-'	Release without label bug removed 
 
 
 'Changes from 4.46 to 4.47 by crap_inhuman in 07.2014
@@ -1248,7 +1251,7 @@ Sub FindResults(SearchTerm)
 	WriteLog("SavedSearchArtist=" & SavedSearchArtist)
 	WriteLog("SavedSearchAlbum=" & SavedSearchAlbum)
 	
-	Dim ErrorMessage, FilterFound, a, searchURL
+	Dim ErrorMessage, FilterFound, a, searchURL, searchURL_F, searchURL_L
 
 	Set Results = SDB.NewStringList
 	Set ResultsReleaseID = SDB.NewStringList
@@ -1315,18 +1318,26 @@ Sub FindResults(SearchTerm)
 
 		
 		If SavedSearchArtist <> "" And SavedSearchAlbum <> "" Then
-			searchURL = "http://api.discogs.com/database/search?q=" & URLEncodeUTF8(CleanSearchString(SearchTerm)) & "&type=release&per_page=100"
+			searchURL = CleanSearchString(SearchTerm)
+			searchURL_F = "http://api.discogs.com/database/search?q="
+			searchURL_L = "&type=release&per_page=100"
 		ElseIf SavedSearchArtist = "" And SavedSearchAlbum <> "" Then
-			searchURL = "http://api.discogs.com/database/search?type=release&title=" & URLEncodeUTF8(CleanSearchString(SavedSearchAlbum)) & "&per_page=100"
+			searchURL = CleanSearchString(SavedSearchAlbum)
+			searchURL_F = "http://api.discogs.com/database/search?type=release&title="
+			searchURL_L = "&per_page=100"
 		ElseIf SavedSearchArtist <> "" And SavedSearchAlbum = "" Then
-			searchURL = "http://api.discogs.com/database/search?type=release&artist=" & URLEncodeUTF8(CleanSearchString(SavedSearchArtist)) & "&per_page=100"
+			searchURL = CleanSearchString(SavedSearchArtist)
+			searchURL_F = "http://api.discogs.com/database/search?type=release&artist="
+			searchURL_L = "&per_page=100"
 		Else
-			searchURL = "http://api.discogs.com/database/search?q=" & URLEncodeUTF8(CleanSearchString(SearchTerm)) & "&type=release&per_page=100"
+			searchURL = CleanSearchString(SearchTerm)
+			searchURL_F = "http://api.discogs.com/database/search?q="
+			searchURL_L = "&type=release&per_page=100"
 		End If
 
-		WriteLog("searchURL=" & searchURL)
+		WriteLog("Complete searchURL=" & searchURL_F & searchURL & searchURL_L)
 
-		JSONParser_find_result searchURL, "results"
+		JSONParser_find_result searchURL, "results", searchURL_F, searchURL_L
 
 		If ResultsReleaseID.Count = 0 Then
 			FilterFound = False
@@ -1430,8 +1441,8 @@ Sub LoadMasterResults(MasterId)
 			ResultsReleaseID.Add get_release_ID(FirstTrack) 'get saved Release_ID from User-Defined Custom-Tag
 		End If
 
-		masterURL = "http://api.discogs.com/masters/" & MasterId & "/versions"
-		JSONParser_find_result masterURL, "versions"
+		masterURL = MasterId
+		JSONParser_find_result masterURL, "versions", "http://api.discogs.com/masters/", "/versions"
 	End If
 
 	SDB.Tools.WebSearch.SetSearchResults Results
@@ -1462,8 +1473,8 @@ Sub LoadArtistResults(ArtistId)
 			ResultsReleaseID.Add get_release_ID(FirstTrack) 'get saved Release_ID from User-Defined Custom-Tag
 		End If
 
-		artistURL = "http://api.discogs.com/artists/" & ArtistId & "/releases?per_page=100"
-		JSONParser_find_result artistURL, "releases"
+		artistURL = ArtistId
+		JSONParser_find_result artistURL, "releases", "http://api.discogs.com/artists/", "/releases?per_page=100"
 	End If
 
 	SDB.Tools.WebSearch.SetSearchResults Results
@@ -1493,8 +1504,8 @@ Sub LoadLabelResults(LabelId)
 			ResultsReleaseID.Add get_release_ID(FirstTrack) 'get saved Release_ID from User-Defined Custom-Tag
 		End If
 
-		labelURL = "http://api.discogs.com/labels/" & LabelId & "/releases?per_page=100"
-		JSONParser_find_result labelURL, "releases"
+		labelURL = LabelId
+		JSONParser_find_result labelURL, "releases", "http://api.discogs.com/labels/", "/releases?per_page=100"
 	End If
 
 	SDB.Tools.WebSearch.SetSearchResults Results
@@ -1768,7 +1779,6 @@ Sub ReloadResults
 						WriteLog ("involvedRole=" & involvedRole)
 						If InStr(rTrack, ",") = 0 And InStr(rTrack, " to ") = 0 And InStr(rTrack, " & ") = 0 Then
 							currentTrack = rTrack
-							WriteLog("currentTrack='" & currentTrack & "'")
 							Add_Track_Role currentTrack, artistName, involvedRole, TrackRoles, TrackArtist2, TrackPos
 						End If
 						If InStr(rTrack, ",") <> 0 Then
@@ -1776,7 +1786,6 @@ Sub ReloadResults
 							zahl2 = UBound(tmp)
 							For zahltemp2 = 0 To zahl2
 								currentTrack = Trim(tmp(zahltemp2))
-								WriteLog("currentTrack='" & currentTrack & "'")
 								If InStr(currentTrack, " to ") <> 0 Then
 									Track_from_to currentTrack, artistName, involvedRole, Title_Position, TrackRoles, TrackArtist2, TrackPos, LeadingZeroTrackPosition
 								Else
@@ -1785,14 +1794,12 @@ Sub ReloadResults
 							Next
 						ElseIf InStr(rTrack, " to ") <> 0 Then
 							currentTrack = Trim(rTrack)
-							WriteLog("currentTrack='" & currentTrack & "'")
 							Track_from_to currentTrack, artistName, involvedRole, Title_Position, TrackRoles, TrackArtist2, TrackPos, LeadingZeroTrackPosition
 						ElseIf InStr(rTrack, " & ") <> 0 Then
 							tmp = Split(rTrack, " & ")
 							zahl2 = UBound(tmp)
 							For zahltemp2 = 0 To zahl2
 								currentTrack = Trim(tmp(zahltemp2))
-								WriteLog("currentTrack='" & currentTrack & "'")
 								Add_Track_Role currentTrack, artistName, involvedRole, TrackRoles, TrackArtist2, TrackPos
 							Next
 						End If
@@ -2271,7 +2278,7 @@ Sub ReloadResults
 			tmpJoin = ""
 
 			WriteLog " "
-			WriteLog("TrackArtist")
+			WriteLog("Search for TrackArtist")
 			If currentTrack.Exists("artists") Then
 				FoundFeaturing = False
 				For Each artist in currentTrack("artists")
@@ -2407,9 +2414,9 @@ Sub ReloadResults
 						Next
 					End If
 				Next
+				WriteLog("TrackArtist end")
 			End If
 
-			WriteLog("Trackartist end")
 			If TrackFeaturing <> "" Then
 				If CheckTitleFeaturing = True Then
 					tmp = InStrRev(TrackFeaturing, ", ")
@@ -2859,6 +2866,7 @@ End Function
 Sub Track_from_to (currentTrack, currentArtist, involvedRole, Title_Position, TrackRoles, TrackArtist2, TrackPos, LeadingZeroTrackPosition)
 
 	Dim tmp3, tmp4, tmpSide1, tmpSide2, tmpSideD, Vinyl_Pos1, Vinyl_Pos2, zahltemp3, ret
+	WriteLog "currentTrack=" & currentTrack
 	tmp3 = Split(currentTrack, " ")
 	tmpSide1 = ""
 	tmpSide2 = ""
@@ -2961,6 +2969,7 @@ Sub Track_from_to (currentTrack, currentArtist, involvedRole, Title_Position, Tr
 				TrackArtist2(UBound(TrackArtist2)) = currentArtist
 				TrackRoles(UBound(TrackRoles)) = involvedRole
 				TrackPos(UBound(TrackPos)) = Vinyl_Pos1 & tmpSideD & Vinyl_Pos2
+				WriteLog "  currentTrack=" & Vinyl_Pos1 & tmpSideD & Vinyl_Pos2
 				If cStr(Vinyl_Pos1) = cStr(tmpSide2) And cStr(Vinyl_Pos2) = cStr(tmp3(2)) Then Exit Do
 				Vinyl_Pos2 = Vinyl_Pos2 + 1
 			End If
@@ -2976,6 +2985,7 @@ Sub Track_from_to (currentTrack, currentArtist, involvedRole, Title_Position, Tr
 			TrackArtist2(UBound(TrackArtist2)) = currentArtist
 			TrackRoles(UBound(TrackRoles)) = involvedRole
 			TrackPos(UBound(TrackPos)) = tmpSide1 & tmpSideD & zahltemp3
+			WriteLog "  currentTrack=" & tmpSide1 & tmpSideD & zahltemp3
 		Next
 	End If
 
@@ -3000,7 +3010,7 @@ End Sub
 ' down at the top of the window
 Sub ShowResult(ResultID)
 
-	Dim ReleaseID, searchURL, oXMLHTTP, ResponseHTML, TXTBegin, TXTEnd, Title, SelectedTracks
+	Dim ReleaseID, searchURL, oXMLHTTP, ResponseHTML, TXTBegin, TXTEnd, Title, SelectedTracks, searchURL_F
 
 	WebBrowser.SetHTMLDocument ""                 ' Deletes visible search result
 
@@ -3054,16 +3064,18 @@ Sub ShowResult(ResultID)
 		WriteLog "Start ShowResult"
 		ReleaseID = ResultsReleaseID.Item(ResultID)
 		If Right(Results.Item(ResultID), 1) = "*" Then  'Master-Release
-			searchURL = "http://api.discogs.com/masters/" & ReleaseID
+			searchURL = ReleaseID
+			searchURL_F = "http://api.discogs.com/masters/"
 		Else
-			searchURL = "http://api.discogs.com/releases/" & ReleaseID
+			searchURL = ReleaseID
+			searchURL_F = "http://api.discogs.com/releases/"
 		End If
 
 		Set oXMLHTTP = CreateObject("Msxml2.XMLHttp.6.0")   
-		oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check.php", False
+		oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
 		oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
 		oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagBatch/2.0 +http://mediamonkey.com"
-		oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL)
+		oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=")
 		WriteLog "Post durchgeführt"
 		
 		' use json api with vbsjson class at start of file now
@@ -4124,12 +4136,12 @@ Sub FormatErrorMessage(ErrorMessage)
 End Sub
 
 
-Function JSONParser_find_result(searchURL, ArrayName)
+Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L)
 
 	Dim oXMLHTTP, r, f, a
 	WriteLog ("Start JSONParser_find_result")
 	WriteLog("Arrayname=" & ArrayName)
-	WriteLog("searchURL=" & searchURL)
+	WriteLog("Complete searchURL=" & searchURL_F & searchURL & searchURL_L)
 	' use json api with vbsjson class at start of file now
 	Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 	
@@ -4140,13 +4152,14 @@ Function JSONParser_find_result(searchURL, ArrayName)
 	Dim format, title, country, v_year, label, artist, Rtype, catNo, main_release, tmp, ReleaseDesc, FilterFound, SongCount, SongCountMax, isRelease, listCount
 	Dim Page, SongPages
 
-	oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check.php", False
+	oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
 	oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
 	REM oXMLHTTP.setRequestHeader "Content-Type","application/json"
 	oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/2.0 +http://mediamonkey.com"
-	oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL)
+	oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L)
 
 	If oXMLHTTP.Status = 200 Then
+
 		Set response = json.Decode(oXMLHTTP.responseText)
 		'check if any results
 		'and add titles to drop down
@@ -4162,11 +4175,11 @@ Function JSONParser_find_result(searchURL, ArrayName)
 		WriteLog ("SongPages=" & SongPages)
 		For Page = 1 to SongPages
 			If Page <> 1 Then
-				oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check.php", False
+				oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
 				oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"  
 				oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagBatch/2.0 +http://mediamonkey.com"
 				WriteLog "SearchURL=" & SearchURL & "&page=" & Page
-				oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL)
+				oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L)
 				Set response = json.Decode(oXMLHTTP.responseText)
 			End If
 			For Each r In response(ArrayName)
@@ -4311,18 +4324,18 @@ End Function
 Function ReloadMaster(SavedMasterId)
 
 	Dim oXMLHTTP, masterURL
-	masterURL = "http://api.discogs.com/masters/" & SavedMasterId
+	masterURL = SavedMasterId
 	Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 
 	Dim json
 	Set json = New VbsJson
 	Dim response
 
-	oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check.php", False
+	oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
 	oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
 	REM oXMLHTTP.setRequestHeader "Content-Type","application/json"
 	oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/2.0 +http://mediamonkey.com"
-	oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & masterURL)
+	oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & masterURL & "&searchURL_F=http://api.discogs.com/masters/&searchURL_L=")
 
 	If oXMLHTTP.Status = 200 Then
 		Set response = json.Decode(oXMLHTTP.responseText)

@@ -1,7 +1,7 @@
 '
 ' MediaMonkey Script
 '
-' NAME: Discogs Tagger Options 2.0
+' NAME: Discogs Tagger Options 1.9
 '
 ' AUTHOR: crap_inhuman
 ' DATE : 25/03/2014
