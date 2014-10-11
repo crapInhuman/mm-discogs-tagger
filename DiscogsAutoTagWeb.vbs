@@ -2,15 +2,21 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v4.39"
+Const VersionStr = "v4.40"
+
+'Changes from 4.39 to 4.40 by crap_inhuman in 03.2014
+	'featuring Keywords are now not case sensitive
+
 
 'Changes from 4.38 to 4.39 by crap_inhuman in 03.2014
 	'Keywords are now not case sensitive
 	'Added Set Locale for supporting more countries
 
+
 'Changes from 4.37 to 4.38 by crap_inhuman in 02.2014
 	'Added the Featuring Keywords
 	'Fixed a bug with the new submission form of discogs
+
 
 'Changes from 4.36 to 4.37 by crap_inhuman in 02.2014
 	'Changed the image access method
@@ -76,46 +82,46 @@ Const VersionStr = "v4.39"
 	'Showing the Data Quality of the Discogs release
 
 'Changes from 3.64 to 3.65 by crap_inhuman in 07.2013
-'	Bug removed: bug with additional artists removed, which only occur in rare cases
+	'Bug removed: bug with additional artists removed, which only occur in rare cases
 
 'Changes from 3.63 to 3.64 by crap_inhuman in 06.2013
-'	Bug removed: selecting "Sides To Disc" and "Add Leading Zero", zero is dropped from track number and is displayed as a single digit
+	'Bug removed: selecting "Sides To Disc" and "Add Leading Zero", zero is dropped from track number and is displayed as a single digit
 
 'Changes from 3.62 to 3.63 by crap_inhuman in 02.2013 (not released)
-'	Bug removed: no search result -> no output
+	'Bug removed: no search result -> no output
 
 'Changes from 3.61 to 3.62 by crap_inhuman in 02.2013
-'	Insert code for supporting french language machines
-'	Comments will now be saved
-'	Delete some unused but declared variables
-'	Name for "feat." can be edit
-'	Some small bugfixes
+	'Insert code for supporting french language machines
+	'Comments will now be saved
+	'Delete some unused but declared variables
+	'Name for "feat." can be edit
+	'Some small bugfixes
 
 'Changes from 3.6 to 3.61 by crap_inhuman in 02.2013
-'	Removed a bug in the option 'Featuring Artist behind title'
-'	Better implementation of the option 'Featuring Artist behind title'
-'	Inserting Master and Release URLs now work in the Search-Panel
+	'Removed a bug in the option 'Featuring Artist behind title'
+	'Better implementation of the option 'Featuring Artist behind title'
+	'Inserting Master and Release URLs now work in the Search-Panel
 
 'Changes from 3.5 to 3.6 by crap_inhuman in 02.2013
-'	Implementation of eepman's JSON-Parser
-'	Now read the user-specific Separator characters and use it for separating
-'	Label / Artist / Master Search now using the JSON Parser too
-'	Some bugfixes
-'
-'Changes from 3.3 to 3.5 by crap_inhuman in 01.2013
-'	Now you can choose which Custom Tag will be used for the Tags: ReleaseID, Catalog, Country and Format
-'	The "Credits for ExtraArtists in tracks" will now saved in MediaMonkey !
-'	Added option for "Add Leading zero to Tracknumbers"
-'	Added option for "Include Producer"
-'	Added JSON Parser for the new Discogs-API
+	'Implementation of eepman's JSON-Parser
+	'Now read the user-specific Separator characters and use it for separating
+	'Label / Artist / Master Search now using the JSON Parser too
+	'Some bugfixes
 
-'	Some bugfixes (Filter now working correct)
-'	Added the option to choose the place for Featuring Artist (Artist or Title)
-'	e.g. Aaliyah - We Need a Resolution (ft. Timbaland) -or- Aaliyah (ft. Timbaland) - We Need a Resolution
-'	Changeable Name for "Various" Artists (Various Artists)
-'	Added option for "Adding comment"
-'	Get OriginalDate from Master-Release if available
-'	The Script now reads the saved Discogs Release-ID from the chosen Release-Tag
+'Changes from 3.3 to 3.5 by crap_inhuman in 01.2013
+	'Now you can choose which Custom Tag will be used for the Tags: ReleaseID, Catalog, Country and Format
+	'The "Credits for ExtraArtists in tracks" will now saved in MediaMonkey !
+	'Added option for "Add Leading zero to Tracknumbers"
+	'Added option for "Include Producer"
+	'Added JSON Parser for the new Discogs-API
+
+	'Some bugfixes (Filter now working correct)
+	'Added the option to choose the place for Featuring Artist (Artist or Title)
+	'e.g. Aaliyah - We Need a Resolution (ft. Timbaland) -or- Aaliyah (ft. Timbaland) - We Need a Resolution
+	'Changeable Name for "Various" Artists (Various Artists)
+	'Added option for "Adding comment"
+	'Get OriginalDate from Master-Release if available
+	'The Script now reads the saved Discogs Release-ID from the chosen Release-Tag
 
 
 ' ToDo: Add more tooltips to the html
@@ -1021,7 +1027,12 @@ Sub FindResults(SearchTerm)
 			ResultsReleaseID.Add get_release_ID(FirstTrack) 'get saved Release_ID from User-Defined Custom-Tag
 		End If
 
-		searchURL = "http://api.discogs.com/database/search?q=" & URLEncodeUTF8(CleanSearchString(SearchTerm)) & "&type=release&per_page=100"
+		REM searchURL = "http://api.discogs.com/database/search?q=" & URLEncodeUTF8(CleanSearchString(SearchTerm)) & "&type=release&per_page=100"
+		If SavedSearchArtist <> "" And SavedSearchAlbum <> "" Then
+			searchURL = "http://api.discogs.com/database/search?type=release&title=" & URLEncodeUTF8(CleanSearchString(SavedSearchAlbum)) & "&artist=" & URLEncodeUTF8(CleanSearchString(SavedSearchArtist)) & "&per_page=100"
+		Else
+			searchURL = "http://api.discogs.com/database/search?q=" & URLEncodeUTF8(CleanSearchString(SearchTerm)) & "&type=release&per_page=100"
+		End If
 		WriteLog("searchURL=" & searchURL)
 
 		JSONParser_find_result searchURL, "results"
@@ -4070,7 +4081,7 @@ Function LookForFeaturing(Text)
 	Dim i, tmp, x
 	tmp = Split(FeaturingKeywords, ",")
 	For each x in tmp
-		If Text = x Then
+		If LCase(Text) = LCase(x) Then
 			LookForFeaturing = true
 			Exit Function
 		End If
