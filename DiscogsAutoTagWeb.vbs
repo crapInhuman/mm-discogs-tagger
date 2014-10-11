@@ -4,7 +4,13 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v4.50"
+Const VersionStr = "v4.51"
+
+'Changes from 4.50 to 4.51 by crap_inhuman in 07.2014
+'	Removed bug with & character in searchstring
+'	Small bugfixes
+'	Removed bug with empty results
+
 
 'Changes from 4.48 to 4.50 by crap_inhuman in 07.2014
 '	Bug removed with utf-8 characters in searchstring (with big help from tillmanj !!)
@@ -22,7 +28,7 @@ Const VersionStr = "v4.50"
 'Changes from 4.45 to 4.46 by crap_inhuman in 07.2014
 '	The default settings for saving the Cover Images can now be changed in the options menu
 '	Bug removed: Empty format-tag produced an error
-'	Bug removed: Parsing wrong Artist Roles if a comma is between box brackets
+'	Bug removed: Parsing wrong Artist Roles if a comma is between box bracket
 '	Added OAuth authentication
 '	Added option: Using Metal-Archives for release search (BETA)
 '	Now it's possible to use * as wildcard in the Keywords
@@ -222,7 +228,6 @@ Dim LastDisc
 Dim SelectAll, UnselectedTracks(1000)
 
 Dim ReleaseTag, CountryTag, CatalogTag, FormatTag
-Dim ReleaseTagList, CountryTagList, CatalogTagList, FormatTagList
 Dim OriginalDate, Separator
 Dim OptionsChanged
 Dim AccessToken, AccessTokenSecret
@@ -390,7 +395,7 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		End If
 		If ini.StringValue("DiscogsAutoTagWeb","CurrentCountryFilter") = "" Then
 			tmp = "0"
-			For a = 1 to 282
+			For a = 1 To 282
 				tmp = tmp & ",0"
 			Next
 			ini.StringValue("DiscogsAutoTagWeb","CurrentCountryFilter") = tmp
@@ -398,7 +403,7 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 
 		If ini.StringValue("DiscogsAutoTagWeb","CurrentMediaTypeFilter") = "" Then
 			tmp = "0"
-			For a = 1 to 38
+			For a = 1 To 38
 				tmp = tmp & ",0"
 			Next
 			ini.StringValue("DiscogsAutoTagWeb","CurrentMediaTypeFilter") = tmp
@@ -406,7 +411,7 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 
 		If ini.StringValue("DiscogsAutoTagWeb","CurrentMediaFormatFilter") = "" Then
 			tmp = "0"
-			For a = 1 to 48
+			For a = 1 To 48
 				tmp = tmp & ",0"
 			Next
 			ini.StringValue("DiscogsAutoTagWeb","CurrentMediaFormatFilter") = tmp
@@ -435,7 +440,6 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		If ini.StringValue("DiscogsAutoTagWeb","FeaturingKeywords") = "" Then
 			ini.StringValue("DiscogsAutoTagWeb","FeaturingKeywords") = "featuring,feat.,ft.,ft ,feat ,Rap,Rap [Featuring],Vocals [Featuring]"
 		End If
-
 		If ini.StringValue("DiscogsAutoTagWeb","CheckStyleField") = "" Then
 			ini.StringValue("DiscogsAutoTagWeb","CheckStyleField") = "Default (stored with Genre)"
 		End If
@@ -534,7 +538,7 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	ProducerKeywords = ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords")
 	ComposerKeywords = ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords")
 	FeaturingKeywords = ini.StringValue("DiscogsAutoTagWeb","FeaturingKeywords")
-	REM CheckNotAlwaysSaveImage = ini.BoolValue("DiscogsAutoTagWeb","CheckNotAlwaysSaveImage")
+	Rem CheckNotAlwaysSaveImage = ini.BoolValue("DiscogsAutoTagWeb","CheckNotAlwaysSaveImage")
 	CheckStyleField = ini.StringValue("DiscogsAutoTagWeb","CheckStyleField")
 	ArtistSeparator = ini.StringValue("DiscogsAutoTagWeb","ArtistSeparator")
 	ArtistLastSeparator = ini.BoolValue("DiscogsAutoTagWeb","ArtistLastSeparator")
@@ -1031,8 +1035,9 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		SavedSearchTerm = SearchTerm
 		SavedSearchArtist = SearchArtist
 		SavedSearchAlbum = SearchAlbum
-	End If
-
+	End If
+
+
 
 
 
@@ -1320,19 +1325,19 @@ Sub FindResults(SearchTerm)
 		If SavedSearchArtist <> "" And SavedSearchAlbum <> "" Then
 			searchURL = CleanSearchString(SearchTerm)
 			searchURL_F = "http://api.discogs.com/database/search?q="
-			searchURL_L = "&type=release&per_page=100"
+			searchURL_L = "%26type=release%26per_page=100"
 		ElseIf SavedSearchArtist = "" And SavedSearchAlbum <> "" Then
 			searchURL = CleanSearchString(SavedSearchAlbum)
-			searchURL_F = "http://api.discogs.com/database/search?type=release&title="
-			searchURL_L = "&per_page=100"
+			searchURL_F = "http://api.discogs.com/database/search?type=release%26title="
+			searchURL_L = "%26per_page=100"
 		ElseIf SavedSearchArtist <> "" And SavedSearchAlbum = "" Then
 			searchURL = CleanSearchString(SavedSearchArtist)
-			searchURL_F = "http://api.discogs.com/database/search?type=release&artist="
-			searchURL_L = "&per_page=100"
+			searchURL_F = "http://api.discogs.com/database/search?type=release%26artist="
+			searchURL_L = "%26per_page=100"
 		Else
 			searchURL = CleanSearchString(SearchTerm)
 			searchURL_F = "http://api.discogs.com/database/search?q="
-			searchURL_L = "&type=release&per_page=100"
+			searchURL_L = "%26type=release%26per_page=100"
 		End If
 
 		WriteLog("Complete searchURL=" & searchURL_F & searchURL & searchURL_L)
@@ -2865,6 +2870,7 @@ End Function
 
 Sub Track_from_to (currentTrack, currentArtist, involvedRole, Title_Position, TrackRoles, TrackArtist2, TrackPos, LeadingZeroTrackPosition)
 
+	WriteLog "Start Track_from_to"
 	Dim tmp3, tmp4, tmpSide1, tmpSide2, tmpSideD, Vinyl_Pos1, Vinyl_Pos2, zahltemp3, ret
 	WriteLog "currentTrack=" & currentTrack
 	tmp3 = Split(currentTrack, " ")
@@ -2988,6 +2994,7 @@ Sub Track_from_to (currentTrack, currentArtist, involvedRole, Title_Position, Tr
 			WriteLog "  currentTrack=" & tmpSide1 & tmpSideD & zahltemp3
 		Next
 	End If
+	WriteLog "Stop Track_from_to"
 
 End Sub
 
@@ -3063,35 +3070,37 @@ Sub ShowResult(ResultID)
 
 		WriteLog "Start ShowResult"
 		ReleaseID = ResultsReleaseID.Item(ResultID)
-		If Right(Results.Item(ResultID), 1) = "*" Then  'Master-Release
-			searchURL = ReleaseID
-			searchURL_F = "http://api.discogs.com/masters/"
-		Else
-			searchURL = ReleaseID
-			searchURL_F = "http://api.discogs.com/releases/"
-		End If
+		If InStr(Results.Item(ResultID), "search returned no results") = 0 Then
+			If Right(Results.Item(ResultID), 1) = "*" Then  'Master-Release
+				searchURL = ReleaseID
+				searchURL_F = "http://api.discogs.com/masters/"
+				WriteLog "Show Master-Release"
+			Else
+				searchURL = ReleaseID
+				searchURL_F = "http://api.discogs.com/releases/"
+			End If
 
-		Set oXMLHTTP = CreateObject("Msxml2.XMLHttp.6.0")   
-		oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
-		oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
-		oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagBatch/2.0 +http://mediamonkey.com"
-		oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=")
-		WriteLog "Post durchgeführt"
-		
-		' use json api with vbsjson class at start of file now
-		REM Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
+			Set oXMLHTTP = CreateObject("Msxml2.XMLHttp.6.0")   
+			oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
+			oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
+			oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagBatch/2.0 +http://mediamonkey.com"
+			oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=")
+			WriteLog "Post durchgeführt"
+			
+			' use json api with vbsjson class at start of file now
 
-		Dim json
-		Set json = New VbsJson
+			Dim json
+			Set json = New VbsJson
 
-		Dim response
+			Dim response
 
-		If oXMLHTTP.Status = 200 Then
-			Set CurrentRelease = json.Decode(oXMLHTTP.responseText)
+			If oXMLHTTP.Status = 200 Then
+				Set CurrentRelease = json.Decode(oXMLHTTP.responseText)
 
-			CurrentResultID = ReleaseID
+				CurrentResultID = ReleaseID
 
-			ReloadResults
+				ReloadResults
+			End If
 		End If
 	End If
 
@@ -3626,7 +3635,6 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = templateHTML &  "</td>"
 	' Tracklisting End
 
-
 	templateHTML = templateHTML &  GetFooter()
 
 	templateHTML = Replace(templateHTML, "<!RELEASEID!>", releaseID)
@@ -4154,12 +4162,10 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L)
 
 	oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
 	oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
-	REM oXMLHTTP.setRequestHeader "Content-Type","application/json"
 	oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/2.0 +http://mediamonkey.com"
 	oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L)
 
 	If oXMLHTTP.Status = 200 Then
-
 		Set response = json.Decode(oXMLHTTP.responseText)
 		'check if any results
 		'and add titles to drop down
@@ -4168,156 +4174,161 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L)
 		SongCount = 0
 		SongCountMax = response("pagination")("items")
 		WriteLog ("SongCountMax=" & SongCountMax)
+		If Int(SongCountMax) = 0 Then
+			FormatErrorMessage "No Release found at Discogs !!"
+		Else
+			isRelease = False
+			If Results.Count = 1 Then isRelease = True
+			SongPages = response("pagination")("pages")
+			WriteLog ("SongPages=" & SongPages)
+			For Page = 1 to SongPages
+				If Page <> 1 Then
+					oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
+					oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"  
+					oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagBatch/2.0 +http://mediamonkey.com"
+					oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L & "%26page=" & Page)
+					WriteLog "Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L & "%26page=" & Page
+					Set response = json.Decode(oXMLHTTP.responseText)
+				End If
+				For Each r In response(ArrayName)
+					format = ""
+					title = ""
+					country = ""
+					v_year = ""
+					artist = ""
+					label = ""
+					Rtype = ""
+					catNo = ""
+					main_release = ""
 
-		isRelease = False
-		If Results.Count = 1 Then isRelease = True
-		SongPages = response("pagination")("pages")
-		WriteLog ("SongPages=" & SongPages)
-		For Page = 1 to SongPages
-			If Page <> 1 Then
-				oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
-				oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"  
-				oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagBatch/2.0 +http://mediamonkey.com"
-				WriteLog "SearchURL=" & SearchURL & "&page=" & Page
-				oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L)
-				Set response = json.Decode(oXMLHTTP.responseText)
-			End If
-			For Each r In response(ArrayName)
-				format = ""
-				title = ""
-				country = ""
-				v_year = ""
-				artist = ""
-				label = ""
-				Rtype = ""
-				catNo = ""
-				main_release = ""
+					title = response(ArrayName)(r)("title")
+					Set tmp = response(ArrayName)(r)
+					If tmp.Exists("artist") Then
+						artist = tmp("artist")
+					End If
+					If tmp.Exists("main_release") Then
+						main_release = tmp("main_release")
+					End If
+					If ArrayName = "results" Then
+						If tmp.Exists("format") Then
+							For Each f In response(ArrayName)(r)("format")
+								format = format & response(ArrayName)(r)("format")(f) & ", "
+							Next
+							If Len(format) <> 0 Then format = Left(format, Len(format)-2)
+						End If
+					Else
+						If tmp.Exists("format") Then
+							format = response(ArrayName)(r)("format")
+						End If
+					End If
 
-				title = response(ArrayName)(r)("title")
-				Set tmp = response(ArrayName)(r)
-				If tmp.Exists("artist") Then
-					artist = tmp("artist")
-				End If
-				If tmp.Exists("main_release") Then
-					main_release = tmp("main_release")
-				End If
-				If ArrayName = "results" Then
-					If tmp.Exists("format") Then
-						For Each f In response(ArrayName)(r)("format")
-							format = format & response(ArrayName)(r)("format")(f) & ", "
-						Next
-						If Len(format) <> 0 Then format = Left(format, Len(format)-2)
+					If tmp.Exists("country") Then
+						country = response(ArrayName)(r)("country")
 					End If
-				Else
-					If tmp.Exists("format") Then
-						format = response(ArrayName)(r)("format")
+					If ArrayName = "versions" Then
+						If tmp.Exists("released") Then
+							v_year = response(ArrayName)(r)("released")
+						End If
+					Else
+						If tmp.Exists("year") Then
+							v_year = response(ArrayName)(r)("year")
+						End If
 					End If
-				End If
-
-				country = response(ArrayName)(r)("country")
-				If ArrayName = "versions" Then
-					If tmp.Exists("released") Then
-						v_year = response(ArrayName)(r)("released")
+					If tmp.Exists("catno") Then
+						catNo = response(ArrayName)(r)("catno")
 					End If
-				Else
-					If tmp.Exists("year") Then
-						v_year = response(ArrayName)(r)("year")
+					If tmp.Exists("type") Then
+						Rtype = response(ArrayName)(r)("type")
 					End If
-				End If
-				If tmp.Exists("catno") Then
-					catNo = response(ArrayName)(r)("catno")
-				End If
-				If tmp.Exists("type") Then
-					Rtype = response(ArrayName)(r)("type")
-				End If
-				If ArrayName = "results" Then
-					If tmp.Exists("label") Then
-						For Each f In response(ArrayName)(r)("label")
-							If label <> "" Then
-								If Left(label, Len(label)-2) <> response(ArrayName)(r)("label")(f) Then
-									label = label & response(ArrayName)(r)("label")(f) & ", "
+					If ArrayName = "results" Then
+						If tmp.Exists("label") Then
+							For Each f In response(ArrayName)(r)("label")
+								If label <> "" Then
+									If Left(label, Len(label)-2) <> response(ArrayName)(r)("label")(f) Then
+										label = label & response(ArrayName)(r)("label")(f) & ", "
+									End If
+								Else
+									label = response(ArrayName)(r)("label")(f) & ", "
 								End If
-							Else
-								label = response(ArrayName)(r)("label")(f) & ", "
-							End If
-						Next
-						If Len(label) <> 0 Then label = Left(label, Len(label)-2)
+							Next
+							If Len(label) <> 0 Then label = Left(label, Len(label)-2)
+						End If
+					Else
+						If tmp.Exists("label") Then label = response(ArrayName)(r)("label")
 					End If
-				Else
-					If tmp.Exists("label") Then label = response(ArrayName)(r)("label")
-				End If
-				ReleaseDesc = ""
-				Do
-					If FilterMediaType = "Use MediaType Filter" And Format <> "" Then
-						FilterFound = False
-						For a = 1 To MediaTypeList.Count - 1
-							If InStr(Format, MediaTypeList.Item(a)) <> 0 And MediaTypeFilterList.Item(a) = "1" Then FilterFound = True
-						Next
-						If FilterFound = False Then Exit Do
-					End If
-					If(FilterMediaType <> "None" And FilterMediaType <> "Use MediaType Filter" And InStr(format, FilterMediaType) = 0 And format <> "") Then Exit Do
+					ReleaseDesc = ""
+					Do
+						If FilterMediaType = "Use MediaType Filter" And Format <> "" Then
+							FilterFound = False
+							For a = 1 To MediaTypeList.Count - 1
+								If InStr(Format, MediaTypeList.Item(a)) <> 0 And MediaTypeFilterList.Item(a) = "1" Then FilterFound = True
+							Next
+							If FilterFound = False Then Exit Do
+						End If
+						If(FilterMediaType <> "None" And FilterMediaType <> "Use MediaType Filter" And InStr(format, FilterMediaType) = 0 And format <> "") Then Exit Do
 
-					If FilterMediaFormat = "Use MediaFormat Filter" And format <> "" Then
-						FilterFound = False
-						For a = 1 To MediaFormatList.Count - 1
-							If InStr(format, MediaFormatList.Item(a)) <> 0 And MediaFormatFilterList.Item(a) = "1" Then FilterFound = True
-						Next
-						If FilterFound = False Then Exit Do
-					End If
-					If(FilterMediaFormat <> "None" And FilterMediaFormat <> "Use MediaFormat Filter" And InStr(format, FilterMediaFormat) = 0 And Format <> "") Then Exit Do
+						If FilterMediaFormat = "Use MediaFormat Filter" And format <> "" Then
+							FilterFound = False
+							For a = 1 To MediaFormatList.Count - 1
+								If InStr(format, MediaFormatList.Item(a)) <> 0 And MediaFormatFilterList.Item(a) = "1" Then FilterFound = True
+							Next
+							If FilterFound = False Then Exit Do
+						End If
+						If(FilterMediaFormat <> "None" And FilterMediaFormat <> "Use MediaFormat Filter" And InStr(format, FilterMediaFormat) = 0 And Format <> "") Then Exit Do
 
-					If FilterCountry = "Use Country Filter" And country <> "" Then
-						FilterFound = False
-						For a = 1 To CountryList.Count - 1
-							If InStr(country, CountryList.Item(a)) <> 0 And CountryFilterList.Item(a) = "1" Then FilterFound = True
-						Next
-						If FilterFound = False Then Exit Do
-					End If
-					If(FilterCountry <> "None" And FilterCountry <> "Use Country Filter" And InStr(country, FilterCountry) = 0 And country <> "") Then Exit Do
+						If FilterCountry = "Use Country Filter" And country <> "" Then
+							FilterFound = False
+							For a = 1 To CountryList.Count - 1
+								If InStr(country, CountryList.Item(a)) <> 0 And CountryFilterList.Item(a) = "1" Then FilterFound = True
+							Next
+							If FilterFound = False Then Exit Do
+						End If
+						If(FilterCountry <> "None" And FilterCountry <> "Use Country Filter" And InStr(country, FilterCountry) = 0 And country <> "") Then Exit Do
 
-					If FilterYear = "Use Year Filter" And v_year <> "" Then
-						FilterFound = False
-						For a = 1 To YearList.Count - 1
-							If InStr(v_year, YearList.Item(a)) <> 0 And YearFilterList.Item(a) = "1" Then FilterFound = True
-						Next
-						If FilterFound = False Then Exit Do
-					End If
-					If(FilterYear <> "None" And FilterYear <> "Use Year Filter" And InStr(v_year, FilterYear) = 0 And v_year <> "") Then Exit Do
+						If FilterYear = "Use Year Filter" And v_year <> "" Then
+							FilterFound = False
+							For a = 1 To YearList.Count - 1
+								If InStr(v_year, YearList.Item(a)) <> 0 And YearFilterList.Item(a) = "1" Then FilterFound = True
+							Next
+							If FilterFound = False Then Exit Do
+						End If
+						If(FilterYear <> "None" And FilterYear <> "Use Year Filter" And InStr(v_year, FilterYear) = 0 And v_year <> "") Then Exit Do
 
-					If artist <> "" Then ReleaseDesc = ReleaseDesc & " " & artist End If
-					If artist <> "" and title <> "" Then ReleaseDesc = ReleaseDesc & " -" End If
-					If title <> "" Then ReleaseDesc = ReleaseDesc & " " & title End If
-					If format <> "" Then ReleaseDesc = ReleaseDesc & " [" & format & "]" End If
-					If label <> "" Then ReleaseDesc = ReleaseDesc & " " & label End If
-					If country <> "" Then ReleaseDesc = ReleaseDesc & " / " & country End If
-					If v_year <> "" Then ReleaseDesc = ReleaseDesc & " (" & v_year & ")" End If
-					If catNo <> "" Then ReleaseDesc = ReleaseDesc & " catNo:" & catNo End If
-					If Rtype = "master" Then ReleaseDesc = ReleaseDesc & " *" End If
+						If artist <> "" Then ReleaseDesc = ReleaseDesc & " " & artist End If
+						If artist <> "" and title <> "" Then ReleaseDesc = ReleaseDesc & " -" End If
+						If title <> "" Then ReleaseDesc = ReleaseDesc & " " & title End If
+						If format <> "" Then ReleaseDesc = ReleaseDesc & " [" & format & "]" End If
+						If label <> "" Then ReleaseDesc = ReleaseDesc & " " & label End If
+						If country <> "" Then ReleaseDesc = ReleaseDesc & " / " & country End If
+						If v_year <> "" Then ReleaseDesc = ReleaseDesc & " (" & v_year & ")" End If
+						If catNo <> "" Then ReleaseDesc = ReleaseDesc & " catNo:" & catNo End If
+						If Rtype = "master" Then ReleaseDesc = ReleaseDesc & " *" End If
 
-					Results.Add ReleaseDesc
-					ResultsReleaseID.Add response(ArrayName)(r)("id")
+						Results.Add ReleaseDesc
+						ResultsReleaseID.Add response(ArrayName)(r)("id")
+					Loop While False
 					SongCount = SongCount + 1
-					If SongCount = 250 Then Exit Do
-				Loop While False
+					If SongCount = 250 Then Exit For
+				Next
 				If SongCount = 250 Then Exit For
 			Next
-			If SongCount = 250 Then Exit For
-		Next
-	End If
-	ListCount = 1
-	For r = 1 to Results.Count
-		If r= 1 and isRelease = True Then
-			Results.Item(0) = "(" & SongCountMax & ") " & Results.Item(0)
-		Else
-			If SongCount <> SongCountMax Then
-				Results.Item(r-1) = "(" & ListCount & "/" & SongCount & "/" & SongCountMax & ") " & Results.Item(r-1)
-			Else
-				Results.Item(r-1) = "(" & ListCount & "/" & SongCountMax & ") " & Results.Item(r-1)
-			End IF
-			ListCount = ListCount + 1
+			ListCount = 1
+			For r = 1 to Results.Count
+				If r= 1 and isRelease = True Then
+					Results.Item(0) = "(" & SongCountMax & ") " & Results.Item(0)
+				Else
+					If SongCount <> SongCountMax Then
+						Results.Item(r-1) = "(" & ListCount & "/" & SongCount & "/" & SongCountMax & ") " & Results.Item(r-1)
+					Else
+						Results.Item(r-1) = "(" & ListCount & "/" & SongCountMax & ") " & Results.Item(r-1)
+					End IF
+					ListCount = ListCount + 1
+				End If
+			Next
 		End If
-	Next
+	End If
 	WriteLog ("End JSONParser_find_result")
+	
 End Function
 
 
@@ -4333,7 +4344,6 @@ Function ReloadMaster(SavedMasterId)
 
 	oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
 	oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
-	REM oXMLHTTP.setRequestHeader "Content-Type","application/json"
 	oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/2.0 +http://mediamonkey.com"
 	oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & masterURL & "&searchURL_F=http://api.discogs.com/masters/&searchURL_L=")
 
