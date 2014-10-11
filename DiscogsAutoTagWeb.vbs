@@ -2,7 +2,12 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v4.41"
+Const VersionStr = "v4.42"
+
+'Changes from 4.41 to 4.42 by crap_inhuman in 03.2014
+	'Bug removed: Sub-Track do not select(set) the song
+	'Added the option for switching the last artist separator ("&" or "chosen separator")
+
 
 'Changes from 4.40 to 4.41 by crap_inhuman in 03.2014
 	'Removed bug with more than one artist for a title
@@ -161,7 +166,7 @@ Dim SavedMasterId, SavedArtistId, SavedLabelId
 
 Dim FilterMediaType, FilterCountry, FilterYear, FilterMediaFormat, CurrentLoadType
 Dim MediaTypeList, MediaFormatList, CountryList, YearList, AlternativeList, LoadList
-Dim ArtistSeparator
+Dim ArtistSeparator, ArtistLastSeparator
 
 Dim FirstTrack
 Dim AlbumArtURL, AlbumArtThumbNail
@@ -391,6 +396,9 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		If ini.StringValue("DiscogsAutoTagWeb","ArtistSeparator") = "" Then
 			ini.StringValue("DiscogsAutoTagWeb","ArtistSeparator") = ", "
 		End If
+		If ini.StringValue("DiscogsAutoTagWeb","ArtistLastSeparator") = "" Then
+			ini.BoolValue("DiscogsAutoTagWeb","ArtistLastSeparator") = True
+		End If
 
 		'----------------------------------DiscogsImages----------------------------------------
 		CoverStorage = ini.StringValue("PreviewSettings","DefaultCoverStorage")
@@ -471,6 +479,7 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	CheckNotAlwaysSaveImage = ini.BoolValue("DiscogsAutoTagWeb","CheckNotAlwaysSaveImage")
 	CheckStyleField = ini.StringValue("DiscogsAutoTagWeb","CheckStyleField")
 	ArtistSeparator = ini.StringValue("DiscogsAutoTagWeb","ArtistSeparator")
+	ArtistLastSeparator = ini.BoolValue("DiscogsAutoTagWeb","ArtistLastSeparator")
 
 	Separator = Left(Separator, Len(Separator)-1)
 	Separator = Right(Separator, Len(Separator)-1)
@@ -1038,9 +1047,13 @@ Sub FindResults(SearchTerm)
 			ResultsReleaseID.Add get_release_ID(FirstTrack) 'get saved Release_ID from User-Defined Custom-Tag
 		End If
 
-		REM searchURL = "http://api.discogs.com/database/search?q=" & URLEncodeUTF8(CleanSearchString(SearchTerm)) & "&type=release&per_page=100"
+		
 		If SavedSearchArtist <> "" And SavedSearchAlbum <> "" Then
-			searchURL = "http://api.discogs.com/database/search?type=release&title=" & URLEncodeUTF8(CleanSearchString(SavedSearchAlbum)) & "&artist=" & URLEncodeUTF8(CleanSearchString(SavedSearchArtist)) & "&per_page=100"
+			searchURL = "http://api.discogs.com/database/search?q=" & URLEncodeUTF8(CleanSearchString(SearchTerm)) & "&type=release&per_page=100"
+		ElseIf SavedSearchArtist = "" And SavedSearchAlbum <> "" Then
+			searchURL = "http://api.discogs.com/database/search?type=release&title=" & URLEncodeUTF8(CleanSearchString(SavedSearchAlbum)) & "&per_page=100"
+		ElseIf SavedSearchArtist <> "" And SavedSearchAlbum = "" Then
+			searchURL = "http://api.discogs.com/database/search?type=release&artist=" & URLEncodeUTF8(CleanSearchString(SavedSearchArtist)) & "&per_page=100"
 		Else
 			searchURL = "http://api.discogs.com/database/search?q=" & URLEncodeUTF8(CleanSearchString(SearchTerm)) & "&type=release&per_page=100"
 		End If
@@ -1182,7 +1195,7 @@ Sub LoadArtistResults(ArtistId)
 			ResultsReleaseID.Add get_release_ID(FirstTrack) 'get saved Release_ID from User-Defined Custom-Tag
 		End If
 
-		artistURL = "http://api.discogs.com/artists/" & ArtistId & "/releases"
+		artistURL = "http://api.discogs.com/artists/" & ArtistId & "/releases&per_page=100"
 		JSONParser_find_result artistURL, "releases"
 	End If
 
@@ -1213,7 +1226,7 @@ Sub LoadLabelResults(LabelId)
 			ResultsReleaseID.Add get_release_ID(FirstTrack) 'get saved Release_ID from User-Defined Custom-Tag
 		End If
 
-		labelURL = "http://api.discogs.com/labels/" & LabelId & "/releases"
+		labelURL = "http://api.discogs.com/labels/" & LabelId & "/releases&per_page=100"
 		JSONParser_find_result labelURL, "releases"
 	End If
 
@@ -1339,6 +1352,7 @@ Sub ReloadResults
 				End If
 			End If
 		Next
+
 		Writelog("AlbumArtistTitle=" & AlbumArtistTitle)
 
 		If Right(AlbumArtistTitle, 3) = " , " Then AlbumArtistTitle = Left(AlbumArtistTitle, Len(AlbumArtistTitle)-3)
@@ -1563,11 +1577,13 @@ Sub ReloadResults
 						End If
 						If subTrackTitle = "" Then
 							subTrackTitle = trackName
+							UnselectedTracks(iTrackNum) = ""
 						Else
 							subTrackTitle = subTrackTitle & ", " & trackName
-						End If
-						If UserChoose = False Then
 							UnselectedTracks(iTrackNum) = "x"
+						End If
+						If UserChoose = True Then
+							UnselectedTracks(iTrackNum) = ""
 						End If
 						'SubTrack Function ---------------------------------------------------------
 					End If
@@ -2031,14 +2047,14 @@ Sub ReloadResults
 			If TrackFeaturing <> "" Then
 				If CheckTitleFeaturing = true Then
 					tmp = InStrRev(TrackFeaturing, ", ")
-					If tmp = 0 Then
+					If tmp = 0 Or ArtistLastSeparator = False Then
 						trackName = trackName & " (" & TrackFeaturing & ")"
 					Else
 						trackName = trackName & " (" &  Left(TrackFeaturing, tmp-1) & " & " & Mid(TrackFeaturing, tmp+2) & ")"
 					End If
 				Else
 					tmp = InStrRev(TrackFeaturing, ", ")
-					If tmp = 0 Then
+					If tmp = 0 Or ArtistLastSeparator = False Then
 						artistList = artistList & " " & TrackFeaturing
 					Else
 						artistList = artistList & " " & Left(TrackFeaturing, tmp-1) & " & " & Mid(TrackFeaturing, tmp+2)
@@ -2046,6 +2062,9 @@ Sub ReloadResults
 				End If
 			End If
 
+			If InStr(artistList, " & ") <> 0 And ArtistLastSeparator = False Then
+				artistList = Replace(artistList, " & ", ArtistSeparator)
+			End If
 			If ArtistSeparator <> ", " Then
 				artistList = Replace(artistList, ", ", ArtistSeparator)
 				artistList = Replace(artistList, " " & ArtistSeparator, ArtistSeparator)
@@ -5047,9 +5066,9 @@ Function GetFilterHTML(Width, Row, CountColumn)
 	For i = 0 To Row
 		filterHTML = filterHTML &  "<tr>"
 		For a = 1 To CountColumn
+			If FilterList.Count = a + (i * CountColumn) Then Exit For
 			filterHTML = filterHTML &  "<td><input type=checkbox id=""Filter" & a + (i * CountColumn) & """ >" & FilterList.Item(a + (i * CountColumn))
 			filterHTML = filterHTML &  "</td>"
-			If FilterList.Count = a + (i * CountColumn) Then Exit For
 		Next
 		filterHTML = filterHTML &  "</tr>"
 	Next

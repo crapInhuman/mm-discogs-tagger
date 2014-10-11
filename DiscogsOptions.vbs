@@ -1,13 +1,16 @@
 '
 ' MediaMonkey Script
 '
-' NAME: Discogs Tagger Options 1.6
+' NAME: Discogs Tagger Options 1.7
 '
 ' AUTHOR: crap_inhuman
-' DATE : 11/03/2014
+' DATE : 25/03/2014
 '
 '
 ' INSTALL: Automatic installation during Discogs Tagger install
+'
+'Changes from 1.6 to 1.7
+'Added the option for switching the last artist separator ("&" or "chosen separator")
 '
 'Changes from 1.5 to 1.6
 'Added the option for changing the artist separator
@@ -89,6 +92,9 @@ Sub InitSheet(Sheet)
 		If ini.StringValue("DiscogsAutoTagWeb","ArtistSeparator") = "" Then
 			ini.StringValue("DiscogsAutoTagWeb","ArtistSeparator") = ", "
 		End If
+		If ini.BoolValue("DiscogsAutoTagWeb","ArtistLastSeparator") = "" Then
+			ini.BoolValue("DiscogsAutoTagWeb","ArtistLastSeparator") = True
+		End If
 	End If
 
 
@@ -105,14 +111,15 @@ Sub InitSheet(Sheet)
 	CheckOriginalDiscogsTrack = ini.BoolValue("DiscogsAutoTagWeb","CheckOriginalDiscogsTrack")
 	CheckStyleField = ini.StringValue("DiscogsAutoTagWeb","CheckStyleField")
 	ArtistSeparator = ini.StringValue("DiscogsAutoTagWeb","ArtistSeparator")
+	ArtistLastSeparator = ini.BoolValue("DiscogsAutoTagWeb","ArtistLastSeparator")
 
 	CustomField1 = "Custom1 (" & ini.StringValue("CustomFields","Fld1Name") & ")"
 	CustomField2 = "Custom2 (" & ini.StringValue("CustomFields","Fld2Name") & ")"
 	CustomField3 = "Custom3 (" & ini.StringValue("CustomFields","Fld3Name") & ")"
 	CustomField4 = "Custom4 (" & ini.StringValue("CustomFields","Fld4Name") & ")"
 	CustomField5 = "Custom5 (" & ini.StringValue("CustomFields","Fld5Name") & ")"
-	
-	
+
+
 	Dim GroupBox0
 	Set GroupBox0 = UI.NewGroupBox(Sheet)
 	GroupBox0.Caption = "Please choose the custom fields, where Discogs Tagger save the information"
@@ -367,34 +374,53 @@ Sub InitSheet(Sheet)
 	EditFeaturing.Common.ControlName = "FeaturingKeywords"
 	EditFeaturing.Text = FeaturingKeywords
 
-	Set Label2 = UI.NewLabel(Sheet)
-	Label2.Common.SetRect 40, 450, 50, 25
+	Dim GroupBox2
+	Set GroupBox2 = UI.NewGroupBox(Sheet)
+	GroupBox2.Caption = "Misc"
+	GroupBox2.Common.SetRect 10, 455, 500, 120
+
+	Set Label2 = UI.NewLabel(GroupBox2)
+	Label2.Common.SetRect 40, 20, 50, 25
 	Label2.Caption = "Check 'Save Image' Checkbox only if release have no image"
 
 	Dim Checkbox1
-	Set Checkbox1 = UI.NewCheckBox(Sheet)
-	Checkbox1.Common.SetRect 20, 450, 15, 15
+	Set Checkbox1 = UI.NewCheckBox(GroupBox2)
+	Checkbox1.Common.SetRect 20, 20, 15, 15
 	Checkbox1.Common.ControlName = "NotAlwaysSaveimage"
 	If CheckNotAlwaysSaveimage = true Then Checkbox1.Checked = true
 
-	Set Label2 = UI.NewLabel(Sheet)
-	Label2.Common.SetRect 40, 480, 50, 25
+	Set Label2 = UI.NewLabel(GroupBox2)
+	Label2.Common.SetRect 40, 40, 50, 25
 	Label2.Caption = "Show the original Discogs track position"
 
 	Dim Checkbox2
-	Set Checkbox2 = UI.NewCheckBox(Sheet)
-	Checkbox2.Common.SetRect 20, 480, 15, 15
+	Set Checkbox2 = UI.NewCheckBox(GroupBox2)
+	Checkbox2.Common.SetRect 20, 40, 15, 15
 	Checkbox2.Common.ControlName = "CheckOriginalDiscogsTrack"
 	If CheckOriginalDiscogsTrack = true Then Checkbox2.Checked = true
 
-	Set Label2 = UI.NewLabel(Sheet)
-	Label2.Common.SetRect 20, 510, 50, 25
+	Set Label2 = UI.NewLabel(GroupBox2)
+	Label2.Common.SetRect 20, 70, 50, 25
 	Label2.Caption = SDB.Localize("Artist Separator")
-	Set EditArtistSep = UI.NewEdit(Sheet)
-	EditArtistSep.Common.SetRect 20, 525, 50, 35
+	Label2.Common.Hint = "Standard is ', ' without apostrophe"
+
+	Set EditArtistSep = UI.NewEdit(GroupBox2)
+	EditArtistSep.Common.SetRect 20, 85, 50, 35
 	EditArtistSep.Common.ControlName = "ArtistSeparator"
 	EditArtistSep.Text = ArtistSeparator
 	EditArtistSep.Common.Hint = "Standard is ', ' without apostrophe"
+
+	Set Label2 = UI.NewLabel(GroupBox2)
+	Label2.Common.SetRect 165, 87, 125, 25
+	Label2.Caption = "Artist Last Separator = &&"
+	Label2.Common.Hint = "If checked artist list will be Artist1" & ArtistSeparator & "Artist2 & Artist3" & vbCrLf & "If not checked it will be Artist1" & ArtistSeparator & "Artist2" & ArtistSeparator & "Artist3"
+
+	Dim Checkbox3
+	Set Checkbox3 = UI.NewCheckBox(GroupBox2)
+	Checkbox3.Common.SetRect 145, 87, 15, 15
+	Checkbox3.Common.ControlName = "EditArtistLastSep"
+	Checkbox3.Common.Hint = "If checked artist list will be Artist1" & ArtistSeparator & "Artist2 & Artist3" & vbCrLf & "If not checked it will be Artist1" & ArtistSeparator & "Artist2" & ArtistSeparator & "Artist3"
+	If ArtistLastSeparator = true Then Checkbox3.Checked = true
 
 End Sub
 
@@ -471,6 +497,13 @@ Sub SaveSheet(Sheet)
 
 	Set edt = Sheet.Common.ChildControl("ArtistSeparator")
 	ini.StringValue("DiscogsAutoTagWeb", "ArtistSeparator") = edt.Text
+
+	Set checkbox = Sheet.Common.ChildControl("EditArtistLastSep")
+	If checkbox.checked Then
+		ini.BoolValue("DiscogsAutoTagWeb", "ArtistLastSeparator") = true
+	Else
+		ini.BoolValue("DiscogsAutoTagWeb", "ArtistLastSeparator") = false
+	End If
 
 End Sub
 
