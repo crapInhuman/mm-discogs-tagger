@@ -1,7 +1,7 @@
 '
 ' MediaMonkey Script
 '
-' NAME: Discogs Tagger Options 1.9
+' NAME: Discogs Tagger Options 2.1
 '
 ' AUTHOR: crap_inhuman
 ' DATE : 25/03/2014
@@ -9,6 +9,9 @@
 '
 ' INSTALL: Automatic installation during Discogs Tagger install
 '
+'Changes from 2.0 to 2.1
+'Removed metal-archives.com for release search
+
 'Changes from 1.9 to 2.0
 'Added text fields to manually copy/paste the access token and access token secret
 
@@ -100,8 +103,8 @@ Sub InitSheet(Sheet)
 		If ini.ValueExists("DiscogsAutoTagWeb","CheckCover") Then
 			ini.DeleteKey "DiscogsAutoTagWeb","CheckCover"
 		End If
-		If ini.StringValue("DiscogsAutoTagWeb","UseMetalArchives") = "" Then
-			ini.BoolValue("DiscogsAutoTagWeb","UseMetalArchives") = False
+		If ini.ValueExists("DiscogsAutoTagWeb","UseMetalArchives") Then
+			ini.DeleteKey "DiscogsAutoTagWeb","UseMetalArchives"
 		End If
 		If ini.StringValue("DiscogsAutoTagWeb","AccessToken") = "" Then
 			ini.StringValue("DiscogsAutoTagWeb","AccessToken") = ""
@@ -116,14 +119,12 @@ Sub InitSheet(Sheet)
 	CatalogTag = ini.StringValue("DiscogsAutoTagWeb","CatalogTag")
 	CountryTag = ini.StringValue("DiscogsAutoTagWeb","CountryTag")
 	FormatTag = ini.StringValue("DiscogsAutoTagWeb","FormatTag")
-	REM CheckNotAlwaysSaveimage = ini.BoolValue("DiscogsAutoTagWeb","CheckNotAlwaysSaveimage")
 	CheckOriginalDiscogsTrack = ini.BoolValue("DiscogsAutoTagWeb","CheckOriginalDiscogsTrack")
 	CheckStyleField = ini.StringValue("DiscogsAutoTagWeb","CheckStyleField")
 	ArtistSeparator = ini.StringValue("DiscogsAutoTagWeb","ArtistSeparator")
 	ArtistLastSeparator = ini.BoolValue("DiscogsAutoTagWeb","ArtistLastSeparator")
 	CheckSaveImage = ini.StringValue("DiscogsAutoTagWeb","CheckSaveImage")			'0 = Always save - 1 = Only when no image found - 2 = always don't save
 	CheckSmallCover = ini.BoolValue("DiscogsAutoTagWeb","CheckSmallCover")
-	UseMetalArchives = ini.BoolValue("DiscogsAutoTagWeb","UseMetalArchives")
 	AccessToken = ini.StringValue("DiscogsAutoTagWeb","AccessToken")
 	AccessTokenSecret = ini.StringValue("DiscogsAutoTagWeb","AccessTokenSecret")
 
@@ -432,23 +433,10 @@ Sub InitSheet(Sheet)
 	Checkbox3.Common.Hint = "If checked artist list will be Artist1" & ArtistSeparator & "Artist2 & Artist3" & vbCrLf & "If not checked it will be Artist1" & ArtistSeparator & "Artist2" & ArtistSeparator & "Artist3"
 	If ArtistLastSeparator = true Then Checkbox3.Checked = true
 
-	Dim GroupBox3
-	Set GroupBox3 = UI.NewGroupBox(Sheet)
-	GroupBox3.Caption = "BETA"
-	GroupBox3.Common.SetRect 10, 410, 500, 45
-
-	Dim Checkbox4
-	Set Checkbox4 = UI.NewCheckBox(GroupBox3)
-	Checkbox4.Common.SetRect 20, 20, 240, 15
-	Checkbox4.Common.ControlName = "UseMetalArchives"
-	CheckBox4.Caption = "Using Metal-Archives.com instead of Discogs"
-	Checkbox4.Common.Hint = "At the moment only the Title will be compared"
-	If UseMetalArchives = true Then Checkbox4.Checked = true
-
 	Dim GroupBox4
 	Set GroupBox4 = UI.NewGroupBox(Sheet)
 	GroupBox4.Caption = "Discogs Access Token"
-	GroupBox4.Common.SetRect 10, 465, 500, 90
+	GroupBox4.Common.SetRect 10, 410, 500, 90
 
 	Set Label2 = UI.NewLabel(GroupBox4)
 	Label2.Common.SetRect 300, 25, 100, 25
@@ -529,13 +517,6 @@ Sub SaveSheet(Sheet)
 		ini.BoolValue("DiscogsAutoTagWeb", "ArtistLastSeparator") = true
 	Else
 		ini.BoolValue("DiscogsAutoTagWeb", "ArtistLastSeparator") = false
-	End If
-
-	Set checkbox = Sheet.Common.ChildControl("UseMetalArchives")
-	If checkbox.checked Then
-		ini.BoolValue("DiscogsAutoTagWeb", "UseMetalArchives") = true
-	Else
-		ini.BoolValue("DiscogsAutoTagWeb", "UseMetalArchives") = false
 	End If
 
 	Set edt = Sheet.Common.ChildControl("AccessToken")
