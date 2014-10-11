@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v4.38"
+Const VersionStr = "v4.39"
+
+'Changes from 4.38 to 4.39 by crap_inhuman in 03.2014
+	'Keywords are now not case sensitive
+	'Added Set Locale for supporting more countries
 
 'Changes from 4.37 to 4.38 by crap_inhuman in 02.2014
 	'Added the Featuring Keywords
@@ -4262,7 +4266,9 @@ Class VbsJson
 			Set ms = NumberRegex.Execute(Mid(str, idx))
 			If ms.Count = 1 Then
 				idx = idx + ms(0).Length
-				ParseValue = CDbl(Replace(ms(0),".",","))
+				SetLocale "en-US"
+				ParseValue = CDbl(ms(0))
+				SetLocale 0
 				Exit Function
 			End If
 		End If
@@ -4440,7 +4446,7 @@ Function searchKeyword(Keywords, Role, AlbumRole, artistName)
 	Dim tmp, x
 	tmp = Split(Keywords, ",")
 	For each x in tmp
-		If Role = x Then
+		If LCase(Role) = LCase(x) Then
 			If InStr(AlbumRole, artistName) = 0 Then
 				If AlbumRole = "" Then
 					AlbumRole = artistName
