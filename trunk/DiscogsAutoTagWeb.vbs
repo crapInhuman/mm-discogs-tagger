@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v4.32"
+Const VersionStr = "v4.33"
+
+'Changes from 4.32 to 4.33 by crap_inhuman in 10.2013
+	'Fixed a bug with the Separator
+
 
 'Changes from 4.31 to 4.32 by crap_inhuman in 10.2013
 	'Removed bug in extra artist assignment
@@ -324,16 +328,16 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		End If
 
 		If ini.StringValue("DiscogsAutoTagWeb","LyricistKeywords") = "" Then
-			ini.StringValue("DiscogsAutoTagWeb","LyricistKeywords") = "Lyrics By|Words By"
+			ini.StringValue("DiscogsAutoTagWeb","LyricistKeywords") = "Lyrics By,Words By"
 		End If
 		If ini.StringValue("DiscogsAutoTagWeb","ConductorKeywords") = "" Then
 			ini.StringValue("DiscogsAutoTagWeb","ConductorKeywords") = "Conductor"
 		End If
 		If ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords") = "" Then
-			ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords") = "Producer|Arranged By|Recorded By"
+			ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords") = "Producer,Arranged By,Recorded By"
 		End If
 		If ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords") = "" Then
-			ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords") = "Composed By|Score|Written-By|Written By|Music By|Programmed By|Songwriter"
+			ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords") = "Composed By,Score,Written-By,Written By,Music By,Programmed By,Songwriter"
 		End If
 
 		If ini.StringValue("DiscogsAutoTagWeb", "CheckNotAlwaysSaveImage") = "" Then

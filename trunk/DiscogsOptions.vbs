@@ -1,7 +1,7 @@
 '
 ' MediaMonkey Script
 '
-' NAME: Discogs Tagger Options 1.3
+' NAME: Discogs Tagger Options 1.4
 '
 ' AUTHOR: crap_inhuman
 ' DATE : 14/11/2013
@@ -9,6 +9,8 @@
 '
 ' INSTALL: Automatic installation during Discogs Tagger install
 '
+'Changes from 1.3 to 1.4
+'Changed the separator from '|' to ','
 '
 'Changes from 1.2 to 1.3
 'Added 'Don't save' and 4 more fields for saving release-number
@@ -48,16 +50,16 @@ Sub InitSheet(Sheet)
 		End If
 
 		If ini.StringValue("DiscogsAutoTagWeb","LyricistKeywords") = "" Then
-			ini.StringValue("DiscogsAutoTagWeb","LyricistKeywords") = "Lyrics By|Words By"
+			ini.StringValue("DiscogsAutoTagWeb","LyricistKeywords") = "Lyrics By,Words By"
 		End If
 		If ini.StringValue("DiscogsAutoTagWeb","ConductorKeywords") = "" Then
 			ini.StringValue("DiscogsAutoTagWeb","ConductorKeywords") = "Conductor"
 		End If
 		If ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords") = "" Then
-			ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords") = "Producer|Arranged By|Recorded By"
+			ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords") = "Producer,Arranged By,Recorded By"
 		End If
 		If ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords") = "" Then
-			ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords") = "Composed By|Score|Written-By|Written By|Music By|Programmed By|Songwriter"
+			ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords") = "Composed By,Score,Written-By,Written By,Music By,Programmed By,Songwriter"
 		End If
 		If ini.StringValue("DiscogsAutoTagWeb","CheckNotAlwaysSaveimage") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","CheckNotAlwaysSaveimage") = false
@@ -68,6 +70,12 @@ Sub InitSheet(Sheet)
 		If ini.StringValue("DiscogsAutoTagWeb","CheckStyleField") = "" Then
 			ini.StringValue("DiscogsAutoTagWeb","CheckStyleField") = "Default (stored with Genre)"
 		End If
+
+
+		If Not InStr(ini.StringValue("DiscogsAutoTagWeb","LyricistKeywords"), "|") = 0 Then ini.StringValue("DiscogsAutoTagWeb","LyricistKeywords") = Replace(ini.StringValue("DiscogsAutoTagWeb","LyricistKeywords"), "|", ",")
+		If Not InStr(ini.StringValue("DiscogsAutoTagWeb","ConductorKeywords"), "|") = 0 Then ini.StringValue("DiscogsAutoTagWeb","ConductorKeywords") = Replace(ini.StringValue("DiscogsAutoTagWeb","ConductorKeywords"), "|", ",")
+		If Not InStr(ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords"), "|") = 0 Then ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords") = Replace(ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords"), "|", ",")
+		If Not InStr(ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords"), "|") = 0 Then ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords") = Replace(ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords"), "|", ",")
 	End If
 
 
