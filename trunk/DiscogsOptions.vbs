@@ -1,13 +1,16 @@
 '
 ' MediaMonkey Script
 '
-' NAME: Discogs Tagger Options 1.4
+' NAME: Discogs Tagger Options 1.5
 '
 ' AUTHOR: crap_inhuman
 ' DATE : 14/11/2013
 '
 '
 ' INSTALL: Automatic installation during Discogs Tagger install
+'
+'Changes from 1.4 to 1.5
+'Added the "featuring" keywords
 '
 'Changes from 1.3 to 1.4
 'Changed the separator from '|' to ','
@@ -70,6 +73,9 @@ Sub InitSheet(Sheet)
 		If ini.StringValue("DiscogsAutoTagWeb","CheckStyleField") = "" Then
 			ini.StringValue("DiscogsAutoTagWeb","CheckStyleField") = "Default (stored with Genre)"
 		End If
+		If ini.StringValue("DiscogsAutoTagWeb","FeaturingKeywords") = "" Then
+			ini.StringValue("DiscogsAutoTagWeb","FeaturingKeywords") = "featuring,feat.,ft.,ft ,feat ,Rap,Rap [Featuring],Vocals [Featuring]"
+		End If
 
 
 		If Not InStr(ini.StringValue("DiscogsAutoTagWeb","LyricistKeywords"), "|") = 0 Then ini.StringValue("DiscogsAutoTagWeb","LyricistKeywords") = Replace(ini.StringValue("DiscogsAutoTagWeb","LyricistKeywords"), "|", ",")
@@ -87,6 +93,7 @@ Sub InitSheet(Sheet)
 	ConductorKeywords = ini.StringValue("DiscogsAutoTagWeb","ConductorKeywords")
 	ProducerKeywords = ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords")
 	ComposerKeywords = ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords")
+	FeaturingKeywords = ini.StringValue("DiscogsAutoTagWeb","FeaturingKeywords")
 	CheckNotAlwaysSaveimage = ini.BoolValue("DiscogsAutoTagWeb","CheckNotAlwaysSaveimage")
 	CheckOriginalDiscogsTrack = ini.BoolValue("DiscogsAutoTagWeb","CheckOriginalDiscogsTrack")
 	CheckStyleField = ini.StringValue("DiscogsAutoTagWeb","CheckStyleField")
@@ -306,7 +313,7 @@ Sub InitSheet(Sheet)
 	Set GroupBox1 = UI.NewGroupBox(Sheet)
 	GroupBox1.Caption = "Enter the keywords for linking with discogs"
 	GroupBox1.Common.Hint = "If you don't know what to enter here, let the keywords as is !!"
-	GroupBox1.Common.SetRect 10, 210, 500, 190
+	GroupBox1.Common.SetRect 10, 210, 500, 235
 
 
 	Set Label2 = UI.NewLabel(GroupBox1)
@@ -344,23 +351,31 @@ Sub InitSheet(Sheet)
 	EditComposer.Common.ControlName = "ComposerKeywords"
 	EditComposer.Text = ComposerKeywords
 
+	Set Label2 = UI.NewLabel(GroupBox1)
+	Label2.Common.SetRect 20, 180, 50, 25
+	Label2.Caption = SDB.Localize("Featuring")
+	Set EditFeaturing = UI.NewEdit(GroupBox1)
+	EditFeaturing.Common.SetRect 20, 195, 450, 35
+	EditFeaturing.Common.ControlName = "FeaturingKeywords"
+	EditFeaturing.Text = FeaturingKeywords
+
 	Set Label2 = UI.NewLabel(Sheet)
-	Label2.Common.SetRect 40, 410, 50, 25
+	Label2.Common.SetRect 40, 450, 50, 25
 	Label2.Caption = "Check 'Save Image' Checkbox only if release have no image"
 
 	Dim Checkbox1
 	Set Checkbox1 = UI.NewCheckBox(Sheet)
-	Checkbox1.Common.SetRect 20, 410, 15, 15
+	Checkbox1.Common.SetRect 20, 450, 15, 15
 	Checkbox1.Common.ControlName = "NotAlwaysSaveimage"
 	If CheckNotAlwaysSaveimage = true Then Checkbox1.Checked = true
 
 	Set Label2 = UI.NewLabel(Sheet)
-	Label2.Common.SetRect 40, 440, 50, 25
+	Label2.Common.SetRect 40, 480, 50, 25
 	Label2.Caption = "Show the original Discogs track position"
 
 	Dim Checkbox2
 	Set Checkbox2 = UI.NewCheckBox(Sheet)
-	Checkbox2.Common.SetRect 20, 440, 15, 15
+	Checkbox2.Common.SetRect 20, 480, 15, 15
 	Checkbox2.Common.ControlName = "CheckOriginalDiscogsTrack"
 	If CheckOriginalDiscogsTrack = true Then Checkbox2.Checked = true
 
@@ -414,6 +429,14 @@ Sub SaveSheet(Sheet)
 		editText = editText & Trim(x) & ","
 	Next
 	ini.StringValue("DiscogsAutoTagWeb", "ComposerKeywords") = Left(editText, Len(editText)-1)
+
+	Set edt = Sheet.Common.ChildControl("FeaturingKeywords")
+	tmp = Split(edt.Text, ",")
+	editText = ""
+	For each x in tmp
+		editText = editText & Trim(x) & ","
+	Next
+	ini.StringValue("DiscogsAutoTagWeb", "FeaturingKeywords") = Left(editText, Len(editText)-1)
 
 	Set checkbox = Sheet.Common.ChildControl("NotAlwaysSaveimage")
 	If checkbox.checked Then
