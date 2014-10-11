@@ -2,7 +2,13 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v4.30"
+Const VersionStr = "v4.31"
+
+'Changes from 4.30 to 4.31 by crap_inhuman in 09.2013
+	'Removed bug: Sub track name will not recognized if it is the last track
+	'Removed bug: Script-Error occurred after closing the script-window, when no release found
+	'Background of filter dropdown menu change to red if filter is selected (For better recognition)
+
 
 'Changes from 4.00 to 4.30 by crap_inhuman in 07-09.2013
 	'Added Sub tracks option.
@@ -343,7 +349,7 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 			Exit Sub
 		End If
 		'----------------------------------DiscogsImages----------------------------------------
-		
+
 	End If
 
 	WriteLogInit  'Only use for debugging
@@ -910,7 +916,7 @@ Sub FindResults(SearchTerm)
 	WriteLog("SavedSearchArtist=" & SavedSearchArtist)
 	WriteLog("SavedSearchAlbum=" & SavedSearchAlbum)
 	
-	Dim ErrorMessage, FilterFound
+	Dim ErrorMessage, FilterFound, a
 
 	Set Results = SDB.NewStringList
 	Set ResultsReleaseID = SDB.NewStringList
@@ -1174,7 +1180,7 @@ Sub ReloadResults
 	Dim currentImage, currentLabel, currentFormat, theMaster, i, g, l, s, f, d
 	Dim ReleaseDate, ReleaseSplit, theLabels, theCatalogs, theCountry, theFormat
 	Dim Genres, Styles, Comment, DataQuality
-	
+
 	Set Tracks = SDB.NewStringList
 	Set TracksNum = SDB.NewStringList
 	Set DiscogsTracksNum = SDB.NewStringList
@@ -1209,7 +1215,7 @@ Sub ReloadResults
 		AlbumArtThumbNail = ""
 		AlbumFeaturing = ""
 		LastDisc = ""
-		
+
 		Dim iTrackNum, iSubTrack, cSubTrack, subTrackTitle
 		Dim trackName, t, pos
 		Dim role, rolea, currentRole, NoSplit, zahl, zahltemp, zahl2, zahltemp2
@@ -1284,6 +1290,7 @@ Sub ReloadResults
 		End If
 
 
+		WriteLog "ExtraArtists"
 		If currentRelease.Exists("extraartists") Then
 			For Each extraArtist In CurrentRelease("extraartists")
 				Set currentArtist = CurrentRelease("extraartists")(extraArtist)
@@ -1967,7 +1974,18 @@ Sub ReloadResults
 			Tracks.Add trackName
 			iTrackNum = iTrackNum + 1
 		Next
-		
+
+		If cSubTrack <> -1 Then
+			If SubTrackNameSelection = false Then
+				Tracks.Item(cSubTrack) = Tracks.Item(cSubTrack) & " (" & subTrackTitle & ")"
+			Else
+				Tracks.Item(cSubTrack) = subTrackTitle
+			End If
+			cSubTrack = -1
+			subTrackTitle = ""
+			CharSeparatorSubTrack = 0
+		End If
+
 		' Get album title
 		AlbumTitle = currentRelease("title")
 
@@ -2014,7 +2032,6 @@ Sub ReloadResults
 			End If
 		End If
 		'----------------------------------DiscogsImages----------------------------------------
-
 
 		' Get Master ID
 		If CurrentRelease.Exists("master_id") Then
@@ -2290,7 +2307,7 @@ Function FindArtist(ArtistList1, ArtistList2)
 			FindArtist = newArtistList1(i)
 		Else
 			FindArtist = FindArtist & "; " & newArtistList1(i)
-		End IF
+		End If
 	Next
 
 End Function
@@ -2478,80 +2495,61 @@ End Sub
 Sub FinishSearch(Panel)
 
 	Dim ret, res, RndFileName, i, itm, path, j, k, ImageSelected
-	If ImageList.Count > 0 Then
-		ImageSelected = False
-		For i = 0 to ImageList.Count - 1
-			If SaveImage.Item(i) = 1 Then ImageSelected = True
-		Next
-		If ImageSelected = True Then
-			res = SDB.MessageBox("Save the selected image(s) ?", mtConfirmation, Array(mbYes, mbNo))
-			If res = 6 Then
-				For i = 0 to ImageList.Count - 1
-					res = 0
-					If SaveImage.Item(i) = 1 Then
-						Set itm = SelectedSongsGlobal.item(0)
-						path = Mid(itm.Path,1,InStrRev(itm.Path,"\")-1)
-						If CoverStorage = 1 Or CoverStorage = 3 Then
-							If SDB.Tools.FileSystem.FileExists(path & "\" & FileNameList.Item(i)) = True Then
-								res = SDB.MessageBox("The file " & FileNameList.Item(i) & " already exist. Overwrite it ?", mtConfirmation, Array(mbYes, mbNo))
-								If res = 6 Then
-									SDB.Tools.FileSystem.DeleteFile(path & "\" & FileNameList.Item(i))
-									ret = getimages(ImageList.Item(i), path & "\" & FileNameList.Item(i))
-								End If
-							Else
-								ret = getimages(ImageList.Item(i), path & "\" & FileNameList.Item(i))
-								If ret = "" Then DebugOut("ERROR:Image Download failed !")
-							End If
-						End If
-						If CoverStorage = 0 Then
-							Dim max, min
-							max=100000
-							min=10000
-							Randomize
-							RndFileName = Int((max-min+1)*Rnd+min) & ".jpg"
-							ret = getimages(ImageList.Item(i), path & "\" & RndFileName)
-						End If
-
-						If res <> 7 Then 'don't overwrite file
-							For j = 0 To SelectedSongsGlobal.Count - 1
-								Set itm = SelectedSongsGlobal.item(j)
-								Dim pics : Set pics = itm.AlbumArt
-								If pics Is Nothing Then
-									Exit Sub
-								End If
-								Dim img, ImageTagCount
-								ImageTagCount = pics.Count
-
-								Set img = pics.AddNew
-								img.Description = ""
-
-								If CoverStorage = 1 Or CoverStorage = 3 Then
-									img.PicturePath = path & "\" & FileNameList.Item(i)
-									img.ItemStorage = 1
-								Else
-									img.PicturePath = path & "\" & RndFileName
-									img.ItemStorage = 0
-								End If
-								For k = 0 to ImageTypeList.Count - 1
-									If SaveImageType.Item(i) = ImageTypeList.Item(k) Then
-										If k = 0 Then k = -2
-										If k > 14 Then k = k + 1
-										img.ItemType = k + 2
-										pics.UpdateDB
-										Exit For
+	If IsObject(ImageList) Then
+		If ImageList.Count > 0 Then
+			ImageSelected = False
+			For i = 0 to ImageList.Count - 1
+				If SaveImage.Item(i) = 1 Then ImageSelected = True
+			Next
+			If ImageSelected = True Then
+				res = SDB.MessageBox("Save the selected image(s) ?", mtConfirmation, Array(mbYes, mbNo))
+				If res = 6 Then
+					For i = 0 to ImageList.Count - 1
+						res = 0
+						If SaveImage.Item(i) = 1 Then
+							Set itm = SelectedSongsGlobal.item(0)
+							path = Mid(itm.Path,1,InStrRev(itm.Path,"\")-1)
+							If CoverStorage = 1 Or CoverStorage = 3 Then
+								If SDB.Tools.FileSystem.FileExists(path & "\" & FileNameList.Item(i)) = True Then
+									res = SDB.MessageBox("The file " & FileNameList.Item(i) & " already exist. Overwrite it ?", mtConfirmation, Array(mbYes, mbNo))
+									If res = 6 Then
+										SDB.Tools.FileSystem.DeleteFile(path & "\" & FileNameList.Item(i))
+										ret = getimages(ImageList.Item(i), path & "\" & FileNameList.Item(i))
 									End If
-								Next
-								Set pics = itm.AlbumArt
-								If ImageTagCount + 1 = pics.Count Then
 								Else
+									ret = getimages(ImageList.Item(i), path & "\" & FileNameList.Item(i))
+									If ret = "" Then DebugOut("ERROR:Image Download failed !")
 								End If
-								If CoverStorage = 3 Then
-									Set pics = itm.AlbumArt
+							End If
+							If CoverStorage = 0 Then
+								Dim max, min
+								max=100000
+								min=10000
+								Randomize
+								RndFileName = Int((max-min+1)*Rnd+min) & ".jpg"
+								ret = getimages(ImageList.Item(i), path & "\" & RndFileName)
+							End If
+
+							If res <> 7 Then 'don't overwrite file
+								For j = 0 To SelectedSongsGlobal.Count - 1
+									Set itm = SelectedSongsGlobal.item(j)
+									Dim pics : Set pics = itm.AlbumArt
+									If pics Is Nothing Then
+										Exit Sub
+									End If
+									Dim img, ImageTagCount
 									ImageTagCount = pics.Count
+
 									Set img = pics.AddNew
 									img.Description = ""
-									img.PicturePath = path & "\" & FileNameList.Item(i)
-									img.ItemStorage = 0
+
+									If CoverStorage = 1 Or CoverStorage = 3 Then
+										img.PicturePath = path & "\" & FileNameList.Item(i)
+										img.ItemStorage = 1
+									Else
+										img.PicturePath = path & "\" & RndFileName
+										img.ItemStorage = 0
+									End If
 									For k = 0 to ImageTypeList.Count - 1
 										If SaveImageType.Item(i) = ImageTypeList.Item(k) Then
 											If k = 0 Then k = -2
@@ -2565,14 +2563,35 @@ Sub FinishSearch(Panel)
 									If ImageTagCount + 1 = pics.Count Then
 									Else
 									End If
-								End If
-							Next
+									If CoverStorage = 3 Then
+										Set pics = itm.AlbumArt
+										ImageTagCount = pics.Count
+										Set img = pics.AddNew
+										img.Description = ""
+										img.PicturePath = path & "\" & FileNameList.Item(i)
+										img.ItemStorage = 0
+										For k = 0 to ImageTypeList.Count - 1
+											If SaveImageType.Item(i) = ImageTypeList.Item(k) Then
+												If k = 0 Then k = -2
+												If k > 14 Then k = k + 1
+												img.ItemType = k + 2
+												pics.UpdateDB
+												Exit For
+											End If
+										Next
+										Set pics = itm.AlbumArt
+										If ImageTagCount + 1 = pics.Count Then
+										Else
+										End If
+									End If
+								Next
+							End If
+							If CoverStorage = 0 Then
+								SDB.Tools.FileSystem.DeleteFile(path & "\" & RndFileName)
+							End If
 						End If
-						If CoverStorage = 0 Then
-							SDB.Tools.FileSystem.DeleteFile(path & "\" & RndFileName)
-						End If
-					End If
-				Next
+					Next
+				End If
 			End If
 		End If
 	End If
@@ -2595,6 +2614,8 @@ Function GetHeader()
 	templateHTML = templateHTML &  "<HEAD>"
 	templateHTML = templateHTML &  "<style type=""text/css"" media=""screen"">"
 	templateHTML = templateHTML &  ".tabletext { font-family: Arial, Helvetica, sans-serif; font-size: 8pt;}"
+	templateHTML = templateHTML &  "option.tabletext{background-color:#3E7CBB;}"
+
 	templateHTML = templateHTML &  "</style>"
 	templateHTML = templateHTML &  "</HEAD>"
 	templateHTML = templateHTML &  "<body bgcolor=""#FFFFFF"">"
@@ -2616,11 +2637,6 @@ Function GetHeader()
 	templateHTML = templateHTML &  "<tr>"
 	templateHTML = templateHTML &  "<td>"
 	templateHTML = templateHTML &  "<select id=""load"" class=tabletext title=""Search Result=Search with Artist and Album Title" & vbCrLf & "Master Release=Show all releases from the master"">"
-
-	LoadList.Add "Search Results"
-	LoadList.Add "Master Release"
-	LoadList.Add "Releases of Artist"
-	LoadList.Add "Releases of Label"
 
 	For i = 0 To LoadList.Count - 1
 		If LoadList.Item(i) <> CurrentLoadType Then
@@ -2650,9 +2666,9 @@ Function GetHeader()
 
 	If FilterMediaType = "None" Then
 		templateHTML = templateHTML &  "<option value=""None"">No MediaType Filter</option>"
-		templateHTML = templateHTML &  "<option value=""Use MediaType Filter"">Use MediaType Filter</option>"
+		templateHTML = templateHTML &  "<option style=""background-color:#F4113F;"" value=""Use MediaType Filter"">Use MediaType Filter</option>"
 	ElseIf FilterMediaType = "Use MediaType Filter" Then
-		templateHTML = templateHTML &  "<option value=""Use MediaType Filter"">Use MediaType Filter</option>"
+		templateHTML = templateHTML &  "<option style=""background-color:#F4113F;"" value=""Use MediaType Filter"">Use MediaType Filter</option>"
 		templateHTML = templateHTML &  "<option value=""None"">No MediaType Filter</option>"
 	End If
 	If FilterMediaType <> "None" And FilterMediaType <> "Use MediaType Filter" Then
@@ -2674,9 +2690,9 @@ Function GetHeader()
 
 	If FilterMediaFormat = "None" Then
 		templateHTML = templateHTML &  "<option value=""None"">No MediaFormat Filter</option>"
-		templateHTML = templateHTML &  "<option value=""Use MediaFormat Filter"">Use MediaFormat Filter</option>"
+		templateHTML = templateHTML &  "<option style=""background-color:#F4113F;"" value=""Use MediaFormat Filter"">Use MediaFormat Filter</option>"
 	ElseIf FilterMediaFormat = "Use MediaFormat Filter" Then
-		templateHTML = templateHTML &  "<option value=""Use MediaFormat Filter"">Use MediaFormat Filter</option>"
+		templateHTML = templateHTML &  "<option style=""background-color:#F4113F;"" value=""Use MediaFormat Filter"">Use MediaFormat Filter</option>"
 		templateHTML = templateHTML &  "<option value=""None"">No MediaFormat Filter</option>"
 	End If
 	If FilterMediaFormat <> "None" And FilterMediaFormat <> "Use MediaFormat Filter" Then
@@ -2695,11 +2711,12 @@ Function GetHeader()
 
 	templateHTML = templateHTML &  "<td>"
 	templateHTML = templateHTML &  "<select id=""filtercountry"" class=tabletext>"
+
 	If FilterCountry = "None" Then
 		templateHTML = templateHTML &  "<option value=""None"">No Country Filter</option>"
-		templateHTML = templateHTML &  "<option value=""Use Country Filter"">Use Country Filter</option>"
+		templateHTML = templateHTML &  "<option style=""background-color:#F4113F;"" value=""Use Country Filter"">Use Country Filter</option>"
 	ElseIf FilterCountry = "Use Country Filter" Then
-		templateHTML = templateHTML &  "<option value=""Use Country Filter"">Use Country Filter</option>"
+		templateHTML = templateHTML &  "<option style=""background-color:#F4113F;"" value=""Use Country Filter"">Use Country Filter</option>"
 		templateHTML = templateHTML &  "<option value=""None"">No Country Filter</option>"
 	End If
 	If FilterCountry <> "None" And FilterCountry <> "Use Country Filter" Then
@@ -2713,6 +2730,7 @@ Function GetHeader()
 			templateHTML = templateHTML &  "<option value=""" & EncodeHtmlChars(CountryList.Item(i)) & """ selected>" & CountryList.Item(i) & "</option>"
 		End If
 	Next
+
 	templateHTML = templateHTML &  "</select>"
 	templateHTML = templateHTML &  "</td>"
 
@@ -2721,9 +2739,9 @@ Function GetHeader()
 
 	If FilterYear = "None" Then
 		templateHTML = templateHTML &  "<option value=""None"">No Year Filter</option>"
-		templateHTML = templateHTML &  "<option value=""Use Year Filter"">Use Year Filter</option>"
+		templateHTML = templateHTML &  "<option style=""background-color:#F4113F;"" value=""Use Year Filter"">Use Year Filter</option>"
 	ElseIf FilterYear = "Use Year Filter" Then
-		templateHTML = templateHTML &  "<option value=""Use Year Filter"">Use Year Filter</option>"
+		templateHTML = templateHTML &  "<option style=""background-color:#F4113F;"" value=""Use Year Filter"">Use Year Filter</option>"
 		templateHTML = templateHTML &  "<option value=""None"">No Year Filter</option>"
 	End If
 	If FilterYear <> "None" And FilterYear <> "Use Year Filter" Then
@@ -2798,7 +2816,6 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	' Release Cover End
 
 	' Options Begin
-	REM templateHTML = templateHTML &  "<tr><td colspan=2 align=center><br></td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=center><button type=button class=tabletext id=""saveoptions"">Save Options</button></td></tr>"
 	templateHTML = templateHTML &  "<tr><td align=center colspan=2><b>Options:</b></td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""lyricist"" >Save Lyricist</td></tr>"
@@ -2820,7 +2837,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 
 	templateHTML = templateHTML &  "<tr><td align=center colspan=2><br></td></tr>"
 	templateHTML = templateHTML &  "<tr><td align=center colspan=2><b>Disc/Track Numbering:</b></td></tr>"
-		templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""UnselectNoTrackPos"" title=""Tracks without track-number at discogs will automatically unselect (e.g. 'Bonus Tracks')"" >Unselect Index-Tracks</td></tr>"
+	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""UnselectNoTrackPos"" title=""Tracks without track-number at discogs will automatically unselect (e.g. 'Bonus Tracks')"" >Unselect Index-Tracks</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""SubTrackNameSelection"" title=""If checked the Sub-Track will be named like 'Sub-Track 1, Sub-Track 2, Sub Track 3'  if not checked the Sub-Tracks will be named like 'Track Name (Sub-Track 1, Sub-Track 2, Sub Track 3)'"" >Other Sub-Track Naming</td></tr>"
 
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""forcenumeric"" title=""Always use numbers instead of letters (Vinyl-releases use A1, A2,..., B1, B2 as track numbering)"" >Force To Numeric</td></tr>"
@@ -2866,7 +2883,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 		templateHTML = templateHTML &  "<tr><td colspan=3 align=center><b><span style=""color:#FF0000"">There are different numbers of tracks !</span></b></td></tr>"
 		templateHTML = templateHTML &  "<tr><td colspan=3 align=center><br></td></tr>"
 	End If
-	REM bgcolor=""#FFFF00""
+
 	templateHTML = templateHTML &  "<tr>"
 	templateHTML = templateHTML &  "<td><input type=checkbox id=""releaseid"" ></td>"
 	templateHTML = templateHTML &  "<td>Release:</td>"
@@ -2948,7 +2965,6 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = templateHTML & "<td align=right><b>Artist</b></td>"
 	templateHTML = templateHTML & "<td> </td>"
 	templateHTML = templateHTML & "<td align=left><b>Title</b></td>"
-	REM templateHTML = templateHTML &  "<td> </td>"
 	templateHTML = templateHTML & "<td align=right><b>Duration</b></td>"
 	templateHTML = templateHTML & "</tr>"
 
@@ -3145,7 +3161,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Set checkBox = templateHTMLDoc.getElementById("SubTrackNameSelection")
 	checkBox.Checked = SubTrackNameSelection
 	Script.RegisterEvent checkBox, "onclick", "Update"
-	
+
 	Set listBox = templateHTMLDoc.getElementById("filtermediatype")
 	Script.RegisterEvent listBox, "onchange", "Filter"
 	Set listBox = templateHTMLDoc.getElementById("filtermediaformat")
@@ -3326,7 +3342,7 @@ Sub SwitchAll()
 	Next
 
 	ReloadResults
-	
+
 End Sub
 
 
@@ -3447,7 +3463,7 @@ Sub SaveOptions()
 		ini.BoolValue("DiscogsAutoTagWeb","CheckComment") = CheckComment
 		ini.BoolValue("DiscogsAutoTagWeb","CheckUnselectNoTrackPos") = CheckUnselectNoTrackPos
 		ini.BoolValue("DiscogsAutoTagWeb","SubTrackNameSelection") = SubTrackNameSelection
-		
+
 		tmp = CountryFilterList.Item(0)
 		For a = 1 To CountryList.Count - 1
 			tmp = tmp & "," & CountryFilterList.Item(a)
@@ -3508,7 +3524,7 @@ Sub FormatErrorMessage(ErrorMessage)
 	Script.RegisterEvent submitButton, "onclick", "ShowMediaFormatFilter"
 	Set submitButton = templateHTMLDoc.getElementById("showyearfilter")
 	Script.RegisterEvent submitButton, "onclick", "ShowYearFilter"
-	
+
 End Sub
 
 
@@ -3711,7 +3727,7 @@ End Function
 
 Function JSONParser_find_result(searchURL, ArrayName)
 
-	Dim oXMLHTTP, r, f
+	Dim oXMLHTTP, r, f, a
 	WriteLog("Arrayname=" & ArrayName)
 	' use json api with vbsjson class at start of file now
 	Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
@@ -3721,8 +3737,6 @@ Function JSONParser_find_result(searchURL, ArrayName)
 
 	Dim response
 	Dim format, title, country, v_year, label, artist, Rtype, catNo, main_release, tmp, ReleaseDesc, FilterFound
-	REM searchURL = "http://api.discogs.com/database/search?q=" & URLEncodeUTF8(CleanSearchString(SearchString)) & "&type=release&title"
-	REM Rel = JSONParser(searchURL)
 
 	Call oXMLHTTP.open("GET", searchURL, false)
 	Call oXMLHTTP.setRequestHeader("Content-Type","application/json")
