@@ -2,7 +2,12 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v4.43"
+Const VersionStr = "v4.44"
+
+'Changes from 4.43 to 4.44 by crap_inhuman in 04.2014
+	'Added simple routine to check and remove point in track positions (1. , 2. , 3. )
+	'Bug removed: track position part
+	'Max count for releases is set to 250
 
 'Changes from 4.42 to 4.43 by crap_inhuman in 04.2014
 	'Bug removed: Filter now work correctly
@@ -1385,6 +1390,8 @@ Sub ReloadResults
 					Else
 						artistName = CleanArtistName(currentArtist("name"))
 					End If
+					WriteLog ("ArtistName=" & artistName)
+					WriteLog "Without Track Info"
 					role = currentArtist("role")
 					NoSplit = false
 					If InStr(role, ",") = 0 Then
@@ -1392,15 +1399,18 @@ Sub ReloadResults
 						zahl = 0
 						NoSplit = true
 					Else
-						rolea = Split(role, ", ")
+						rolea = Split(role, ",")
 						zahl = UBound(rolea)
 					End If
 
+					WriteLog ("Role count=" & zahl)
 					For zahltemp = 0 To zahl
 						If NoSplit = false Then
-							currentRole = rolea(zahltemp)
+							currentRole = Trim(rolea(zahltemp))
 						End If
+						WriteLog ("currentRole=" & currentRole)
 						If LookForFeaturing(currentRole) Then
+							WriteLog ("Featuring found")
 							If InStr(AlbumFeaturing, artistName) = 0 Then
 								If AlbumFeaturing = "" Then
 									If CheckFeaturingName Then
@@ -1417,6 +1427,7 @@ Sub ReloadResults
 								tmp = searchKeyword(LyricistKeywords, currentRole, AlbumLyricist, artistName)
 								If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 									AlbumLyricist = tmp
+									WriteLog ("AlbumLyricist=" & AlbumLyricist)
 									Exit Do
 								ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 									Exit Do
@@ -1424,6 +1435,7 @@ Sub ReloadResults
 								tmp = searchKeyword(ConductorKeywords, currentRole, AlbumConductor, artistName)
 								If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 									AlbumConductor = tmp
+									WriteLog ("AlbumConductor=" & AlbumConductor)
 									Exit Do
 								ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 									Exit Do
@@ -1431,6 +1443,7 @@ Sub ReloadResults
 								tmp = searchKeyword(ProducerKeywords, currentRole, AlbumProducer, artistName)
 								If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 									AlbumProducer = tmp
+									WriteLog ("AlbumProducer=" & AlbumProducer)
 									Exit Do
 								ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 									Exit Do
@@ -1438,6 +1451,7 @@ Sub ReloadResults
 								tmp = searchKeyword(ComposerKeywords, currentRole, AlbumComposer, artistName)
 								If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 									AlbumComposer = tmp
+									WriteLog ("AlbumComposer=" & AlbumComposer)
 									Exit Do
 								ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 									Exit Do
@@ -1446,9 +1460,13 @@ Sub ReloadResults
 								If tmp2 = -1 Then
 									ReDim Preserve Involved_R(UBound(Involved_R)+1)
 									Involved_R(UBound(Involved_R)) = currentRole & ": " & artistName
+									WriteLog ("New Role: " & currentRole & ": " & artistName)
 								Else
 									If InStr(Involved_R(tmp2), artistName) = 0 Then
 										Involved_R(tmp2) = Involved_R(tmp2) & ", " & artistName
+										WriteLog ("Role updated: " & Involved_R(tmp2))
+									Else
+										WriteLog ("artist already inside role")
 									End If
 								End If
 								Exit Do
@@ -1461,27 +1479,31 @@ Sub ReloadResults
 					Else
 						artistName = CleanArtistName(currentArtist("name"))
 					End If
+					WriteLog ("ArtistName=" & artistName)
 					role = currentArtist("role")
 					rTrack = currentArtist("tracks")
+					WriteLog ("Track(s)=" & rTrack)
+					WriteLog ("Role(s)=" & role)
 					NoSplit = false
 					If InStr(role, ",") <> 0 Then
-						rolea = Split(role, ", ")
+						rolea = Split(role, ",")
 						zahl = UBound(rolea)
 					ElseIf InStr(role, " & ") <> 0 Then
-						rolea = Split(role, " & ")
+						rolea = Split(role, "&")
 						zahl = UBound(rolea)
 					Else
-						involvedRole = role
+						involvedRole = Trim(role)
 						zahl = 0
 						NoSplit = true
 					End If
 					For zahltemp = 0 To zahl
 						If NoSplit = false Then
-							involvedRole = rolea(zahltemp)
+							involvedRole = Trim(rolea(zahltemp))
 						End If
-
+						WriteLog ("involvedRole=" & involvedRole)
 						If InStr(rTrack, ",") = 0 And InStr(rTrack, " to ") = 0 And InStr(rTrack, " & ") = 0 Then
 							currentTrack = rTrack
+							WriteLog("currentTrack='" & currentTrack & "'")
 							Add_Track_Role currentTrack, artistName, involvedRole, TrackRoles, TrackArtist2, TrackPos
 						End If
 						If InStr(rTrack, ",") <> 0 Then
@@ -1489,6 +1511,7 @@ Sub ReloadResults
 							zahl2 = UBound(tmp)
 							For zahltemp2 = 0 To zahl2
 								currentTrack = Trim(tmp(zahltemp2))
+								WriteLog("currentTrack='" & currentTrack & "'")
 								If InStr(currentTrack, " to ") <> 0 Then
 									Track_from_to currentTrack, artistName, involvedRole, Title_Position, TrackRoles, TrackArtist2, TrackPos, LeadingZeroTrackPosition
 								Else
@@ -1496,13 +1519,15 @@ Sub ReloadResults
 								End If
 							Next
 						ElseIf InStr(rTrack, " to ") <> 0 Then
-							currentTrack = rTrack
+							currentTrack = Trim(rTrack)
+							WriteLog("currentTrack='" & currentTrack & "'")
 							Track_from_to currentTrack, artistName, involvedRole, Title_Position, TrackRoles, TrackArtist2, TrackPos, LeadingZeroTrackPosition
 						ElseIf InStr(rTrack, " & ") <> 0 Then
 							tmp = Split(rTrack, " & ")
 							zahl2 = UBound(tmp)
 							For zahltemp2 = 0 To zahl2
 								currentTrack = Trim(tmp(zahltemp2))
+								WriteLog("currentTrack='" & currentTrack & "'")
 								Add_Track_Role currentTrack, artistName, involvedRole, TrackRoles, TrackArtist2, TrackPos
 							Next
 						End If
@@ -1541,6 +1566,7 @@ Sub ReloadResults
 			Set currentTrack = CurrentRelease("tracklist")(t)
 
 			position = currentTrack("position")
+			If Right(position, 1) = "." Then position = Left(position, Len(position)-1)
 			If NoSubTrackUsing = True Then position = Replace(position, ".", "-")
 			trackName = PackSpaces(DecodeHtmlChars(currentTrack("title")))
 			Durations.Add currentTrack("duration")
@@ -1609,8 +1635,10 @@ Sub ReloadResults
 								End If
 							End If
 						End If
-						If Left(position,2) <> "CD" And Int(iAutoDiscNumber) <> Int(Left(position,pos-1)) Then
-							iAutoTrackNumber = 1
+						If Left(position,2) <> "CD" And IsInteger(Left(position,pos-1)) Then
+							If Int(iAutoDiscNumber) <> Int(Left(position,pos-1)) Then
+								iAutoTrackNumber = 1
+							End If
 						End If
 						If UnselectedTracks(iTrackNum) <> "x" Then
 							If CheckLeadingZero = true And iAutoTrackNumber < 10 Then
@@ -2483,29 +2511,29 @@ Sub Track_from_to (currentTrack, currentArtist, involvedRole, Title_Position, Tr
 
 	If InStr(tmp3(0), "-") <> 0 Then
 		tmp4 = Split(tmp3(0), "-")
-		tmpSide1 = tmp4(0)
-		tmp3(0) = tmp4(1)
+		tmpSide1 = Trim(tmp4(0))
+		tmp3(0) = Trim(tmp4(1))
 		tmp3(0) = exchange_roman_numbers(tmp3(0))
 		tmpSideD = "-"
 	End If
 	If InStr(tmp3(2), "-") <> 0 Then
 		tmp4 = Split(tmp3(2), "-")
-		tmpSide2 = tmp4(0)
-		tmp3(2) = tmp4(1)
+		tmpSide2 = Trim(tmp4(0))
+		tmp3(2) = Trim(tmp4(1))
 		tmp3(2) = exchange_roman_numbers(tmp3(2))
 		tmpSideD = "-"
 	End If
 	If InStr(tmp3(0), ".") <> 0 Then
 		tmp4 = Split(tmp3(0), ".")
-		tmpSide1 = tmp4(0)
-		tmp3(0) = tmp4(1)
+		tmpSide1 = Trim(tmp4(0))
+		tmp3(0) = Trim(tmp4(1))
 		tmp3(0) = exchange_roman_numbers(tmp3(0))
 		tmpSideD = "."
 	End If
 	If InStr(tmp3(2), ".") <> 0 Then
 		tmp4 = Split(tmp3(2), ".")
-		tmpSide2 = tmp4(0)
-		tmp3(2) = tmp4(1)
+		tmpSide2 = Trim(tmp4(0))
+		tmp3(2) = Trim(tmp4(1))
 		tmp3(2) = exchange_roman_numbers(tmp3(2))
 		tmpSideD = "."
 	End If
@@ -4035,8 +4063,11 @@ Function JSONParser_find_result(searchURL, ArrayName)
 					Results.Add ReleaseDesc
 					ResultsReleaseID.Add response(ArrayName)(r)("id")
 					SongCount = SongCount + 1
+					If SongCount = 250 Then Exit Do
 				Loop While False
+				If SongCount = 250 Then Exit For
 			Next
+			If SongCount = 250 Then Exit For
 		Next
 	End If
 	ListCount = 1
