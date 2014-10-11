@@ -1,13 +1,19 @@
 '
 ' MediaMonkey Script
 '
-' NAME: Discogs Tagger Options 1.7
+' NAME: Discogs Tagger Options 1.9
 '
 ' AUTHOR: crap_inhuman
 ' DATE : 25/03/2014
 '
 '
 ' INSTALL: Automatic installation during Discogs Tagger install
+'
+'Changes from 1.8 to 1.9
+'Added metal-archives.com for release search instead of discogs(BETA)
+
+'Changes from 1.7 to 1.8
+'Split the options in 2 parts
 '
 'Changes from 1.6 to 1.7
 'Added the option for switching the last artist separator ("&" or "chosen separator")
@@ -37,6 +43,7 @@
 Sub OnStartup
 
 	DiscogsOptions = SDB.UI.AddOptionSheet( "Discogs Tagger", Script.ScriptPath, "InitSheet", "SaveSheet", -3)
+	Call SDB.UI.AddOptionSheet("Keywords",Script.ScriptPath,"InitSheet2","SaveSheet2", DiscogsOptions)
 
 End Sub
 
@@ -58,42 +65,40 @@ Sub InitSheet(Sheet)
 			ini.StringValue("DiscogsAutoTagWeb","FormatTag") = "Custom5"
 		End If
 
-		If ini.StringValue("DiscogsAutoTagWeb","LyricistKeywords") = "" Then
-			ini.StringValue("DiscogsAutoTagWeb","LyricistKeywords") = "Lyrics By,Words By"
-		End If
-		If ini.StringValue("DiscogsAutoTagWeb","ConductorKeywords") = "" Then
-			ini.StringValue("DiscogsAutoTagWeb","ConductorKeywords") = "Conductor"
-		End If
-		If ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords") = "" Then
-			ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords") = "Producer,Arranged By,Recorded By"
-		End If
-		If ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords") = "" Then
-			ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords") = "Composed By,Score,Written-By,Written By,Music By,Programmed By,Songwriter"
-		End If
-		If ini.StringValue("DiscogsAutoTagWeb","CheckNotAlwaysSaveimage") = "" Then
-			ini.BoolValue("DiscogsAutoTagWeb","CheckNotAlwaysSaveimage") = false
-		End If
 		If ini.StringValue("DiscogsAutoTagWeb","CheckOriginalDiscogsTrack") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","CheckOriginalDiscogsTrack") = true
 		End If
 		If ini.StringValue("DiscogsAutoTagWeb","CheckStyleField") = "" Then
 			ini.StringValue("DiscogsAutoTagWeb","CheckStyleField") = "Default (stored with Genre)"
 		End If
-		If ini.StringValue("DiscogsAutoTagWeb","FeaturingKeywords") = "" Then
-			ini.StringValue("DiscogsAutoTagWeb","FeaturingKeywords") = "featuring,feat.,ft.,ft ,feat ,Rap,Rap [Featuring],Vocals [Featuring]"
-		End If
-
-
-		If Not InStr(ini.StringValue("DiscogsAutoTagWeb","LyricistKeywords"), "|") = 0 Then ini.StringValue("DiscogsAutoTagWeb","LyricistKeywords") = Replace(ini.StringValue("DiscogsAutoTagWeb","LyricistKeywords"), "|", ",")
-		If Not InStr(ini.StringValue("DiscogsAutoTagWeb","ConductorKeywords"), "|") = 0 Then ini.StringValue("DiscogsAutoTagWeb","ConductorKeywords") = Replace(ini.StringValue("DiscogsAutoTagWeb","ConductorKeywords"), "|", ",")
-		If Not InStr(ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords"), "|") = 0 Then ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords") = Replace(ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords"), "|", ",")
-		If Not InStr(ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords"), "|") = 0 Then ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords") = Replace(ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords"), "|", ",")
 
 		If ini.StringValue("DiscogsAutoTagWeb","ArtistSeparator") = "" Then
 			ini.StringValue("DiscogsAutoTagWeb","ArtistSeparator") = ", "
 		End If
 		If ini.BoolValue("DiscogsAutoTagWeb","ArtistLastSeparator") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","ArtistLastSeparator") = True
+		End If
+		If ini.StringValue("DiscogsAutoTagWeb","CheckSaveImage") = "" Then
+			If ini.ValueExists("DiscogsAutoTagWeb","CheckNotAlwaysSaveimage") Then
+				If ini.BoolValue("DiscogsAutoTagWeb","CheckNotAlwaysSaveimage") = false Then
+					ini.StringValue("DiscogsAutoTagWeb","CheckSaveImage") = 0
+				Else
+					ini.StringValue("DiscogsAutoTagWeb","CheckSaveImage") = 1
+				End If
+				ini.DeleteKey "DiscogsAutoTagWeb","CheckNotAlwaysSaveimage"
+				
+			Else
+				ini.StringValue("DiscogsAutoTagWeb","CheckSaveImage") = 1
+			End If
+		End If
+		If ini.StringValue("DiscogsAutoTagWeb","CheckSmallCover") = "" Then
+			ini.BoolValue("DiscogsAutoTagWeb","CheckSmallCover") = False
+		End If
+		If ini.ValueExists("DiscogsAutoTagWeb","CheckCover") Then
+			ini.DeleteKey "DiscogsAutoTagWeb","CheckCover"
+		End If
+		If ini.StringValue("DiscogsAutoTagWeb","UseMetalArchives") = "" Then
+			ini.BoolValue("DiscogsAutoTagWeb","UseMetalArchives") = False
 		End If
 	End If
 
@@ -102,16 +107,14 @@ Sub InitSheet(Sheet)
 	CatalogTag = ini.StringValue("DiscogsAutoTagWeb","CatalogTag")
 	CountryTag = ini.StringValue("DiscogsAutoTagWeb","CountryTag")
 	FormatTag = ini.StringValue("DiscogsAutoTagWeb","FormatTag")
-	LyricistKeywords = ini.StringValue("DiscogsAutoTagWeb","LyricistKeywords")
-	ConductorKeywords = ini.StringValue("DiscogsAutoTagWeb","ConductorKeywords")
-	ProducerKeywords = ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords")
-	ComposerKeywords = ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords")
-	FeaturingKeywords = ini.StringValue("DiscogsAutoTagWeb","FeaturingKeywords")
-	CheckNotAlwaysSaveimage = ini.BoolValue("DiscogsAutoTagWeb","CheckNotAlwaysSaveimage")
+	REM CheckNotAlwaysSaveimage = ini.BoolValue("DiscogsAutoTagWeb","CheckNotAlwaysSaveimage")
 	CheckOriginalDiscogsTrack = ini.BoolValue("DiscogsAutoTagWeb","CheckOriginalDiscogsTrack")
 	CheckStyleField = ini.StringValue("DiscogsAutoTagWeb","CheckStyleField")
 	ArtistSeparator = ini.StringValue("DiscogsAutoTagWeb","ArtistSeparator")
 	ArtistLastSeparator = ini.BoolValue("DiscogsAutoTagWeb","ArtistLastSeparator")
+	CheckSaveImage = ini.StringValue("DiscogsAutoTagWeb","CheckSaveImage")			'0 = Always save - 1 = Only when no image found - 2 = always don't save
+	CheckSmallCover = ini.BoolValue("DiscogsAutoTagWeb","CheckSmallCover")
+	UseMetalArchives = ini.BoolValue("DiscogsAutoTagWeb","UseMetalArchives")
 
 	CustomField1 = "Custom1 (" & ini.StringValue("CustomFields","Fld1Name") & ")"
 	CustomField2 = "Custom2 (" & ini.StringValue("CustomFields","Fld2Name") & ")"
@@ -322,105 +325,124 @@ Sub InitSheet(Sheet)
 	Label2.Caption = "Choose field for saving Style"
 	Label2.Common.Hint = "In brackets you see the name you chose for the custom tag"
 
-	Dim tmp, editText, x
-
 	Dim GroupBox1
 	Set GroupBox1 = UI.NewGroupBox(Sheet)
-	GroupBox1.Caption = "Enter the keywords for linking with discogs"
-	GroupBox1.Common.Hint = "If you don't know what to enter here, let the keywords as is !!"
-	GroupBox1.Common.SetRect 10, 210, 500, 235
+	GroupBox1.Caption = "Cover-Images"
+	GroupBox1.Common.SetRect 10, 210, 500, 80
 
+	Dim Checkbox1
+	Set Checkbox1 = UI.NewCheckBox(GroupBox1)
+	Checkbox1.Common.SetRect 20, 20, 250, 15
+	Checkbox1.Common.ControlName = "ControlSaveImage1"
+	Checkbox1.Caption = "Always set option for saving Cover-Images"
+	Checkbox1.Common.Hint = "The script always set the option to save the Cover-Image."
+	Set SDB.Objects("CoverSaveOn") = Checkbox1
+	If CheckSaveImage = 0 or CheckSaveImage = 1 Then
+		Checkbox1.checked = True
+	Else
+		Checkbox1.checked = False
+	End If
 
-	Set Label2 = UI.NewLabel(GroupBox1)
-	Label2.Common.SetRect 20, 20, 50, 25
-	Label2.Caption = SDB.Localize("Lyricist")
-	Set EditLyricist = UI.NewEdit(GroupBox1)
-	EditLyricist.Common.SetRect 20, 35, 450, 35
-	EditLyricist.Common.ControlName = "LyricistKeywords"
-	EditLyricist.Text = LyricistKeywords
+	Dim Checkbox12
+	Set Checkbox12 = UI.NewCheckBox(GroupBox1)
+	Checkbox12.Common.SetRect 40, 40, 250, 15
+	Checkbox12.Common.ControlName = "ControlSaveImage12"
+	Checkbox12.Caption = "Only if no image already exists"
+	Checkbox12.Common.Hint = "If option set the script only mark covers for save when no image already exists."
+	Set SDB.Objects("CoverSaveIfEmpty") = Checkbox12
+	If CheckSaveImage = 0 Then
+		Checkbox12.checked = False
+		Checkbox12.Common.Enabled = True
+	ElseIf CheckSaveImage = 1 Then
+		Checkbox12.checked = True
+		Checkbox12.Common.Enabled = True
+	Else
+		Checkbox12.checked = False
+		Checkbox12.Common.Enabled = False
+	End If
 
+	Dim Checkbox13
+	Set Checkbox13 = UI.NewCheckBox(GroupBox1)
+	Checkbox13.Common.SetRect 40, 60, 250, 15
+	Checkbox13.Common.ControlName = "ControlSaveImage13"
+	Checkbox13.Caption = "Small Cover (150x150)"
+	Checkbox13.Common.Hint = "If option not set the script get the large cover images."
+	Set SDB.Objects("SmallCoverSave") = Checkbox13
+	If CheckSmallCover = False Then
+		Checkbox13.checked = False
+	Else
+		Checkbox13.checked = True
+	End If
+	If CheckSaveImage = 0 or CheckSaveImage = 1 Then
+		Checkbox13.Common.Enabled = True
+	Else
+		Checkbox13.Common.Enabled = False
+	End If
+	
 
-	Set Label2 = UI.NewLabel(GroupBox1)
-	Label2.Common.SetRect 20, 60, 50, 25
-	Label2.Caption = SDB.Localize("Conductor")
-	Set EditConductor = UI.NewEdit(GroupBox1)
-	EditConductor.Common.SetRect 20, 75, 450, 35
-	EditConductor.Common.ControlName = "ConductorKeywords"
-	EditConductor.Text = ConductorKeywords
-
-
-	Set Label2 = UI.NewLabel(GroupBox1)
-	Label2.Common.SetRect 20, 100, 50, 25
-	Label2.Caption = SDB.Localize("Producer")
-	Set EditProducer = UI.NewEdit(GroupBox1)
-	EditProducer.Common.SetRect 20, 115, 450, 35
-	EditProducer.Common.ControlName = "ProducerKeywords"
-	EditProducer.Text = ProducerKeywords
-
-
-	Set Label2 = UI.NewLabel(GroupBox1)
-	Label2.Common.SetRect 20, 140, 50, 25
-	Label2.Caption = SDB.Localize("Composer")
-	Set EditComposer = UI.NewEdit(GroupBox1)
-	EditComposer.Common.SetRect 20, 155, 450, 35
-	EditComposer.Common.ControlName = "ComposerKeywords"
-	EditComposer.Text = ComposerKeywords
-
-	Set Label2 = UI.NewLabel(GroupBox1)
-	Label2.Common.SetRect 20, 180, 50, 25
-	Label2.Caption = SDB.Localize("Featuring")
-	Set EditFeaturing = UI.NewEdit(GroupBox1)
-	EditFeaturing.Common.SetRect 20, 195, 450, 35
-	EditFeaturing.Common.ControlName = "FeaturingKeywords"
-	EditFeaturing.Text = FeaturingKeywords
+	Script.RegisterEvent Checkbox1.Common, "OnClick", "ChBClick"
 
 	Dim GroupBox2
 	Set GroupBox2 = UI.NewGroupBox(Sheet)
 	GroupBox2.Caption = "Misc"
-	GroupBox2.Common.SetRect 10, 455, 500, 120
+	GroupBox2.Common.SetRect 10, 300, 500, 100
+
 
 	Set Label2 = UI.NewLabel(GroupBox2)
 	Label2.Common.SetRect 40, 20, 50, 25
-	Label2.Caption = "Check 'Save Image' Checkbox only if release have no image"
-
-	Dim Checkbox1
-	Set Checkbox1 = UI.NewCheckBox(GroupBox2)
-	Checkbox1.Common.SetRect 20, 20, 15, 15
-	Checkbox1.Common.ControlName = "NotAlwaysSaveimage"
-	If CheckNotAlwaysSaveimage = true Then Checkbox1.Checked = true
-
-	Set Label2 = UI.NewLabel(GroupBox2)
-	Label2.Common.SetRect 40, 40, 50, 25
 	Label2.Caption = "Show the original Discogs track position"
 
 	Dim Checkbox2
 	Set Checkbox2 = UI.NewCheckBox(GroupBox2)
-	Checkbox2.Common.SetRect 20, 40, 15, 15
+	Checkbox2.Common.SetRect 20, 20, 15, 15
 	Checkbox2.Common.ControlName = "CheckOriginalDiscogsTrack"
 	If CheckOriginalDiscogsTrack = true Then Checkbox2.Checked = true
 
 	Set Label2 = UI.NewLabel(GroupBox2)
-	Label2.Common.SetRect 20, 70, 50, 25
+	Label2.Common.SetRect 20, 50, 50, 25
 	Label2.Caption = SDB.Localize("Artist Separator")
 	Label2.Common.Hint = "Standard is ', ' without apostrophe"
 
 	Set EditArtistSep = UI.NewEdit(GroupBox2)
-	EditArtistSep.Common.SetRect 20, 85, 50, 35
+	EditArtistSep.Common.SetRect 20, 65, 50, 35
 	EditArtistSep.Common.ControlName = "ArtistSeparator"
 	EditArtistSep.Text = ArtistSeparator
 	EditArtistSep.Common.Hint = "Standard is ', ' without apostrophe"
 
 	Set Label2 = UI.NewLabel(GroupBox2)
-	Label2.Common.SetRect 165, 87, 125, 25
+	Label2.Common.SetRect 165, 67, 125, 25
 	Label2.Caption = "Artist Last Separator = &&"
 	Label2.Common.Hint = "If checked artist list will be Artist1" & ArtistSeparator & "Artist2 & Artist3" & vbCrLf & "If not checked it will be Artist1" & ArtistSeparator & "Artist2" & ArtistSeparator & "Artist3"
 
 	Dim Checkbox3
 	Set Checkbox3 = UI.NewCheckBox(GroupBox2)
-	Checkbox3.Common.SetRect 145, 87, 15, 15
+	Checkbox3.Common.SetRect 145, 67, 15, 15
 	Checkbox3.Common.ControlName = "EditArtistLastSep"
 	Checkbox3.Common.Hint = "If checked artist list will be Artist1" & ArtistSeparator & "Artist2 & Artist3" & vbCrLf & "If not checked it will be Artist1" & ArtistSeparator & "Artist2" & ArtistSeparator & "Artist3"
 	If ArtistLastSeparator = true Then Checkbox3.Checked = true
+
+	Dim GroupBox3
+	Set GroupBox3 = UI.NewGroupBox(Sheet)
+	GroupBox3.Caption = "BETA"
+	GroupBox3.Common.SetRect 10, 410, 500, 45
+
+	Dim Checkbox4
+	Set Checkbox4 = UI.NewCheckBox(GroupBox3)
+	Checkbox4.Common.SetRect 20, 20, 240, 15
+	Checkbox4.Common.ControlName = "UseMetalArchives"
+	CheckBox4.Caption = "Using Metal-Archives.com instead of Discogs"
+	Checkbox4.Common.Hint = "At the moment only the Title will be compared"
+	If UseMetalArchives = true Then Checkbox4.Checked = true
+
+End Sub
+
+Sub ChBClick(CheckBox1)
+
+	Set CB1 = SDB.Objects("CoverSaveOn")
+	Set CB12 = SDB.Objects("CoverSaveIfEmpty")
+	Set CB13 = SDB.Objects("SmallCoverSave")
+	CB12.Common.Enabled = CB1.checked
+	CB13.Common.Enabled = CB1.checked
 
 End Sub
 
@@ -438,9 +460,144 @@ Sub SaveSheet(Sheet)
 	Set edt = Sheet.Common.ChildControl("FormatTag")
 	ini.StringValue("DiscogsAutoTagWeb", "FormatTag") = GetCustom(edt.ItemIndex)
 	Set edt = Sheet.Common.ChildControl("CheckStyleField")
-	ini.StringValue("DiscogsAutoTagWeb", "CheckStyleField") = GetCustom(edt.ItemIndex -1)
+	ini.StringValue("DiscogsAutoTagWeb", "CheckStyleField") = GetCustom(edt.ItemIndex - 1)
 
+	If Sheet.Common.ChildControl("ControlSaveImage1").Checked = False Then
+		ini.StringValue("DiscogsAutoTagWeb", "CheckSaveImage") = 2
+	Else
+		If Sheet.Common.ChildControl("ControlSaveImage12").Checked = False Then
+			ini.StringValue("DiscogsAutoTagWeb", "CheckSaveImage") = 0
+		Else
+			ini.StringValue("DiscogsAutoTagWeb", "CheckSaveImage") = 1
+		End If
+	End If
+
+	If Sheet.Common.ChildControl("ControlSaveImage13").Checked = True Then
+		ini.BoolValue("DiscogsAutoTagWeb", "CheckSmallCover") = true
+	Else
+		ini.BoolValue("DiscogsAutoTagWeb", "CheckSmallCover") = false
+	End If
+
+	Set checkbox = Sheet.Common.ChildControl("CheckOriginalDiscogsTrack")
+	If checkbox.checked Then
+		ini.BoolValue("DiscogsAutoTagWeb", "CheckOriginalDiscogsTrack") = true
+	Else
+		ini.BoolValue("DiscogsAutoTagWeb", "CheckOriginalDiscogsTrack") = false
+	End If
+
+	Set edt = Sheet.Common.ChildControl("ArtistSeparator")
+	ini.StringValue("DiscogsAutoTagWeb", "ArtistSeparator") = edt.Text
+
+	Set checkbox = Sheet.Common.ChildControl("EditArtistLastSep")
+	If checkbox.checked Then
+		ini.BoolValue("DiscogsAutoTagWeb", "ArtistLastSeparator") = true
+	Else
+		ini.BoolValue("DiscogsAutoTagWeb", "ArtistLastSeparator") = false
+	End If
+
+	Set checkbox = Sheet.Common.ChildControl("UseMetalArchives")
+	If checkbox.checked Then
+		ini.BoolValue("DiscogsAutoTagWeb", "UseMetalArchives") = true
+	Else
+		ini.BoolValue("DiscogsAutoTagWeb", "UseMetalArchives") = false
+	End If
+	
+
+	Script.UnregisterAllEvents
+
+End Sub
+
+Sub InitSheet2(Sheet)
+
+	Dim UI : Set UI = SDB.UI
+	Set ini = SDB.IniFile
+	If Not (ini Is Nothing) Then
+		If ini.StringValue("DiscogsAutoTagWeb","LyricistKeywords") = "" Then
+			ini.StringValue("DiscogsAutoTagWeb","LyricistKeywords") = "Lyrics By,Words By"
+		End If
+		If ini.StringValue("DiscogsAutoTagWeb","ConductorKeywords") = "" Then
+			ini.StringValue("DiscogsAutoTagWeb","ConductorKeywords") = "Conductor"
+		End If
+		If ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords") = "" Then
+			ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords") = "Producer,Arranged By,Recorded By"
+		End If
+		If ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords") = "" Then
+			ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords") = "Composed By,Score,Written-By,Written By,Music By,Programmed By,Songwriter"
+		End If
+		If ini.StringValue("DiscogsAutoTagWeb","FeaturingKeywords") = "" Then
+			ini.StringValue("DiscogsAutoTagWeb","FeaturingKeywords") = "featuring,feat.,ft.,ft ,feat ,Rap,Rap [Featuring],Vocals [Featuring]"
+		End If
+
+		If Not InStr(ini.StringValue("DiscogsAutoTagWeb","LyricistKeywords"), "|") = 0 Then ini.StringValue("DiscogsAutoTagWeb","LyricistKeywords") = Replace(ini.StringValue("DiscogsAutoTagWeb","LyricistKeywords"), "|", ",")
+		If Not InStr(ini.StringValue("DiscogsAutoTagWeb","ConductorKeywords"), "|") = 0 Then ini.StringValue("DiscogsAutoTagWeb","ConductorKeywords") = Replace(ini.StringValue("DiscogsAutoTagWeb","ConductorKeywords"), "|", ",")
+		If Not InStr(ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords"), "|") = 0 Then ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords") = Replace(ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords"), "|", ",")
+		If Not InStr(ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords"), "|") = 0 Then ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords") = Replace(ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords"), "|", ",")
+	End If
+
+	LyricistKeywords = ini.StringValue("DiscogsAutoTagWeb","LyricistKeywords")
+	ConductorKeywords = ini.StringValue("DiscogsAutoTagWeb","ConductorKeywords")
+	ProducerKeywords = ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords")
+	ComposerKeywords = ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords")
+	FeaturingKeywords = ini.StringValue("DiscogsAutoTagWeb","FeaturingKeywords")
+
+	Dim GroupBox0
+	Set GroupBox0 = UI.NewGroupBox(Sheet)
+	GroupBox0.Caption = "Enter the keywords for linking with discogs"
+	GroupBox0.Common.Hint = "If you don't know what to enter here, let the keywords as is !!"
+	GroupBox0.Common.SetRect 10, 10, 500, 235
+
+	Set Label2 = UI.NewLabel(GroupBox0)
+	Label2.Common.SetRect 20, 20, 50, 25
+	Label2.Caption = SDB.Localize("Lyricist")
+	Set EditLyricist = UI.NewEdit(GroupBox0)
+	EditLyricist.Common.SetRect 20, 35, 450, 35
+	EditLyricist.Common.ControlName = "LyricistKeywords"
+	EditLyricist.Text = LyricistKeywords
+
+
+	Set Label2 = UI.NewLabel(GroupBox0)
+	Label2.Common.SetRect 20, 60, 50, 25
+	Label2.Caption = SDB.Localize("Conductor")
+	Set EditConductor = UI.NewEdit(GroupBox0)
+	EditConductor.Common.SetRect 20, 75, 450, 35
+	EditConductor.Common.ControlName = "ConductorKeywords"
+	EditConductor.Text = ConductorKeywords
+
+
+	Set Label2 = UI.NewLabel(GroupBox0)
+	Label2.Common.SetRect 20, 100, 50, 25
+	Label2.Caption = SDB.Localize("Producer")
+	Set EditProducer = UI.NewEdit(GroupBox0)
+	EditProducer.Common.SetRect 20, 115, 450, 35
+	EditProducer.Common.ControlName = "ProducerKeywords"
+	EditProducer.Text = ProducerKeywords
+
+
+	Set Label2 = UI.NewLabel(GroupBox0)
+	Label2.Common.SetRect 20, 140, 50, 25
+	Label2.Caption = SDB.Localize("Composer")
+	Set EditComposer = UI.NewEdit(GroupBox0)
+	EditComposer.Common.SetRect 20, 155, 450, 35
+	EditComposer.Common.ControlName = "ComposerKeywords"
+	EditComposer.Text = ComposerKeywords
+
+	Set Label2 = UI.NewLabel(GroupBox0)
+	Label2.Common.SetRect 20, 180, 50, 25
+	Label2.Caption = SDB.Localize("Featuring")
+	Set EditFeaturing = UI.NewEdit(GroupBox0)
+	EditFeaturing.Common.SetRect 20, 195, 450, 35
+	EditFeaturing.Common.ControlName = "FeaturingKeywords"
+	EditFeaturing.Text = FeaturingKeywords
+
+End Sub
+
+Sub SaveSheet2(Sheet)
+
+	Dim ini
+	Set ini = SDB.IniFile
+	Dim edt
 	Dim tmp, x, editText
+
 	Set edt = Sheet.Common.ChildControl("LyricistKeywords")
 	tmp = Split(edt.Text, ",")
 	editText = ""
@@ -480,30 +637,6 @@ Sub SaveSheet(Sheet)
 		editText = editText & Trim(x) & ","
 	Next
 	ini.StringValue("DiscogsAutoTagWeb", "FeaturingKeywords") = Left(editText, Len(editText)-1)
-
-	Set checkbox = Sheet.Common.ChildControl("NotAlwaysSaveimage")
-	If checkbox.checked Then
-		ini.BoolValue("DiscogsAutoTagWeb", "CheckNotAlwaysSaveimage") = true
-	Else
-		ini.BoolValue("DiscogsAutoTagWeb", "CheckNotAlwaysSaveimage") = false
-	End If
-
-	Set checkbox = Sheet.Common.ChildControl("CheckOriginalDiscogsTrack")
-	If checkbox.checked Then
-		ini.BoolValue("DiscogsAutoTagWeb", "CheckOriginalDiscogsTrack") = true
-	Else
-		ini.BoolValue("DiscogsAutoTagWeb", "CheckOriginalDiscogsTrack") = false
-	End If
-
-	Set edt = Sheet.Common.ChildControl("ArtistSeparator")
-	ini.StringValue("DiscogsAutoTagWeb", "ArtistSeparator") = edt.Text
-
-	Set checkbox = Sheet.Common.ChildControl("EditArtistLastSep")
-	If checkbox.checked Then
-		ini.BoolValue("DiscogsAutoTagWeb", "ArtistLastSeparator") = true
-	Else
-		ini.BoolValue("DiscogsAutoTagWeb", "ArtistLastSeparator") = false
-	End If
 
 End Sub
 
