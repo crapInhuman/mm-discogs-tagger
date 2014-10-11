@@ -1,20 +1,25 @@
 '
 ' MediaMonkey Script
 '
-' NAME: Discogs Tagger Options 1.2
+' NAME: Discogs Tagger Options 1.3
 '
 ' AUTHOR: crap_inhuman
-' DATE : 25/09/2013
+' DATE : 14/11/2013
 '
 '
 ' INSTALL: Automatic installation during Discogs Tagger install
 '
 '
-'Changes from 1.0 to 1.1
-'Added option for changing keywords
+'Changes from 1.2 to 1.3
+'Added 'Don't save' and 4 more fields for saving release-number
 '
 'Changes from 1.1 to 1.2
 'Added 3 new options
+'
+'Changes from 1.0 to 1.1
+'Added option for changing keywords
+'
+
 
 
 
@@ -103,6 +108,11 @@ Sub InitSheet(Sheet)
 	DD1.AddItem (CustomField3)
 	DD1.AddItem (CustomField4)
 	DD1.AddItem (CustomField5)
+	DD1.AddItem ("Don't save")
+	DD1.AddItem (SDB.Localize("Grouping"))
+	DD1.AddItem (SDB.Localize("ISRC"))
+	DD1.AddItem (SDB.Localize("Encoder"))
+	DD1.AddItem (SDB.Localize("Copyright"))
 
 	DD1.Common.ControlName = "ReleaseTag"
 	If ReleaseTag = "Custom1"Then
@@ -119,6 +129,21 @@ Sub InitSheet(Sheet)
 	End If
 	If ReleaseTag = "Custom5" Then
 		DD1.ItemIndex = 4
+	End If
+	If ReleaseTag = "Don't save" Then
+		DD1.ItemIndex = 5
+	End If
+	If ReleaseTag = "Grouping" Then
+		DD1.ItemIndex = 6
+	End If
+	If ReleaseTag = "ISRC" Then
+		DD1.ItemIndex = 7
+	End If
+	If ReleaseTag = "Encoding" Then
+		DD1.ItemIndex = 8
+	End If
+	If ReleaseTag = "Copyright" Then
+		DD1.ItemIndex = 9
 	End If
 	Set Label1 = UI.NewLabel(GroupBox0)
 	Label1.Common.SetRect 20, 45, 150, 25
@@ -408,5 +433,9 @@ Function GetCustom(Index)
 	If Index = 4 Then GetCustom = "Custom5"
 	If Index = 5 Then GetCustom = "Don't save"
 	If Index = -1 Then GetCustom = "Default (stored with Genre)"
+	If Index = 6 Then GetCustom = "Grouping"
+	If Index = 7 Then GetCustom = "ISRC"
+	If Index = 8 Then GetCustom = "Encoder"
+	If Index = 9 Then GetCustom = "Copyright"
 
 End Function
