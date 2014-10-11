@@ -2,7 +2,10 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v4.52"
+Const VersionStr = "v4.53"
+
+'Changes from 4.52 to 4.53 by crap_inhuman in 08.2014
+'	Changed discogs image url
 
 'Changes from 4.51 to 4.52 by crap_inhuman in 08.2014
 '	Changed OAuth Authorization procedure
@@ -2503,9 +2506,9 @@ Sub ReloadResults
 
 				If currentImage("type") = "primary" Or AlbumArtURL = "" Then
 					AlbumArtURL = currentImage("uri")
-					AlbumArtURL = Replace(AlbumArtURL, "http://api.discogs.com", "http://s.pixogs.com")
+					AlbumArtURL = Replace(AlbumArtURL, "http://api.discogs.com/images", "http://s.pixogs.com/image")
 					AlbumArtThumbNail = currentImage("uri150")
-					AlbumArtThumbNail = Replace(AlbumArtThumbnail, "http://api.discogs.com", "http://s.pixogs.com")
+					AlbumArtThumbNail = Replace(AlbumArtThumbnail, "http://api.discogs.com/images", "http://s.pixogs.com/image")
 				End If
 			Next
 		End If
@@ -2523,7 +2526,7 @@ Sub ReloadResults
 				For Each i In CurrentRelease("images")
 					Set currentImage = CurrentRelease("images")(i)
 					tmpArt = currentImage("uri")
-					tmpArt = Replace(tmpArt, "http://api.discogs.com", "http://s.pixogs.com")
+					tmpArt = Replace(tmpArt, "http://api.discogs.com/images", "http://s.pixogs.com/image")
 					If AlbumArtURL <> tmpArt Then
 						ImageList.add tmpArt
 						SaveImageType.add "other"
