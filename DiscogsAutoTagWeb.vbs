@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v4.33"
+Const VersionStr = "v4.34"
+
+'Changes from 4.33 to 4.34 by crap_inhuman in 11.2013
+	'Now it's possible to change the search string in the top bar
+
 
 'Changes from 4.32 to 4.33 by crap_inhuman in 10.2013
 	'Fixed a bug with the Separator
@@ -161,6 +165,7 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	Set MediaTypeFilterList = SDB.NewStringList
 	Set MediaFormatFilterList = SDB.NewStringList
 	Set YearFilterList = SDB.NewStringList
+	SearchTerm = LTrim(SearchTerm)
 
 	'*FilterList.Item(0) = "0" -> No Filter
 	'*FilterList.Item(0) = "1" -> Custom Filter
@@ -920,6 +925,7 @@ End Sub
 
 Sub FindResults(SearchTerm)
 
+	SearchTerm = LTrim(SearchTerm)
 	WriteLog("Start FindResults")
 	WriteLog("SearchTerm=" & SearchTerm)
 	WriteLog("SavedSearchArtist=" & SavedSearchArtist)
@@ -991,13 +997,13 @@ Sub FindResults(SearchTerm)
 		End If
 
 		SearchString = SearchTerm
-		
-		If AlternativeList.Item(0) = SearchString Then
-			searchURL = "http://api.discogs.com/database/search?type=release&title=" & URLEncodeUTF8(CleanSearchString(SavedSearchAlbum)) & "&artist=" & URLEncodeUTF8(CleanSearchString(SavedSearchArtist))
-		Else
-			searchURL = "http://api.discogs.com/database/search?q=" & URLEncodeUTF8(CleanSearchString(SearchString)) & "&type=release"
-		End If
 
+		searchURL = "http://api.discogs.com/database/search?q=" & URLEncodeUTF8(CleanSearchString(SearchString)) & "&type=release"
+
+
+		WriteLog("SearchString=" & SearchString)
+		WriteLog("AlternativeList0=" & AlternativeList.Item(0))
+		WriteLog("AlternativeList1=" & AlternativeList.Item(1))
 		WriteLog("searchURL=" & searchURL)
 
 		JSONParser_find_result searchURL, "results"
