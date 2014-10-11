@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v4.37"
+Const VersionStr = "v4.38"
+
+'Changes from 4.37 to 4.38 by crap_inhuman in 02.2014
+	'Added the Featuring Keywords
+	'Fixed a bug with the new submission form of discogs
 
 'Changes from 4.36 to 4.37 by crap_inhuman in 02.2014
 	'Changed the image access method
@@ -120,7 +124,7 @@ Dim WebBrowser
 Dim CurrentRelease
 
 Dim UI
-Dim searchURL, releaseURL, artistURL, masterURL, labelURL
+
 Dim Results, ResultsReleaseID ' result list
 Dim CurrentResultID
 Dim ini
@@ -133,7 +137,7 @@ Dim CheckTitleFeaturing, CheckComment, CheckFeaturingName, TxtFeaturingName, Che
 Dim CheckUnselectNoTrackPos, CheckStyleField
 Dim SubTrackNameSelection
 Dim CountryFilterList, MediaTypeFilterList, MediaFormatFilterList, YearFilterList
-Dim LyricistKeywords, ConductorKeywords, ProducerKeywords, ComposerKeywords
+Dim LyricistKeywords, ConductorKeywords, ProducerKeywords, ComposerKeywords, FeaturingKeywords
 
 Dim SavedReleaseId
 Dim SavedSearchTerm, SavedSearchArtist, SavedSearchAlbum
@@ -357,6 +361,9 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		If ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords") = "" Then
 			ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords") = "Composed By,Score,Written-By,Written By,Music By,Programmed By,Songwriter"
 		End If
+		If ini.StringValue("DiscogsAutoTagWeb","FeaturingKeywords") = "" Then
+			ini.StringValue("DiscogsAutoTagWeb","FeaturingKeywords") = "featuring,feat.,ft.,ft ,feat ,Rap,Rap [Featuring],Vocals [Featuring]"
+		End If
 
 		If ini.StringValue("DiscogsAutoTagWeb", "CheckNotAlwaysSaveImage") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb", "CheckNotAlwaysSaveImage") = false
@@ -440,6 +447,7 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	ConductorKeywords = ini.StringValue("DiscogsAutoTagWeb","ConductorKeywords")
 	ProducerKeywords = ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords")
 	ComposerKeywords = ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords")
+	FeaturingKeywords = ini.StringValue("DiscogsAutoTagWeb","FeaturingKeywords")
 	CheckNotAlwaysSaveImage = ini.BoolValue("DiscogsAutoTagWeb","CheckNotAlwaysSaveImage")
 	CheckStyleField = ini.StringValue("DiscogsAutoTagWeb","CheckStyleField")
 
@@ -840,7 +848,7 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	Next
 
 	If UBound(tmpYear2) <> YearList.Count -1 Then
-		msgbox UBound(tmpYear2) & " -- " & YearList.Count -1
+		'msgbox UBound(tmpYear2) & " -- " & YearList.Count -1
 		tmpYear = tmpYear & ",1"
 		ini.StringValue("DiscogsAutoTagWeb","CurrentYearFilter") = tmpYear
 		tmpYear2 = Split(tmpYear, ",")
@@ -944,7 +952,7 @@ Sub FindResults(SearchTerm)
 	WriteLog("SavedSearchArtist=" & SavedSearchArtist)
 	WriteLog("SavedSearchAlbum=" & SavedSearchAlbum)
 	
-	Dim ErrorMessage, FilterFound, a
+	Dim ErrorMessage, FilterFound, a, searchURL
 
 	Set Results = SDB.NewStringList
 	Set ResultsReleaseID = SDB.NewStringList
@@ -1100,7 +1108,7 @@ End Sub
 
 Sub LoadMasterResults(MasterId)
 
-	Dim ErrorMessage
+	Dim ErrorMessage, masterURL
 	WriteLog("MasterResult")
 
 	Set Results = SDB.NewStringList
@@ -1133,7 +1141,8 @@ End Sub
 Sub LoadArtistResults(ArtistId)
 
 	Dim ErrorMessage
-
+	Dim artistURL
+	
 	Set Results = SDB.NewStringList
 	Set ResultsReleaseID = SDB.NewStringList
 	ErrorMessage = ""
@@ -1163,7 +1172,7 @@ End Sub
 
 Sub LoadLabelResults(LabelId)
 
-	Dim ErrorMessage
+	Dim ErrorMessage, labelURL
 
 	Set Results = SDB.NewStringList
 	Set ResultsReleaseID = SDB.NewStringList
@@ -1285,7 +1294,6 @@ Sub ReloadResults
 				AlbumArtist = artistName
 			End If
 
-			Writelog("Start ReloadResults")
 			Writelog("SavedArtistId=" & SavedArtistId)
 			AlbumArtistTitle = AlbumArtistTitle & artistName
 
@@ -1298,6 +1306,7 @@ Sub ReloadResults
 				End If
 			End If
 		Next
+		Writelog("AlbumArtistTitle=" & AlbumArtistTitle)
 
 		If (Not CheckAlbumArtistFirst) Then
 			AlbumArtist = AlbumArtistTitle
@@ -1789,6 +1798,7 @@ Sub ReloadResults
 								TrackFeaturing = TrackFeaturing & Separator & involvedArtist
 							End If
 						End If
+						WriteLog("TrackFeaturing=" & TrackFeaturing)
 					Else
 						Do
 							ret = searchKeyword(LyricistKeywords, involvedRole, TrackLyricists, involvedArtist)
@@ -1859,9 +1869,10 @@ Sub ReloadResults
 						Else
 							TrackFeaturing = TrackFeaturing & ", " & tmpTrackArtist
 						End If
+						WriteLog("TrackFeaturing=" & TrackFeaturing)
 					End If
 					'TitleFeaturing
-					If currentArtist("join") <> "" Then
+					If currentArtist("join") <> "" And currentArtist("join") <> "," Then
 						If LookForFeaturing(currentArtist("join")) Then
 							FoundFeaturing = true
 							tmpJoin = currentArtist("join")
@@ -2512,7 +2523,7 @@ End Sub
 ' down at the top of the window
 Sub ShowResult(ResultID)
 
-	Dim ReleaseID, oXMLHTTP
+	Dim ReleaseID, searchURL, oXMLHTTP
 	WebBrowser.SetHTMLDocument ""                 ' Deletes visible search result
 	ReleaseID = ResultsReleaseID.Item(ResultID)
 	If Right(Results.Item(ResultID), 1) = "*" Then  'Master-Release
@@ -4052,11 +4063,15 @@ End Function
 
 Function LookForFeaturing(Text)
 
-	If InStr(1, Text, "featuring", 1) <> 0 Or InStr(1, Text, "feat.", 1) <> 0 Or InStr(1, Text, "ft.", 1) <> 0 Or InStr(1, Text, "ft ", 1) <> 0 Or InStr(1, Text, "feat ", 1) <> 0 Then
-		LookForFeaturing = true
-	Else
-		LookForFeaturing = false
-	End If
+	Dim i, tmp, x
+	tmp = Split(FeaturingKeywords, ",")
+	For each x in tmp
+		If Text = x Then
+			LookForFeaturing = true
+			Exit Function
+		End If
+	Next
+	LookForFeaturing = false
 
 End Function
 
