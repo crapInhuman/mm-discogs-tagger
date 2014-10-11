@@ -1,7 +1,23 @@
+Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
-' 
-Const VersionStr = "v4.0"
+'
+Const VersionStr = "v4.30"
+
+'Changes from 4.00 to 4.30 by crap_inhuman in 07-09.2013
+	'Added Sub tracks option.
+	'Added option 'Unselect tracks without track-number'
+		'Some albums at discogs have 'Index-Tracks'.
+		'These tracks aren't song-tracks (e.g. Track-Name: 'Bonus track' or 'Live side')
+		'This option unselect these tracks automatically
+	'-------------------------------------------------------
+	'Show a warning if the number of songs are different
+	'For the catalog-number, release-country and media-format you can choose "Don't save" in the option menu, if you don't need it.
+	'You can edit the keywords for linking the composer, producer, conductor,... tags with discogs
+	'included DiscogsImages: you can choose more than one image for an album
+	'New Option: Check 'Save Image' Checkbox only if release have no image
+	'New Option: Choose another field for saving Style
+
 
 'Changes from 3.65 to 4.00 by crap_inhuman in 07.2013
 	'Bug removed with releases having leading zero in track-position
@@ -36,7 +52,7 @@ Const VersionStr = "v4.0"
 '	Some small bugfixes
 
 'Changes from 3.6 to 3.61 by crap_inhuman in 02.2013
-'   Removed a bug in the option 'Featuring Artist behind title'
+'	Removed a bug in the option 'Featuring Artist behind title'
 '	Better implementation of the option 'Featuring Artist behind title'
 '	Inserting Master and Release URLs now work in the Search-Panel
 
@@ -64,13 +80,14 @@ Const VersionStr = "v4.0"
 
 ' ToDo: Add more tooltips to the html
 
-' WebBrowser is visible browser object with display of discogs album info
 
+' WebBrowser is visible browser object with display of discogs album info
 Dim WebBrowser
 
 ' decoded json object representing currently selected release
 Dim CurrentRelease
 
+Dim UI
 Dim searchURL, releaseURL, artistURL, masterURL, labelURL
 Dim Results, ResultsReleaseID ' result list
 Dim CurrentResultID
@@ -80,10 +97,16 @@ Dim CheckAlbum, CheckArtist, CheckAlbumArtist, CheckAlbumArtistFirst, CheckLabel
 Dim CheckCountry, CheckCover, CheckSmallCover, CheckStyle, CheckCatalog, CheckRelease, CheckInvolved, CheckLyricist
 Dim CheckComposer, CheckConductor, CheckProducer, CheckDiscNum, CheckTrackNum, CheckFormat, CheckUseAnv, CheckYearOnlyDate
 Dim CheckForceNumeric, CheckSidesToDisc, CheckForceDisc, CheckNoDisc, CheckLeadingZero, CheckVarious, TxtVarious
-Dim CheckTitleFeaturing, CheckComment, CheckFeaturingName, TxtFeaturingName, CheckOriginalDiscogsTrack
+Dim CheckTitleFeaturing, CheckComment, CheckFeaturingName, TxtFeaturingName, CheckOriginalDiscogsTrack, CheckNotAlwaysSaveImage
+Dim CheckUnselectNoTrackPos, CheckStyleField
+Dim SubTrackNameSelection
 Dim CountryFilterList, MediaTypeFilterList, MediaFormatFilterList, YearFilterList
+Dim LyricistKeywords, ConductorKeywords, ProducerKeywords, ComposerKeywords
 
-Dim SavedReleaseId, SavedSearchTerm, SavedMasterId, SavedArtistId, SavedLabelId, SavedArtistName
+Dim SavedReleaseId
+Dim SavedSearchTerm, SavedSearchArtist, SavedSearchAlbum
+Dim SavedMasterId, SavedArtistId, SavedLabelId
+
 Dim FilterMediaType, FilterCountry, FilterYear, FilterMediaFormat, CurrentLoadType
 Dim MediaTypeList, MediaFormatList, CountryList, YearList, AlternativeList, LoadList
 
@@ -97,348 +120,19 @@ Dim SelectAll, UnselectedTracks(1000)
 Dim ReleaseTag, CountryTag, CatalogTag, FormatTag
 Dim ReleaseTagList, CountryTagList, CatalogTagList, FormatTagList
 Dim OriginalDate, Separator
+Dim UserChoose
 
 Dim fso, loc, logf
 
-
-Class VbsJson
-	'Author: Demon
-	'Date: 2012/5/3
-	'Website: http://demon.tw
-	Private Whitespace, NumberRegex, StringChunk
-	Private b, f, r, n, t
-
-	Private Sub Class_Initialize
-		Whitespace = " " & vbTab & vbCr & vbLf
-		b = ChrW(8)
-		f = vbFormFeed
-		r = vbCr
-		n = vbLf
-		t = vbTab
-
-		Set NumberRegex = New RegExp
-		NumberRegex.Pattern = "(-?(?:0|[1-9]\d*))(\.\d+)?([eE][-+]?\d+)?"
-		NumberRegex.Global = false
-		NumberRegex.MultiLine = true
-		NumberRegex.IgnoreCase = true
-
-		Set StringChunk = New RegExp
-		StringChunk.Pattern = "([\s\S]*?)([""\\\x00-\x1f])"
-		StringChunk.Global = false
-		StringChunk.MultiLine = true
-		StringChunk.IgnoreCase = true
-	End Sub
-	
-	'Return a JSON string representation of a VBScript data structure
-	'Supports the following objects and types
-	'+-------------------+---------------+
-	'| VBScript          | JSON          |
-	'+===================+===============+
-	'| Dictionary        | object        |
-	'+-------------------+---------------+
-	'| Array             | array         |
-	'+-------------------+---------------+
-	'| String            | string        |
-	'+-------------------+---------------+
-	'| Number            | number        |
-	'+-------------------+---------------+
-	'| True              | true          |
-	'+-------------------+---------------+
-	'| False             | false         |
-	'+-------------------+---------------+
-	'| Null              | null          |
-	'+-------------------+---------------+
-	Public Function Encode(ByRef obj)
-		Dim buf, i, c, g
-		Set buf = CreateObject("Scripting.Dictionary")
-		Select Case VarType(obj)
-			Case vbNull
-				buf.Add buf.Count, "null"
-			Case vbBoolean
-				If obj Then
-					buf.Add buf.Count, "true"
-				Else
-					buf.Add buf.Count, "false"
-				End If
-			Case vbInteger, vbLong, vbSingle, vbDouble
-				buf.Add buf.Count, obj
-			Case vbString
-				buf.Add buf.Count, """"
-				For i = 1 To Len(obj)
-					c = Mid(obj, i, 1)
-					Select Case c
-						Case """" buf.Add buf.Count, "\"""
-						Case "\"  buf.Add buf.Count, "\\"
-						Case "/"  buf.Add buf.Count, "/"
-						Case b    buf.Add buf.Count, "\b"
-						Case f    buf.Add buf.Count, "\f"
-						Case r    buf.Add buf.Count, "\r"
-						Case n    buf.Add buf.Count, "\n"
-						Case t    buf.Add buf.Count, "\t"
-						Case Else
-							If AscW(c) >= 0 And AscW(c) <= 31 Then
-								c = Right("0" & Hex(AscW(c)), 2)
-								buf.Add buf.Count, "\u00" & c
-							Else
-								buf.Add buf.Count, c
-							End If
-					End Select
-				Next
-				buf.Add buf.Count, """"
-			Case vbArray + vbVariant
-				g = true
-				buf.Add buf.Count, "["
-				For Each i In obj
-					If g Then g = false Else buf.Add buf.Count, ","
-					buf.Add buf.Count, Encode(i)
-				Next
-				buf.Add buf.Count, "]"
-			Case vbObject
-				If TypeName(obj) = "Dictionary" Then
-					g = true
-					buf.Add buf.Count, "{"
-					For Each i In obj
-						If g Then g = false Else buf.Add buf.Count, ","
-						buf.Add buf.Count, """" & i & """" & ":" & Encode(obj(i))
-					Next
-					buf.Add buf.Count, "}"
-				Else
-					Err.Raise 8732,,"None dictionary object"
-				End If
-			Case Else
-				buf.Add buf.Count, """" & CStr(obj) & """"
-		End Select
-		Encode = Join(buf.Items, "")
-	End Function
-
-	'Return the VBScript representation of ``str(``
-	'Performs the following translations in decoding
-	'+---------------+-------------------+
-	'| JSON          | VBScript          |
-	'+===============+===================+
-	'| object        | Dictionary        |
-	'+---------------+-------------------+
-	'| array         | Array             |
-	'+---------------+-------------------+
-	'| string        | String            |
-	'+---------------+-------------------+
-	'| number        | Double            |
-	'+---------------+-------------------+
-	'| true          | True              |
-	'+---------------+-------------------+
-	'| false         | False             |
-	'+---------------+-------------------+
-	'| null          | Null              |
-	'+---------------+-------------------+
-	Public Function Decode(ByRef str)
-		'return base object
-		Set Decode = ParseObject(str, 1)
-	End Function
-	
-	Private Function ParseValue(ByRef str, ByRef idx)
-		Dim c, ms
-
-		idx = NextToken(str, idx)
-		c = Mid(str, idx, 1)
-
-		If c = "{" Then
-			Set ParseValue = ParseObject(str, idx)
-			Exit Function
-		ElseIf c = "[" Then
-			Set ParseValue = ParseArray(str, idx)
-			Exit Function
-		ElseIf c = """" Then
-			idx = idx + 1
-			ParseValue = ParseString(str, idx)
-			Exit Function
-		ElseIf c = "n" And StrComp("null", Mid(str, idx, 4)) = 0 Then
-			idx = idx + 4
-			ParseValue = Null
-			Exit Function
-		ElseIf c = "t" And StrComp("true", Mid(str, idx, 4)) = 0 Then
-			idx = idx + 4
-			ParseValue = true
-			Exit Function
-		ElseIf c = "f" And StrComp("false", Mid(str, idx, 5)) = 0 Then
-			idx = idx + 5
-			ParseValue = false
-			Exit Function
-		Else
-			Set ms = NumberRegex.Execute(Mid(str, idx))
-			If ms.Count = 1 Then
-				idx = idx + ms(0).Length
-				ParseValue = CDbl(Replace(ms(0),".",","))
-				Exit Function
-			End If
-		End If
-
-		Err.Raise 8732,,"No JSON object could be ParseValued"
-	End Function
-
-	Private Function ParseObject(ByRef str, ByRef idx)
-		Dim c, key, value
-		Set ParseObject = CreateObject("Scripting.Dictionary")
-
-		idx = NextToken(str, idx)
-
-		c = Mid(str, idx, 1)
-
-		If c = "{" Then
-			idx = NextToken(str,idx+1)
-		Else
-			Err.Raise 8732,,"Expected { to begin Object"
-		End If
-
-		c = Mid(str, idx, 1)
-
-		Do
-			If c <> """" AND c <> "}" Then
-
-				Err.Raise 8732,,"Expecting property name or } near: " & Mid(str,idx)
-
-			ElseIf c = """" Then
-
-				idx = idx + 1
-				key = ParseString(str, idx)
-
-				idx = NextToken(str, idx)
-				If Mid(str, idx, 1) <> ":" Then
-					Err.Raise 8732,,"Expecting : delimiter near: " & mid(str,idx)
-				End If
-
-				' skip : and whitespace after key
-				idx = NextToken(str, idx + 1)
-
-				' check for object or array value
-				If Mid(str,idx,1) = "{" OR Mid(str,idx,1) = "[" Then
-					Set value = ParseValue(str, idx)
-				Else
-					value = ParseValue(str,idx)
-				End If
-
-				ParseObject.Add key, value
-			End If
-
-			c = Mid(str,idx,1)
-
-			If c = "}" Then
-				idx = NextToken(str,idx+1)
-				Exit Function
-			End If
-
-			If c <> "," Then
-
-				Err.Raise 8732,,"Expecting , delimiter near: " & Mid(str,idx)
-
-			End If
-
-			'skip , and whitespace after value
-			idx = NextToken(str, idx + 1)
-			c = Mid(str, idx, 1)
-			If c <> """" Then
-				Err.Raise 8732,,"Expecting property name"
-			End If
-		Loop
-	End Function
-
-	Private Function ParseArray(ByRef str, ByRef idx)
-		Dim c, values, value
-		Set ParseArray = CreateObject("Scripting.Dictionary")
-
-		idx = NextToken(str, idx)
-		c = Mid(str, idx, 1)
-
-		If c = "[" Then
-			idx = NextToken(str,idx+1)
-		Else
-			Err.Raise 8732,,"Expected [ to begin Array"
-		End If
-
-		Do
-			c = Mid(str, idx, 1)
-
-			If c = "]" Then
-				idx = NextToken(str,idx+1)
-				Exit Function
-			End If
-
-			ParseArray.Add ParseArray.Count, ParseValue(str, idx)
-
-			c = Mid(str, idx, 1)
-
-			If c = "]" Then
-				idx = NextToken(str, idx+1)
-				Exit function
-			End If
-
-			If c <> "," Then
-				Err.Raise 8732,,"Expecting , delimiter near: " & mid(str,idx)
-			End If
-
-			idx = NextToken(str,idx+1)
-
-		Loop
-	End Function
-
-	Private Function ParseString(ByRef str, ByRef idx)
-		Dim chunks, content, terminator, ms, esc, char
-		Set chunks = CreateObject("Scripting.Dictionary")
-
-		Do
-			Set ms = StringChunk.Execute(Mid(str, idx))
-			If ms.Count = 0 Then
-				Err.Raise 8732,,"Unterminated string starting"
-			End If
-
-			content = ms(0).Submatches(0)
-			terminator = ms(0).Submatches(1)
-			If Len(content) > 0 Then
-				chunks.Add chunks.Count, content
-			End If
-
-			idx = idx + ms(0).Length
-
-			If terminator = """" Then
-				Exit Do
-			ElseIf terminator <> "\" Then
-				Err.Raise 8732,,"Invalid control character"
-			End If
-
-			esc = Mid(str, idx, 1)
-
-			If esc <> "u" Then
-				Select Case esc
-					Case """" char = """"
-					Case "\"  char = "\"
-					Case "/"  char = "/"
-					Case "b"  char = b
-					Case "f"  char = f
-					Case "n"  char = n
-					Case "r"  char = r
-					Case "t"  char = t
-					Case Else Err.Raise 8732,,"Invalid escape"
-				End Select
-				idx = idx + 1
-			Else
-				char = ChrW("&H" & Mid(str, idx + 1, 4))
-				idx = idx + 5
-			End If
-
-			chunks.Add chunks.Count, char
-		Loop
-
-		ParseString = Join(chunks.Items, "")
-	End Function
-
-	Private Function NextToken(ByRef str, ByVal idx)
-		Do While idx <= Len(str) And InStr(Whitespace, Mid(str, idx, 1)) > 0
-			idx = idx + 1
-		Loop
-		NextToken = idx
-	End Function
-
-End Class
-
+'----------------------------------DiscogsImages----------------------------------------
+Dim SaveImageType, SaveImage, CoverStorage, FileNameList
+Dim ImageTypeList, ImageList
+Dim list
+Dim ImagesCount
+Dim SaveMoreImages
+Dim WebBrowser3
+Dim SelectedSongsGlobal
+'----------------------------------DiscogsImages----------------------------------------
 
 ' Easier access of SDB.UI
 Set UI = SDB.UI
@@ -446,6 +140,8 @@ Set UI = SDB.UI
 ' MediaMonkey calls this method whenever a search is started using this script
 Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 
+	Dim tmpCountry, tmpCountry2, tmpMediaType, tmpMediaType2, tmpMediaFormat, tmpMediaFormat2, tmpYear, tmpYear2
+	Dim i, a, tmp
 	Set CountryFilterList = SDB.NewStringList
 	Set MediaTypeFilterList = SDB.NewStringList
 	Set MediaFormatFilterList = SDB.NewStringList
@@ -578,6 +274,12 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		If ini.StringValue("DiscogsAutoTagWeb","CheckComment") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","CheckComment") = true
 		End If
+		If ini.StringValue("DiscogsAutoTagWeb","CheckUnselectNoTrackPos") = "" Then
+			ini.BoolValue("DiscogsAutoTagWeb","CheckUnselectNoTrackPos") = true
+		End If
+		If ini.StringValue("DiscogsAutoTagWeb","SubTrackNameSelection") = "" Then
+			ini.BoolValue("DiscogsAutoTagWeb","SubTrackNameSelection") = false
+		End If
 		If ini.StringValue("DiscogsAutoTagWeb","CurrentCountryFilter") = "" Then
 			tmp = "0"
 			For a = 1 to 282
@@ -610,9 +312,45 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 			ini.StringValue("DiscogsAutoTagWeb","CurrentYearFilter") = tmp
 		End If
 
+		If ini.StringValue("DiscogsAutoTagWeb","LyricistKeywords") = "" Then
+			ini.StringValue("DiscogsAutoTagWeb","LyricistKeywords") = "Lyrics By|Words By"
+		End If
+		If ini.StringValue("DiscogsAutoTagWeb","ConductorKeywords") = "" Then
+			ini.StringValue("DiscogsAutoTagWeb","ConductorKeywords") = "Conductor"
+		End If
+		If ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords") = "" Then
+			ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords") = "Producer|Arranged By|Recorded By"
+		End If
+		If ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords") = "" Then
+			ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords") = "Composed By|Score|Written-By|Written By|Music By|Programmed By|Songwriter"
+		End If
+
+		If ini.StringValue("DiscogsAutoTagWeb", "CheckNotAlwaysSaveImage") = "" Then
+			ini.BoolValue("DiscogsAutoTagWeb", "CheckNotAlwaysSaveImage") = false
+		End If
+		If ini.StringValue("DiscogsAutoTagWeb","CheckStyleField") = "" Then
+			ini.StringValue("DiscogsAutoTagWeb","CheckStyleField") = "Default (stored with Genre)"
+		End If
+
+		'----------------------------------DiscogsImages----------------------------------------
+		CoverStorage = ini.StringValue("PreviewSettings","DefaultCoverStorage")
+		'Coverstorage = 0 -> Save image to tag (if possible) otherwise save to file folder
+		'Coverstorage = 1 -> Save image to file folder
+		'Coverstorage = 2 -> Save image to cover folder (is deprecated and will not be supported !!)
+		'Coverstorage = 3 -> Save image to tag (if possible) and to file folder
+		If CoverStorage = 2 Then
+			Call SDB.MessageBox("Discogs Images: Your Cover Storage is not supported by DiscogsImages !",mtError,Array(mbOk))
+			Exit Sub
+		End If
+		'----------------------------------DiscogsImages----------------------------------------
+		
 	End If
 
-	'WriteLogInit  'Only use for debugging
+	WriteLogInit  'Only use for debugging
+	
+	WriteLog("SearchTerm=" & SearchTerm)
+	WriteLog("SearchArtist=" & SearchArtist)
+	WriteLog("SearchAlbum=" & SearchAlbum)
 
 	CheckAlbum = ini.BoolValue("DiscogsAutoTagWeb","CheckAlbum")
 	CheckArtist = ini.BoolValue("DiscogsAutoTagWeb","CheckArtist")
@@ -654,6 +392,8 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	CheckFeaturingName = ini.boolValue("DiscogsAutoTagWeb","CheckFeaturingName")
 	TxtFeaturingName = ini.StringValue("DiscogsAutoTagWeb","TxtFeaturingName")
 	CheckComment = ini.BoolValue("DiscogsAutoTagWeb","CheckComment")
+	CheckUnselectNoTrackPos = ini.BoolValue("DiscogsAutoTagWeb","CheckUnselectNoTrackPos")
+	SubTrackNameSelection = ini.BoolValue("DiscogsAutoTagWeb","SubTrackNameSelection")
 	Separator = ini.StringValue("Appearance","MultiStringSeparator")
 	tmpCountry = ini.StringValue("DiscogsAutoTagWeb","CurrentCountryFilter")
 	tmpCountry2 = Split(tmpCountry, ",")
@@ -663,7 +403,12 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	tmpMediaFormat2 = Split(tmpMediaFormat, ",")
 	tmpYear = ini.StringValue("DiscogsAutoTagWeb","CurrentYearFilter")
 	tmpYear2 = Split(tmpYear, ",")
-
+	LyricistKeywords = ini.StringValue("DiscogsAutoTagWeb","LyricistKeywords")
+	ConductorKeywords = ini.StringValue("DiscogsAutoTagWeb","ConductorKeywords")
+	ProducerKeywords = ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords")
+	ComposerKeywords = ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords")
+	CheckNotAlwaysSaveImage = ini.BoolValue("DiscogsAutoTagWeb","CheckNotAlwaysSaveImage")
+	CheckStyleField = ini.StringValue("DiscogsAutoTagWeb","CheckStyleField")
 
 	Separator = Left(Separator, Len(Separator)-1)
 	Separator = Right(Separator, Len(Separator)-1)
@@ -676,31 +421,6 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	Set YearList = SDB.NewStringList
 	Set AlternativeList = SDB.NewStringList
 	Set LoadList = SDB.NewStringList
-	Set ReleaseTagList = SDB.NewStringList
-	Set CatalogTagList = SDB.NewStringList
-	Set CountryTagList = SDB.NewStringList
-	Set FormatTagList = SDB.NewStringList
-
-	ReleaseTagList.Add "Custom1"
-	ReleaseTagList.Add "Custom2"
-	ReleaseTagList.Add "Custom3"
-	ReleaseTagList.Add "Custom4"
-	ReleaseTagList.Add "Custom5"
-	CatalogTagList.Add "Custom1"
-	CatalogTagList.Add "Custom2"
-	CatalogTagList.Add "Custom3"
-	CatalogTagList.Add "Custom4"
-	CatalogTagList.Add "Custom5"
-	CountryTagList.Add "Custom1"
-	CountryTagList.Add "Custom2"
-	CountryTagList.Add "Custom3"
-	CountryTagList.Add "Custom4"
-	CountryTagList.Add "Custom5"
-	FormatTagList.Add "Custom1"
-	FormatTagList.Add "Custom2"
-	FormatTagList.Add "Custom3"
-	FormatTagList.Add "Custom4"
-	FormatTagList.Add "Custom5"
 
 	LoadList.Add "Search Results"
 	LoadList.Add "Master Release"
@@ -1165,15 +885,32 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		Set FirstTrack = SDB.Tools.WebSearch.NewTracks.item(0)
 		SavedReleaseId = get_release_ID(FirstTrack) 'get saved Release_ID from User-Defined Custom-Tag
 		SavedSearchTerm = SearchTerm
+		SavedSearchArtist = SearchArtist
+		SavedSearchAlbum = SearchAlbum
 	End If
 
-	FindResults SavedSearchTerm
+	Dim AlbumArt
+	Set AlbumArt = FirstTrack.AlbumArt
+	If AlbumArt.Count > 0 Then
+		If CheckNotAlwaysSaveImage = true Then
+			CheckCover = false
+			CheckSmallCover = false
+		End If
+	End If
+
+	FindResults(SavedSearchTerm)
 
 End Sub
 
 
 Sub FindResults(SearchTerm)
-	Dim ErrorMessage
+
+	WriteLog("Start FindResults")
+	WriteLog("SearchTerm=" & SearchTerm)
+	WriteLog("SavedSearchArtist=" & SavedSearchArtist)
+	WriteLog("SavedSearchAlbum=" & SavedSearchAlbum)
+	
+	Dim ErrorMessage, FilterFound
 
 	Set Results = SDB.NewStringList
 	Set ResultsReleaseID = SDB.NewStringList
@@ -1210,11 +947,13 @@ Sub FindResults(SearchTerm)
 		Exit Sub
 	End If
 
-	If (InStr(SearchTerm,"/artist/") > 0) Then
-		CurrentLoadType = "Releases of Artist"
-		LoadArtistResults Mid(SearchTerm,InstrRev(SearchTerm,"/")+1)
-		Exit Sub
-	End If
+	'Will not be longer supported, cause the artist url at Discogs have no more artist-id
+	REM If (InStr(SearchTerm,"/artist/") > 0) Then
+		REM CurrentLoadType = "Releases of Artist"
+		REM WriteLog("Direct Artist url (ArtistId)=" & Mid(SearchTerm,InstrRev(SearchTerm,"/")+1))
+		REM LoadArtistResults Mid(SearchTerm,InstrRev(SearchTerm,"/")+1)
+		Rem Exit Sub
+	REM End If
 
 	If (InStr(SearchTerm,"/label/") > 0) Then
 		CurrentLoadType = "Releases of Label"
@@ -1237,7 +976,15 @@ Sub FindResults(SearchTerm)
 		End If
 
 		SearchString = SearchTerm
-		searchURL = "http://api.discogs.com/database/search?q=" & URLEncodeUTF8(CleanSearchString(SearchString)) & "&type=release&title"
+		
+		If AlternativeList.Item(0) = SearchString Then
+			searchURL = "http://api.discogs.com/database/search?type=release&title=" & URLEncodeUTF8(CleanSearchString(SavedSearchAlbum)) & "&artist=" & URLEncodeUTF8(CleanSearchString(SavedSearchArtist))
+		Else
+			searchURL = "http://api.discogs.com/database/search?q=" & URLEncodeUTF8(CleanSearchString(SearchString)) & "&type=release"
+		End If
+
+		WriteLog("searchURL=" & searchURL)
+
 		JSONParser_find_result searchURL, "results"
 
 		If ResultsReleaseID.Count = 0 Then
@@ -1327,7 +1074,7 @@ End Sub
 Sub LoadMasterResults(MasterId)
 
 	Dim ErrorMessage
-	Dim theTitle, theFormat, theLabel, theCatno, theCountry, theReleased, theAlbumArtistTitle
+	WriteLog("MasterResult")
 
 	Set Results = SDB.NewStringList
 	Set ResultsReleaseID = SDB.NewStringList
@@ -1359,7 +1106,6 @@ End Sub
 Sub LoadArtistResults(ArtistId)
 
 	Dim ErrorMessage
-	Dim theTitle, theFormat, theLabel, theYear
 
 	Set Results = SDB.NewStringList
 	Set ResultsReleaseID = SDB.NewStringList
@@ -1391,7 +1137,6 @@ End Sub
 Sub LoadLabelResults(LabelId)
 
 	Dim ErrorMessage
-	Dim theTitle, theFormat, theLabel, theCatno, theCountry, theReleased
 
 	Set Results = SDB.NewStringList
 	Set ResultsReleaseID = SDB.NewStringList
@@ -1423,6 +1168,13 @@ End Sub
 'For reloading results
 Sub ReloadResults
 
+	Dim Tracks, TracksNum, DiscogsTracksNum, TracksCD, ArtistTitles, InvolvedArtists, Lyricists, Composers, Conductors, Producers, Durations
+	Dim AlbumArtist, AlbumArtistTitle, AlbumLyricist, AlbumComposer, AlbumConductor, AlbumProducer, AlbumInvolved, AlbumFeaturing, AlbumTitle
+	Dim track, currentTrack, position, artist, currentArtist, artistName, extraArtist, extra
+	Dim currentImage, currentLabel, currentFormat, theMaster, i, g, l, s, f, d
+	Dim ReleaseDate, ReleaseSplit, theLabels, theCatalogs, theCountry, theFormat
+	Dim Genres, Styles, Comment, DataQuality
+	
 	Set Tracks = SDB.NewStringList
 	Set TracksNum = SDB.NewStringList
 	Set DiscogsTracksNum = SDB.NewStringList
@@ -1435,9 +1187,17 @@ Sub ReloadResults
 	Set Producers = SDB.NewStringList
 	Set Durations = SDB.NewStringList
 
+	'----------------------------------DiscogsImages----------------------------------------
+	Set SaveImage = SDB.NewStringList
+	Set SaveImageType = SDB.NewStringList
+	Set FileNameList = SDB.NewStringList
+	ImagesCount = 0
+	'----------------------------------DiscogsImages----------------------------------------
+
+
 	SDB.Tools.WebSearch.ClearTracksData   ' Tell MM to disregard any previously set tracks' data
 	If not isnull(CurrentRelease) Then
-	
+
 		AlbumArtist = ""
 		AlbumArtistTitle = ""
 		AlbumLyricist = ""
@@ -1449,8 +1209,11 @@ Sub ReloadResults
 		AlbumArtThumbNail = ""
 		AlbumFeaturing = ""
 		LastDisc = ""
-		Dim trackName
-		Dim rolea
+		
+		Dim iTrackNum, iSubTrack, cSubTrack, subTrackTitle
+		Dim trackName, t, pos
+		Dim role, rolea, currentRole, NoSplit, zahl, zahltemp, zahl2, zahltemp2
+		Dim CharSeparatorSubTrack
 		ReDim Involved_R(0)
 		Dim tmp
 		Dim tmp2
@@ -1470,20 +1233,18 @@ Sub ReloadResults
 			position = currentTrack("position")
 			DiscogsTracksNum.Add position
 			position = exchange_roman_numbers(position)
-			If position <> "" Then
-				ReDim Preserve Title_Position(UBound(Title_Position)+1)
-				Title_Position(UBound(Title_Position)) = position
-			End If
+			ReDim Preserve Title_Position(UBound(Title_Position)+1)
+			Title_Position(UBound(Title_Position)) = position
 		Next
 
 
 		'Check for leading zero in track-position
 		LeadingZeroTrackPosition = CheckLeadingZeroTrackPosition(Title_Position(1))
-		'WriteLog("LeadingZeroTrackPosition=" & LeadingZeroTrackPosition)
 
 		' Get artist title
 		For Each artist in CurrentRelease("artists")
 			Set currentArtist = CurrentRelease("artists")(artist)
+			WriteLog("currentArtist=" & currentArtist("name"))
 			If Not CheckUseAnv And currentArtist("anv") <> "" Then
 				artistName = CleanArtistName(currentArtist("anv"))
 				' !!!!!artistName <- currentArtist
@@ -1493,15 +1254,12 @@ Sub ReloadResults
 			End If
 			If SavedArtistId = "" Then SavedArtistId = currentArtist("id")
 
-			If (AlbumArtist = "") Then 
+			If (AlbumArtist = "") Then
 				AlbumArtist = artistName
-				If currentArtist("anv") <> "" Then
-					SavedArtistName = currentArtist("anv")
-				Else
-					SavedArtistName = currentArtist("name")
-				End If
 			End If
 
+			Writelog("Start ReloadResults")
+			Writelog("SavedArtistId=" & SavedArtistId)
 			AlbumArtistTitle = AlbumArtistTitle & artistName
 
 			If currentArtist("join") <> "" Then
@@ -1514,157 +1272,155 @@ Sub ReloadResults
 			End If
 		Next
 
-		If (Not CheckAlbumArtistFirst) Then 
+		If (Not CheckAlbumArtistFirst) Then
 			AlbumArtist = AlbumArtistTitle
 		End If
 
-		If AlbumArtist = "Various" And CheckVarious Then 
+		If AlbumArtist = "Various" And CheckVarious Then
 			AlbumArtist = TxtVarious
 		End If
-		If AlbumArtistTitle = "Various" And CheckVarious Then 
+		If AlbumArtistTitle = "Various" And CheckVarious Then
 			AlbumArtistTitle = TxtVarious
 		End If
 
 
-		For Each extraArtist In CurrentRelease("extraartists")
-			Set currentArtist = CurrentRelease("extraartists")(extraArtist)
-			If currentArtist("tracks") = "" Then
-				If (currentArtist("anv") <> "") And Not CheckUseAnv Then
-					artistName = CleanArtistName(currentArtist("anv"))
-				Else
-					artistName = CleanArtistName(currentArtist("name"))
-				End If
-				role = currentArtist("role")
-				NoSplit = false
-				If InStr(role, ",") = 0 Then
-					currentRole = role
-					zahl = 0
-					NoSplit = true
-				Else
-					rolea = Split(role, ", ")
-					zahl = UBound(rolea)
-				End If
-
-				For zahltemp = 0 To zahl
-					If NoSplit = false Then
-						currentRole = rolea(zahltemp)
-					End If
-					If LookForFeaturing(currentRole) Then
-						If InStr(AlbumFeaturing, artistName) = 0 Then
-							If AlbumFeaturing = "" Then
-								If CheckFeaturingName Then
-									AlbumFeaturing = TxtFeaturingName & " " & artistName
-								Else
-									AlbumFeaturing = currentRole & " " & artistName
-								End If
-							Else
-								AlbumFeaturing = AlbumFeaturing & Separator & artistName
-							End If
-						End If
-					ElseIf (currentRole = "Lyrics By" Or currentRole = "Words By") Then
-						If InStr(AlbumLyricist, artistName) = 0 Then
-							If AlbumLyricist = "" Then
-								AlbumLyricist = artistName
-							Else
-								AlbumLyricist = AlbumLyricist & Separator & artistName
-							End If
-						End If
-					ElseIf currentRole = "Conductor"  Then
-						If AlbumConductor = "" Then
-							AlbumConductor = artistName
-						Else
-							AlbumConductor = AlbumConductor & Separator & artistName
-						End If
-					ElseIf (currentRole = "Producer" Or currentRole = "Arranged By" Or currentRole = "Recorded By") Then
-						If InStr(AlbumProducer, artistName) = 0 Then
-							If AlbumProducer = "" Then
-								AlbumProducer = artistName
-							Else
-								AlbumProducer = AlbumProducer & Separator & artistName
-							End If
-						End If
-					ElseIf (currentRole = "Composed By" Or currentRole = "Score" Or currentRole = "Written-By" Or currentRole = "Written By" Or currentRole = "Music By" Or currentRole = "Programmed By" Or currentRole = "Songwriter") Then
-						If InStr(AlbumComposer, artistName) = 0 Then
-							If AlbumComposer = "" Then
-								AlbumComposer = artistName
-							Else
-								AlbumComposer = AlbumComposer & Separator & artistName
-							End If
-						End If
+		If currentRelease.Exists("extraartists") Then
+			For Each extraArtist In CurrentRelease("extraartists")
+				Set currentArtist = CurrentRelease("extraartists")(extraArtist)
+				If currentArtist("tracks") = "" Then
+					If (currentArtist("anv") <> "") And Not CheckUseAnv Then
+						artistName = CleanArtistName(currentArtist("anv"))
 					Else
-						tmp2 = search_involved(Involved_R, currentRole)
-						If tmp2 = -1 Then
-							ReDim Preserve Involved_R(UBound(Involved_R)+1)
-							Involved_R(UBound(Involved_R)) = currentRole & ": " & artistName
-						Else
-							If InStr(Involved_R(tmp2), artistName) = 0 Then
-								Involved_R(tmp2) = Involved_R(tmp2) & ", " & artistName
-							End If
+						artistName = CleanArtistName(currentArtist("name"))
+					End If
+					role = currentArtist("role")
+					NoSplit = false
+					If InStr(role, ",") = 0 Then
+						currentRole = role
+						zahl = 0
+						NoSplit = true
+					Else
+						rolea = Split(role, ", ")
+						zahl = UBound(rolea)
+					End If
+
+					For zahltemp = 0 To zahl
+						If NoSplit = false Then
+							currentRole = rolea(zahltemp)
 						End If
-					End If
-				Next
-			Else
-				If Not CheckUseAnv And currentArtist("anv") <> "" Then
-					artistName = CleanArtistName(currentArtist("anv"))
-				Else
-					artistName = CleanArtistName(currentArtist("name"))
-				End If
-				role = currentArtist("role")
-				rTrack = currentArtist("tracks")
-
-				NoSplit = false
-				If InStr(role, ",") <> 0 Then
-					rolea = Split(role, ", ")
-					zahl = UBound(rolea)
-				ElseIf InStr(role, " & ") <> 0 Then
-					rolea = Split(role, " & ")
-					zahl = UBound(rolea)
-				Else
-					involvedRole = role
-					zahl = 0
-					NoSplit = true
-				End If
-				For zahltemp = 0 To zahl
-					If NoSplit = false Then
-						involvedRole = rolea(zahltemp)
-					End If
-
-					If InStr(rTrack, ",") = 0 And InStr(rTrack, " to ") = 0 And InStr(rTrack, " & ") = 0 Then
-						currentTrack = rTrack
-						'WriteLog("ExtraArtist currentTrack=" & currentTrack)
-						Add_Track_Role currentTrack, artistName, involvedRole, TrackRoles, TrackArtist2, TrackPos
-					End If
-					If InStr(rTrack, ",") <> 0 Then
-						tmp = Split(rTrack, ",")
-						zahl2 = UBound(tmp)
-						For zahltemp2 = 0 To zahl2
-							currentTrack = Trim(tmp(zahltemp2))
-							If InStr(currentTrack, " to ") <> 0 Then
-								Track_from_to currentTrack, artistName, involvedRole, Title_Position, TrackRoles, TrackArtist2, TrackPos, LeadingZeroTrackPosition
-							Else
-								Add_Track_Role currentTrack, artistName, involvedRole, TrackRoles, TrackArtist2, TrackPos
+						If LookForFeaturing(currentRole) Then
+							If InStr(AlbumFeaturing, artistName) = 0 Then
+								If AlbumFeaturing = "" Then
+									If CheckFeaturingName Then
+										AlbumFeaturing = TxtFeaturingName & " " & artistName
+									Else
+										AlbumFeaturing = currentRole & " " & artistName
+									End If
+								Else
+									AlbumFeaturing = AlbumFeaturing & Separator & artistName
+								End If
 							End If
-						Next
-					ElseIf InStr(rTrack, " to ") <> 0 Then
-						currentTrack = rTrack
-						Track_from_to currentTrack, artistName, involvedRole, Title_Position, TrackRoles, TrackArtist2, TrackPos, LeadingZeroTrackPosition
-					ElseIf InStr(rTrack, " & ") <> 0 Then
-						tmp = Split(rTrack, " & ")
-						zahl2 = UBound(tmp)
-						For zahltemp2 = 0 To zahl2
-							currentTrack = Trim(tmp(zahltemp2))
-							Add_Track_Role currentTrack, artistName, involvedRole, TrackRoles, TrackArtist2, TrackPos
-						Next
+						Else
+							Do
+								tmp = searchKeyword(LyricistKeywords, currentRole, AlbumLyricist, artistName)
+								If tmp <> "" Then
+									AlbumLyricist = tmp
+									Exit Do
+								End If
+								tmp = searchKeyword(ConductorKeywords, currentRole, AlbumConductor, artistName)
+								If tmp <> "" Then
+									AlbumConductor = tmp
+									Exit Do
+								End If
+								tmp = searchKeyword(ProducerKeywords, currentRole, AlbumProducer, artistName)
+								If tmp <> "" Then
+									AlbumProducer = tmp
+									Exit Do
+								End If
+								tmp = searchKeyword(ComposerKeywords, currentRole, AlbumComposer, artistName)
+								If tmp <> "" Then
+									AlbumComposer = tmp
+									Exit Do
+								End If
+								tmp2 = search_involved(Involved_R, currentRole)
+								If tmp2 = -1 Then
+									ReDim Preserve Involved_R(UBound(Involved_R)+1)
+									Involved_R(UBound(Involved_R)) = currentRole & ": " & artistName
+								Else
+									If InStr(Involved_R(tmp2), artistName) = 0 Then
+										Involved_R(tmp2) = Involved_R(tmp2) & ", " & artistName
+									End If
+								End If
+								Exit Do
+							Loop While True
+						End If
+					Next
+				Else
+					If Not CheckUseAnv And currentArtist("anv") <> "" Then
+						artistName = CleanArtistName(currentArtist("anv"))
+					Else
+						artistName = CleanArtistName(currentArtist("name"))
 					End If
-				Next
-			End If
-		Next
+					role = currentArtist("role")
+					rTrack = currentArtist("tracks")
+					NoSplit = false
+					If InStr(role, ",") <> 0 Then
+						rolea = Split(role, ", ")
+						zahl = UBound(rolea)
+					ElseIf InStr(role, " & ") <> 0 Then
+						rolea = Split(role, " & ")
+						zahl = UBound(rolea)
+					Else
+						involvedRole = role
+						zahl = 0
+						NoSplit = true
+					End If
+					For zahltemp = 0 To zahl
+						If NoSplit = false Then
+							involvedRole = rolea(zahltemp)
+						End If
 
+						If InStr(rTrack, ",") = 0 And InStr(rTrack, " to ") = 0 And InStr(rTrack, " & ") = 0 Then
+							currentTrack = rTrack
+							Add_Track_Role currentTrack, artistName, involvedRole, TrackRoles, TrackArtist2, TrackPos
+						End If
+						If InStr(rTrack, ",") <> 0 Then
+							tmp = Split(rTrack, ",")
+							zahl2 = UBound(tmp)
+							For zahltemp2 = 0 To zahl2
+								currentTrack = Trim(tmp(zahltemp2))
+								If InStr(currentTrack, " to ") <> 0 Then
+									Track_from_to currentTrack, artistName, involvedRole, Title_Position, TrackRoles, TrackArtist2, TrackPos, LeadingZeroTrackPosition
+								Else
+									Add_Track_Role currentTrack, artistName, involvedRole, TrackRoles, TrackArtist2, TrackPos
+								End If
+							Next
+						ElseIf InStr(rTrack, " to ") <> 0 Then
+							currentTrack = rTrack
+							Track_from_to currentTrack, artistName, involvedRole, Title_Position, TrackRoles, TrackArtist2, TrackPos, LeadingZeroTrackPosition
+						ElseIf InStr(rTrack, " & ") <> 0 Then
+							tmp = Split(rTrack, " & ")
+							zahl2 = UBound(tmp)
+							For zahltemp2 = 0 To zahl2
+								currentTrack = Trim(tmp(zahltemp2))
+								Add_Track_Role currentTrack, artistName, involvedRole, TrackRoles, TrackArtist2, TrackPos
+							Next
+						End If
+					Next
+				End If
+			Next
+		End If
 		' Get track titles and track artists
+
 		iAutoTrackNumber = 1
 		iAutoDiscNumber = 1
 		iTrackNum = 0
-		'WriteLog("Start 1")
+		iSubTrack = 0
+		cSubTrack = -1
+		subTrackTitle = ""
+		CharSeparatorSubTrack = 0
+		Rem CharSeparatorSubTrack: 0 = nothing    1 = "."     2 = a-z
+		Rem subTrackStart = 1 '0 = Song -1    1 = First Song
 
 		For Each t In CurrentRelease("tracklist")
 			Set currentTrack = CurrentRelease("tracklist")(t)
@@ -1672,23 +1428,56 @@ Sub ReloadResults
 			position = currentTrack("position")
 			trackName = PackSpaces(DecodeHtmlChars(currentTrack("title")))
 			Durations.Add currentTrack("duration")
-
 			position = exchange_roman_numbers(position)
 
 			' Here comes the new track/disc numbering methods
+			If CheckUnselectNoTrackPos And position = "" Then
+				UnselectedTracks(iTrackNum) = "x"
+			End If
 			If position <> "" Then
-				'WriteLog("position=" & position)
+				If (cSubTrack <> -1 And InStr(LCase(position), ".") = 0 And CharSeparatorSubTrack = 1) Or (cSubTrack <> -1 And IsNumeric(Right(position, 1)) And CharSeparatorSubTrack = 2) Then
+					If SubTrackNameSelection = false Then
+						Tracks.Item(cSubTrack) = Tracks.Item(cSubTrack) & " (" & subTrackTitle & ")"
+					Else
+						Tracks.Item(cSubTrack) = subTrackTitle
+					End If
+					cSubTrack = -1
+					subTrackTitle = ""
+					CharSeparatorSubTrack = 0
+				End If
 				pos = 0
 				If InStr(LCase(position), "-") > 0 Then
 					pos = InStr(LCase(position), "-")
-				ElseIf InStr(LCase(position), ".") > 0 Then
-					pos = InStr(LCase(position), ".")
+				End If
+				'SubTrack Function ---------------------------------------------------------
+				If InStr(LCase(position), ".") > 0 Then
+					CharSeparatorSubTrack = 1
+				End If
+				If Not IsNumeric(Right(position, 1)) And Len(position) > 1 Then
+					CharSeparatorSubTrack = 2
+				End If
+				If CharSeparatorSubTrack <> 0 Then
+					If cSubTrack = -1 Then 'new subtrack
+						If SubTrackNameSelection = false Then
+							cSubTrack = iTrackNum - 1
+						Else
+							cSubTrack = iTrackNum
+						End If
+					End If
+					If subTrackTitle = "" Then
+						subTrackTitle = trackName
+					Else
+						subTrackTitle = subTrackTitle & ", " & trackName
+					End If
+					If UserChoose = False Then
+						UnselectedTracks(iTrackNum) = "x"
+					End If
+					'SubTrack Function ---------------------------------------------------------
 				End If
 				If pos > 0 And CheckNoDisc = false Then ' Disc Number Included
-					'WriteLog("Disc Number included")
 					If CheckForceNumeric Then
 						If Left(position,2) = "CD" Then
-							If Mid(position,3,1) = "-" Or Mid(position,3,1) = "." Then
+							If Mid(position,3,1) = "-" Then
 								iAutoDiscNumber = 1
 							Else
 								If iAutoDiscNumber <> Mid(position,3,1) Then
@@ -1711,10 +1500,32 @@ Sub ReloadResults
 						End If
 					Else
 						If pos > 0 Then
-							If CheckLeadingZero = true Then
-								tracksNum.Add "0" & Right(position,len(position)-pos)
-							Else
-								tracksNum.Add Right(position,len(position)-pos)
+							If Len(Mid(position, pos+1)) > 1 Then	'minimum 2 Char after -  (1-1a, 1-II, 1-12)
+								If IsInteger(Mid(position, pos+1, 1)) And Not IsInteger(Right(position, 1)) Then	'First is a Number, Char at the end (1-1a, 1-1b, 1-1c,...) = Sub-Track !
+									If Mid(position,pos + 1, len(position) - pos - 1) < 10 And CheckLeadingZero = true Then
+										tracksNum.Add "0" & Right(position,len(position)-pos)
+									Else
+										tracksNum.Add Right(position,len(position)-pos)
+									End If
+								ElseIf IsInteger(Mid(position, pos+1)) Then		'no char at all (1-01, 1-02, 1-12)
+									If CheckLeadingZero = True And Right(position,len(position)-pos) < 10 Then
+										tracksNum.Add "0" & Right(position,len(position)-pos)
+									Else
+										tracksNum.Add Right(position,len(position)-pos)
+									End If
+								Else
+									tracksNum.Add Right(position,len(position)-pos)
+								End If
+							ElseIf Len(Mid(position, pos+1)) = 1 Then	'1 Char after -  (1-1, 1-I, 1-2)
+								If IsInteger(Mid(position, pos+1)) Then
+									If CheckLeadingZero = True And Mid(position, pos+1) < 10 Then
+										tracksNum.Add "0" & Mid(position, pos+1)
+									Else
+										tracksNum.Add Mid(position, pos+1)
+									End If
+								Else
+									tracksNum.Add Mid(position, pos+1)
+								End If
 							End If
 						End If
 						If UnselectedTracks(iTrackNum) <> "x" Then
@@ -1726,7 +1537,8 @@ Sub ReloadResults
 						End If
 					End If
 					If Left(position,2) = "CD" Then
-						If Mid(position,3,1) = "-" Or Mid(position,3,1) = "." Then
+						If Mid(position,3,1) = "-" Then
+							'Or Mid(position,3,1) = "." Then
 							iAutoDiscNumber = 1
 						Else
 							iAutoDiscNumber = Mid(position,3,1)
@@ -1772,7 +1584,11 @@ Sub ReloadResults
 						End If
 					Else
 						If Len(position) = 1 Then ' Only side is specified
-							tracksNum.Add "1"
+							If CheckLeadingZero = true Then
+								tracksNum.Add "01"
+							Else
+								tracksNum.Add "1"
+							End If
 							If 	LastDisc <> position Then
 								If 	LastDisc <> "" Then
 									iAutoDiscNumber = iAutoDiscNumber + 1
@@ -1785,7 +1601,7 @@ Sub ReloadResults
 								tracksCD.Add position
 							End If
 						ElseIf Len(position) = 2 Then
-							If IsInteger(Mid(position,2,1)) And Not IsInteger(Mid(position,1,1)) Then 
+							If IsInteger(Mid(position,2,1)) And Not IsInteger(Mid(position,1,1)) Then
 								' First is Side Second is Track
 								If CheckLeadingZero = true And Mid(position,2) < 10 Then
 									tracksNum.Add "0" & Mid(position,2)
@@ -1879,16 +1695,20 @@ Sub ReloadResults
 						End If
 					End If
 				End If
+			ElseIf currentTrack("duration") = "" And currentTrack("title") = "-" Then
+				tracksNum.Add ""
+				tracksCD.Add ""
+				UnselectedTracks(iTrackNum) = "x"
 			Else ' Nothing specified
 				If CheckForceNumeric and UnselectedTracks(iTrackNum) <> "x" Then
 					If CheckLeadingZero = true And iAutoTrackNumber < 10 Then
 						tracksNum.Add "0" & iAutoTrackNumber
 					Else
-						tracksNum.Add iAutoTrackNumber 
+						tracksNum.Add iAutoTrackNumber
 					End If
 					iAutoTrackNumber = iAutoTrackNumber + 1
 				Else
-					tracksNum.Add "" 
+					tracksNum.Add ""
 				End If
 				If CheckForceDisc Then
 					tracksCD.Add iAutoDiscNumber
@@ -1898,7 +1718,9 @@ Sub ReloadResults
 			End If
 
 			Dim involvedArtist, involvedTemp, involvedRole
+			Dim TrackInvolvedPeople, TrackComposers, TrackConductors, TrackProducers, TrackLyricists, TrackFeaturing
 			ReDim Involved_R_T(0)
+			Dim ret
 
 			TrackInvolvedPeople = ""
 			TrackComposers = ""
@@ -1906,6 +1728,7 @@ Sub ReloadResults
 			TrackProducers = ""
 			TrackLyricists = ""
 			TrackFeaturing = AlbumFeaturing
+
 			If UBound(Involved_R) > 0 Then
 				For tmp = 1 To UBound(Involved_R)
 					ReDim Preserve Involved_R_T(tmp)
@@ -1917,6 +1740,7 @@ Sub ReloadResults
 				If TrackPos(tmp) = position Then
 					involvedRole = TrackRoles(tmp)
 					involvedArtist = TrackArtist2(tmp)
+
 					If LookForFeaturing(involvedRole) Then
 						If InStr(TrackFeaturing, involvedArtist) = 0 Then
 							If TrackFeaturing = "" Then
@@ -1929,51 +1753,44 @@ Sub ReloadResults
 								TrackFeaturing = TrackFeaturing & Separator & involvedArtist
 							End If
 						End If
-					ElseIf (involvedRole = "Lyrics By" Or involvedRole = "Words By") Then
-						If InStr(TrackLyricists, involvedArtist) = 0 Then
-							If TrackLyricists = "" Then
-								TrackLyricists = involvedArtist
-							Else
-								TrackLyricists = TrackLyricists & Separator & involvedArtist
-							End If
-						End If
-					ElseIf involvedRole = "Conductor"  Then
-						If TrackConductors = "" Then
-							TrackConductors = involvedArtist
-						Else
-							TrackConductors = TrackConductors & Separator & involvedArtist
-						End If
-					ElseIf (involvedRole = "Producer" Or involvedRole = "Arranged By" Or involvedRole = "Recorded By") Then
-						If InStr(TrackProducers, involvedArtist) = 0 Then
-							If TrackProducers = "" Then
-								TrackProducers = involvedArtist
-							Else
-								TrackProducers = TrackProducers & Separator & involvedArtist
-							End If
-						End If
-					ElseIf (involvedRole = "Composed By" Or involvedRole = "Score" Or involvedRole = "Written-By" Or involvedRole = "Written By" Or involvedRole = "Music By" Or involvedRole = "Programmed By" Or involvedRole = "Songwriter") Then
-						If InStr(TrackComposers, involvedArtist) = 0 Then
-							If TrackComposers = "" Then
-								TrackComposers = involvedArtist
-							Else
-								TrackComposers = TrackComposers & Separator & involvedArtist
-							End If
-						End If
 					Else
-						tmp2 = search_involved(Involved_R_T, involvedRole)
-						If tmp2 = -1 Then
-							ReDim Preserve Involved_R_T(UBound(Involved_R_T)+1)
-							Involved_R_T(UBound(Involved_R_T)) = involvedRole & ": " & TrackArtist2(tmp)
-						Else
-							If InStr(Involved_R_T(tmp2), TrackArtist2(tmp)) = 0 Then
-								Involved_R_T(tmp2) = Involved_R_T(tmp2) & ", " & TrackArtist2(tmp)
+						Do
+							ret = searchKeyword(LyricistKeywords, involvedRole, TrackLyricists, involvedArtist)
+							If ret <> "" Then
+								TrackLyricists = ret
+								Exit Do
 							End If
-						End If
+							ret = searchKeyword(ConductorKeywords, involvedRole, TrackConductors, involvedArtist)
+							If ret <> "" Then
+								TrackConductors = ret
+								Exit Do
+							End If
+							ret = searchKeyword(ProducerKeywords, involvedRole, TrackProducers, involvedArtist)
+							If ret <> "" Then
+								TrackProducers = ret
+								Exit Do
+							End If
+							ret = searchKeyword(ComposerKeywords, involvedRole, TrackComposers, involvedArtist)
+							If ret <> "" Then
+								TrackComposers = ret
+								Exit Do
+							End If
+							tmp2 = search_involved(Involved_R_T, involvedRole)
+							If tmp2 = -1 Then
+								ReDim Preserve Involved_R_T(UBound(Involved_R_T)+1)
+								Involved_R_T(UBound(Involved_R_T)) = involvedRole & ": " & TrackArtist2(tmp)
+							Else
+								If InStr(Involved_R_T(tmp2), TrackArtist2(tmp)) = 0 Then
+									Involved_R_T(tmp2) = Involved_R_T(tmp2) & ", " & TrackArtist2(tmp)
+								End If
+							End If
+							Exit Do
+						Loop While True
 					End If
 				End If
 			Next
 
-			Dim trackArtist, artistList, FoundFeaturing
+			Dim trackArtist, artistList, FoundFeaturing, tmpJoin, tmpTrackArtist
 			artistList = ""
 			tmpJoin = ""
 
@@ -2052,47 +1869,39 @@ Sub ReloadResults
 										End If
 									End If
 								End If
-							ElseIf (involvedRole = "Lyrics By" Or involvedRole = "Words By") Then
-
-								If InStr(TrackLyricists, involvedArtist) = 0 Then
-									If TrackLyricists = "" Then
-										TrackLyricists = involvedArtist
-									Else
-										TrackLyricists = TrackLyricists & "; " & involvedArtist
-									End If
-								End If
-							ElseIf involvedRole = "Conductor"  Then
-								If TrackConductors = "" Then
-									TrackConductors = involvedArtist
-								Else
-									TrackConductors = TrackConductors & "; " & involvedArtist
-								End If
-							ElseIf (involvedRole = "Producer" Or involvedRole = "Arranged By" Or involvedRole = "Recorded By") Then
-								If InStr(TrackProducers, involvedArtist) = 0 Then
-									If TrackProducers = "" Then
-										TrackProducers = involvedArtist
-									Else
-										TrackProducers = TrackProducers & "; " & involvedArtist
-									End If
-								End If
-							ElseIf (involvedRole = "Composed By" Or involvedRole = "Score" Or involvedRole = "Written-By" Or involvedRole = "Written By" Or involvedRole = "Music By" Or involvedRole = "Programmed By" Or involvedRole = "Songwriter") Then
-								If InStr(TrackComposers, involvedArtist) = 0 Then
-									If TrackComposers = "" Then
-										TrackComposers = involvedArtist
-									Else
-										TrackComposers = TrackComposers & "; " & involvedArtist
-									End If
-								End If
 							Else
-								tmp2 = search_involved(Involved_R_T, involvedRole)
-								If tmp2 = -1 Then
-									ReDim Preserve Involved_R_T(UBound(Involved_R_T)+1)
-									Involved_R_T(UBound(Involved_R_T)) = involvedRole & ": " & involvedArtist
-								Else
-									If InStr(Involved_R_T(tmp2), involvedArtist) = 0 Then
-										Involved_R_T(tmp2) = Involved_R_T(tmp2) & ", " & involvedArtist
+								Do
+									tmp = searchKeyword(LyricistKeywords, involvedRole, TrackLyricists, involvedArtist)
+									If tmp <> "" Then
+										TrackLyricists = tmp
+										Exit Do
 									End If
-								End If
+									tmp = searchKeyword(ConductorKeywords, involvedRole, TrackConductors, involvedArtist)
+									If tmp <> "" Then
+										TrackConductors = tmp
+										Exit Do
+									End If
+									tmp = searchKeyword(ProducerKeywords, involvedRole, TrackProducers, involvedArtist)
+									If tmp <> "" Then
+										TrackProducers = tmp
+										Exit Do
+									End If
+									tmp = searchKeyword(ComposerKeywords, involvedRole, TrackComposers, involvedArtist)
+									If tmp <> "" Then
+										TrackComposers = tmp
+										Exit Do
+									End If
+									tmp2 = search_involved(Involved_R_T, involvedRole)
+									If tmp2 = -1 Then
+										ReDim Preserve Involved_R_T(UBound(Involved_R_T)+1)
+										Involved_R_T(UBound(Involved_R_T)) = involvedRole & ": " & involvedArtist
+									Else
+										If InStr(Involved_R_T(tmp2), involvedArtist) = 0 Then
+											Involved_R_T(tmp2) = Involved_R_T(tmp2) & ", " & involvedArtist
+										End If
+									End If
+									Exit Do
+								Loop While True
 							End If
 						Next
 					End If
@@ -2120,21 +1929,25 @@ Sub ReloadResults
 			artistList = Replace(artistList, " , ", ", ")
 			ArtistTitles.Add artistList
 
+			TrackLyricists = FindArtist(TrackLyricists, AlbumLyricist)
 			If AlbumLyricist <> "" and TrackLyricists <> "" Then
 				Lyricists.Add AlbumLyricist & "; " & TrackLyricists
 			Else
 				Lyricists.Add AlbumLyricist & TrackLyricists
 			End If
+			TrackComposers = FindArtist(TrackComposers, AlbumComposer)
 			If AlbumComposer <> "" and TrackComposers <> "" Then
 				Composers.Add AlbumComposer & "; " & TrackComposers
 			Else
 				Composers.Add AlbumComposer & TrackComposers
 			End If
+			TrackConductors = FindArtist(TrackConductors, AlbumConductor)
 			If AlbumConductor <> "" and TrackConductors <> "" Then
 				Conductors.Add AlbumConductor & "; " & TrackConductors
 			Else
 				Conductors.Add AlbumConductor & TrackConductors
 			End If
+			TrackProducers = FindArtist(TrackProducers, AlbumProducer)
 			If AlbumProducer <> "" and TrackProducers <> "" Then
 				Producers.Add AlbumProducer & "; " & TrackProducers
 			Else
@@ -2154,7 +1967,7 @@ Sub ReloadResults
 			Tracks.Add trackName
 			iTrackNum = iTrackNum + 1
 		Next
-
+		
 		' Get album title
 		AlbumTitle = currentRelease("title")
 
@@ -2165,11 +1978,42 @@ Sub ReloadResults
 			For Each i In CurrentRelease("images")
 				Set currentImage = CurrentRelease("images")(i)
 
-				If currentImage("type") = "primary" OR AlbumArtURL = "" Then
+				If currentImage("type") = "primary" Or AlbumArtURL = "" Then
 					AlbumArtURL = currentImage("uri")
 				End If
 			Next
 		End If
+
+		'----------------------------------DiscogsImages----------------------------------------
+		Set ImageList = SDB.NewStringList
+		Set SaveImageType = SDB.NewStringList
+		Set SaveImage = SDB.NewStringList
+		ImagesCount = 0
+		Dim FirstAlbumArt
+
+		If CurrentRelease.Exists("images") Then
+			ImagesCount = CurrentRelease("images").Count
+			If CurrentRelease("images").Count > 1 Then
+				For Each i In CurrentRelease("images")
+					Set currentImage = CurrentRelease("images")(i)
+					If currentImage("type") = "primary" Then
+						FirstAlbumArt = currentImage("uri")
+					End If
+				Next
+				If FirstAlbumArt = "" Then
+					FirstAlbumArt = currentImage("uri")
+				End If
+				For Each i In CurrentRelease("images")
+					Set currentImage = CurrentRelease("images")(i)
+					If FirstAlbumArt <> currentImage("uri") Then
+						ImageList.add currentImage("uri")
+						SaveImageType.add "other"
+						SaveImage.add "0"
+					End If
+				Next
+			End If
+		End If
+		'----------------------------------DiscogsImages----------------------------------------
 
 
 		' Get Master ID
@@ -2224,7 +2068,6 @@ Sub ReloadResults
 			AddToField Genres, CurrentRelease("genres")(g)
 		Next
 
-
 		' Get styles/moods/themes
 		If CurrentRelease.Exists("styles") Then
 			For Each s In CurrentRelease("styles")
@@ -2233,16 +2076,21 @@ Sub ReloadResults
 		End If
 
 		' Get Label
-		For Each l in CurrentRelease("labels")
-			Set currentLabel = CurrentRelease("labels")(l)
-			If SavedLabelId = "" Then
-				If currentLabel.Exists("id") Then
-					SavedLabelId = currentLabel("id")
+		If CurrentRelease.Exists("labels") Then
+			For Each l in CurrentRelease("labels")
+				Set currentLabel = CurrentRelease("labels")(l)
+				If SavedLabelId = "" Then
+					If currentLabel.Exists("id") Then
+						SavedLabelId = currentLabel("id")
+					End If
 				End If
-			End If
-			AddToField theLabels, CleanArtistName(currentLabel("name"))
-			AddToField theCatalogs, currentLabel("catno")
-		Next
+				AddToField theLabels, CleanArtistName(currentLabel("name"))
+				AddToField theCatalogs, currentLabel("catno")
+			Next
+		Else
+			theLabels = ""
+			theCatalogs = ""
+		End If
 
 		' Get Country
 		If CurrentRelease.Exists("country") Then
@@ -2252,21 +2100,25 @@ Sub ReloadResults
 		End If
 
 		' Get Format
-		For Each f in CurrentRelease("formats")
-			Set currentFormat = CurrentRelease("formats")(f)
-			AddToField theFormat, currentFormat("name")
-			If currentFormat.Exists("descriptions") Then
-				For Each d in currentFormat("descriptions")
-					theFormat = theFormat & ", " & currentFormat("descriptions")(d)
-				Next
-			End If
-		Next
-
-		' Get comment
-		If CurrentRelease.Exists("notes") Then
-			comment = CurrentRelease("notes")
+		If CurrentRelease.Exists("formats") Then
+			For Each f in CurrentRelease("formats")
+				Set currentFormat = CurrentRelease("formats")(f)
+				AddToField theFormat, currentFormat("name")
+				If currentFormat.Exists("descriptions") Then
+					For Each d in currentFormat("descriptions")
+						theFormat = theFormat & ", " & currentFormat("descriptions")(d)
+					Next
+				End If
+			Next
 		Else
-			comment = ""
+			theFormat = ""
+		End If
+
+		' Get Comment
+		If CurrentRelease.Exists("notes") Then
+			Comment = CurrentRelease("notes")
+		Else
+			Comment = ""
 		End If
 
 		' Get data_quality
@@ -2278,12 +2130,19 @@ Sub ReloadResults
 	End If
 
 
-	FormatSearchResultsViewer Tracks, TracksNum, TracksCD, Durations, AlbumArtist, AlbumArtistTitle, ArtistTitles, AlbumTitle, ReleaseDate, OriginalDate, Genres, Styles, theLabels, theCountry, AlbumArtThumbNail, CurrentResultID, theCatalogs, Lyricists, Composers, Conductors, Producers, InvolvedArtists, theFormat, theMaster, comment, DiscogsTracksNum, DataQuality 
+	FormatSearchResultsViewer Tracks, TracksNum, TracksCD, Durations, AlbumArtist, AlbumArtistTitle, ArtistTitles, AlbumTitle, ReleaseDate, OriginalDate, Genres, Styles, theLabels, theCountry, AlbumArtThumbNail, CurrentResultID, theCatalogs, Lyricists, Composers, Conductors, Producers, InvolvedArtists, theFormat, theMaster, comment, DiscogsTracksNum, DataQuality
 
+	Dim SelectedTracks, j
 	Set SelectedTracks = SDB.NewStringList
+	Set SelectedSongsGlobal = SDB.NewSongList
 	For i = 0 To Tracks.Count - 1
 		If UnselectedTracks(i) = "" Then
 			SelectedTracks.Add Tracks.Item(i)
+		End If
+	Next
+	For i = 0 To SDB.Tools.WebSearch.NewTracks.Count -1
+		If UnselectedTracks(i) = "" Then
+			SelectedSongsGlobal.Add SDB.Tools.WebSearch.NewTracks.item(i)
 		End If
 	Next
 
@@ -2297,8 +2156,22 @@ Sub ReloadResults
 		SDB.Tools.WebSearch.AlbumArtURL = ""
 	End If
 
+	cSubTrack = -1
+	subTrackTitle = ""
+
 	For i = 0 To SDB.Tools.WebSearch.NewTracks.Count - 1
 		If CheckArtist Then SDB.Tools.WebSearch.NewTracks.Item(i).ArtistName = AlbumArtistTitle
+		If cSubTrack <> -1 And InStr(LCase(position), ".") = 0 Then
+			If SubTrackNameSelection = false Then
+				Tracks.Item(cSubTrack) = Tracks.Item(cSubTrack) & " (" & subTrackTitle & ")"
+			Else
+				Tracks.Item(cSubTrack) = subTrackTitle
+			End If
+			cSubTrack = -1
+			subTrackTitle = ""
+		End If
+
+
 		For j = 0 To Tracks.Count - 1
 			If Tracks.Item(j) = SDB.Tools.WebSearch.NewTracks.Item(i).Title Then
 				If UnselectedTracks(j) = "" Then
@@ -2315,35 +2188,51 @@ Sub ReloadResults
 		Next
 		If CheckAlbumArtist Then SDB.Tools.WebSearch.NewTracks.Item(i).AlbumArtistName = AlbumArtist
 		If CheckAlbum Then SDB.Tools.WebSearch.NewTracks.Item(i).AlbumName = AlbumTitle
-		If ReleaseDate <> "" Then
-			If CheckDate Then 
-				If Len(ReleaseDate) > 4 Then
-					SDB.Tools.WebSearch.NewTracks.Item(i).Year 	= Mid(ReleaseDate,7,4)
-					SDB.Tools.WebSearch.NewTracks.Item(i).Month = Mid(ReleaseDate,4,2)
-					SDB.Tools.WebSearch.NewTracks.Item(i).Day 	= Mid(ReleaseDate,1,2)
-				ElseIf IsNumeric(ReleaseDate) Then
-					SDB.Tools.WebSearch.NewTracks.Item(i).Year = ReleaseDate
-				End If
+
+		If CheckDate Then
+			If Len(ReleaseDate) > 4 Then
+				SDB.Tools.WebSearch.NewTracks.Item(i).Year = Mid(ReleaseDate,7,4)
+				SDB.Tools.WebSearch.NewTracks.Item(i).Month = Mid(ReleaseDate,4,2)
+				SDB.Tools.WebSearch.NewTracks.Item(i).Day = Mid(ReleaseDate,1,2)
+			ElseIf IsNumeric(ReleaseDate) Then
+				SDB.Tools.WebSearch.NewTracks.Item(i).Year = ReleaseDate
+			ElseIf ReleaseDate = "" Then
+				SDB.Tools.WebSearch.NewTracks.Item(i).Year = -1
 			End If
-			If CheckOrigDate Then 
-				If Len(OriginalDate) > 4 Then
-					SDB.Tools.WebSearch.NewTracks.Item(i).OriginalYear 	= Mid(OriginalDate,7,4)
-					SDB.Tools.WebSearch.NewTracks.Item(i).OriginalMonth = Mid(OriginalDate,4,2)
-					SDB.Tools.WebSearch.NewTracks.Item(i).OriginalDay 	= Mid(OriginalDate,1,2)
-				ElseIf IsNumeric(OriginalDate) Then
-					SDB.Tools.WebSearch.NewTracks.Item(i).OriginalYear = OriginalDate
-				End If
+		End If
+		If CheckOrigDate Then
+			If Len(OriginalDate) > 4 Then
+				SDB.Tools.WebSearch.NewTracks.Item(i).OriginalYear = Mid(OriginalDate,7,4)
+				SDB.Tools.WebSearch.NewTracks.Item(i).OriginalMonth = Mid(OriginalDate,4,2)
+				SDB.Tools.WebSearch.NewTracks.Item(i).OriginalDay = Mid(OriginalDate,1,2)
+			ElseIf IsNumeric(OriginalDate) Then
+				SDB.Tools.WebSearch.NewTracks.Item(i).OriginalYear = OriginalDate
+			ElseIf OriginalDate = "" Then
+				SDB.Tools.WebSearch.NewTracks.Item(i).OriginalYear = -1
 			End If
 		End If
 
-		If CheckGenre And CheckStyle Then
-			SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Genres & Separator & Styles
-			If Genres = "" Then SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Styles
-			If Styles = "" Then SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Genres
-		ElseIf CheckGenre Then
-			SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Genres
-		ElseIf CheckStyle Then
-			SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Styles
+		If CheckStyleField = "Default (stored with Genre)" Then
+			If CheckGenre And CheckStyle Then
+				SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Genres & Separator & Styles
+				If Genres = "" Then SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Styles
+				If Styles = "" Then SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Genres
+			ElseIf CheckGenre Then
+				SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Genres
+			ElseIf CheckStyle Then
+				SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Styles
+			End If
+		Else
+			If CheckGenre Then
+				SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Genres
+			End If
+			If CheckStyle Then
+				If CheckStyleField = "Custom1" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom1 = Styles
+				If CheckStyleField = "Custom2" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom2 = Styles
+				If CheckStyleField = "Custom3" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom3 = Styles
+				If CheckStyleField = "Custom4" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom4 = Styles
+				If CheckStyleField = "Custom5" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom5 = Styles
+			End If
 		End If
 		If CheckLabel Then SDB.Tools.WebSearch.NewTracks.Item(i).Publisher = theLabels
 
@@ -2373,7 +2262,7 @@ Sub ReloadResults
 			If CountryTag = "Custom5" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom5 = theCountry
 		End If
 
-		If CheckFormat Then 
+		If CheckFormat Then
 			If FormatTag = "Custom1" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom1 = theFormat
 			If FormatTag = "Custom2" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom2 = theFormat
 			If FormatTag = "Custom3" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom3 = theFormat
@@ -2385,9 +2274,31 @@ Sub ReloadResults
 End Sub
 
 
+Function FindArtist(ArtistList1, ArtistList2)
+
+	Dim tmpArtist, i
+	ReDim newArtistList1(0)
+	tmpArtist = Split(ArtistList1, "; ")
+	For i = 0 To UBound(tmpArtist)
+		If InStr(ArtistList2,tmpArtist(i)) = 0 Then
+			ReDim Preserve newArtistList1(UBound(newArtistList1)+1)
+			newArtistList1(UBound(newArtistList1)) = tmpArtist(i)
+		End If
+	Next
+	For i = 0 To UBound(newArtistList1)
+		If FindArtist = "" Then
+			FindArtist = newArtistList1(i)
+		Else
+			FindArtist = FindArtist & "; " & newArtistList1(i)
+		End IF
+	Next
+
+End Function
+
+
 Sub Track_from_to (currentTrack, currentArtist, involvedRole, Title_Position, TrackRoles, TrackArtist2, TrackPos, LeadingZeroTrackPosition)
 
-	'WriteLog("currentTrack=" & currentTrack)
+	Dim tmp3, tmp4, tmpSide1, tmpSide2, tmpSideD, Vinyl_Pos1, Vinyl_Pos2, zahltemp3, ret
 	tmp3 = Split(currentTrack, " ")
 	tmpSide1 = ""
 	tmpSide2 = ""
@@ -2424,7 +2335,7 @@ Sub Track_from_to (currentTrack, currentArtist, involvedRole, Title_Position, Tr
 		tmp3(2) = exchange_roman_numbers(tmp3(2))
 		tmpSideD = "."
 	End If
-		If Left(tmp3(0), 2) = "CD" Then
+	If Left(tmp3(0), 2) = "CD" Then
 		tmpSide1 = "CD"
 		tmp3(0) = Mid(tmp3(0), 3)
 	End If
@@ -2446,19 +2357,28 @@ Sub Track_from_to (currentTrack, currentArtist, involvedRole, Title_Position, Tr
 	If IsNumeric(Right(tmp3(2),1)) = false And Len(tmp3(2)) > 1 Then
 		tmp3(2) = Left(tmp3(2), Len(tmp3(2))-1)
 	End If
-	If IsNumeric(tmp3(0)) = false And Len(tmp3(0)) > 1 Then
-		tmpSide1 = Left(tmp3(0), 1)
-		tmp3(0) = Mid(tmp3(0), 2)
+	If IsNumeric(tmp3(0)) = false Then
+		If Len(tmp3(0)) > 1 Then
+			tmpSide1 = Left(tmp3(0), 1)
+			tmp3(0) = Mid(tmp3(0), 2)
+		Else
+			tmpSide1 = tmp3(0)
+			tmp3(0) = 1
+		End If
 	End If
-	If IsNumeric(tmp3(2)) = false And Len(tmp3(2)) > 1 Then
-		tmpSide2 = Left(tmp3(2), 1)
-		tmp3(2) = Mid(tmp3(2), 2)
+	If IsNumeric(tmp3(2)) = false Then
+		If Len(tmp3(2)) > 1 Then
+			tmpSide2 = Left(tmp3(2), 1)
+			tmp3(2) = Mid(tmp3(2), 2)
+		Else
+			tmpSide2 = tmp3(2)
+			tmp3(2) = 1
+		End If
 	End If
+
 	If tmpSide1 <> tmpSide2 Then
 		Vinyl_Pos1 = tmpSide1
 		Vinyl_Pos2 = tmp3(0)
-		'WriteLog("Vinyl_Pos1=" & Vinyl_Pos1)
-		'WriteLog("Vinyl_Pos2=" & Vinyl_Pos2)
 		Do
 			If LeadingZeroTrackPosition = true And Vinyl_Pos2 < 10 Then
 				Vinyl_Pos2 = "0" & Vinyl_Pos2
@@ -2481,30 +2401,21 @@ Sub Track_from_to (currentTrack, currentArtist, involvedRole, Title_Position, Tr
 				TrackArtist2(UBound(TrackArtist2)) = currentArtist
 				TrackRoles(UBound(TrackRoles)) = involvedRole
 				TrackPos(UBound(TrackPos)) = Vinyl_Pos1 & tmpSideD & Vinyl_Pos2
-				'WriteLog("CurrentArtist=" & currentArtist)
-				'WriteLog("TrackRole=" & involvedRole)
-				'WriteLog("TrackPos=" & Vinyl_Pos1 & tmpSideD & Vinyl_Pos2)
 				If cStr(Vinyl_Pos1) = cStr(tmpSide2) And cStr(Vinyl_Pos2) = cStr(tmp3(2)) Then Exit Do
 				Vinyl_Pos2 = Vinyl_Pos2 + 1
 			End If
 		Loop While True
 	Else
 		For zahltemp3 = tmp3(0) To tmp3(2)
-			'WriteLog("zahltemp3=" & zahltemp3)
 			If LeadingZeroTrackPosition = true And zahltemp3 < 10 Then
 				zahltemp3 = "0" & zahltemp3
-				'WriteLog("zahltemp3+0")
 			End If
-			'WriteLog("zahltemp3_2=" & zahltemp3)
 			ReDim Preserve TrackRoles(UBound(TrackRoles)+1)
 			ReDim Preserve TrackArtist2(UBound(TrackArtist2)+1)
 			ReDim Preserve TrackPos(UBound(TrackPos)+1)
 			TrackArtist2(UBound(TrackArtist2)) = currentArtist
 			TrackRoles(UBound(TrackRoles)) = involvedRole
 			TrackPos(UBound(TrackPos)) = tmpSide1 & tmpSideD & zahltemp3
-			'WriteLog("CurrentArtist2=" & currentArtist)
-			'WriteLog("TrackRole2=" & involvedRole)
-			'WriteLog("TrackPos2=" & tmpSide1 & tmpSideD & zahltemp3)
 		Next
 	End If
 
@@ -2513,6 +2424,7 @@ End Sub
 
 Sub Add_Track_Role(currentTrack, currentArtist, involvedRole, TrackRoles, TrackArtist2, TrackPos)
 
+	WriteLog "currentTrack=" & currentTrack
 	currentTrack = exchange_roman_numbers(currentTrack)
 	ReDim Preserve TrackRoles(UBound(TrackRoles)+1)
 	ReDim Preserve TrackArtist2(UBound(TrackArtist2)+1)
@@ -2524,14 +2436,18 @@ Sub Add_Track_Role(currentTrack, currentArtist, involvedRole, TrackRoles, TrackA
 End Sub
 
 
-
 ' ShowResult is called every time the search result is changed from the drop
 ' down at the top of the window
 Sub ShowResult(ResultID)
 
+	Dim ReleaseID, oXMLHTTP
 	WebBrowser.SetHTMLDocument ""                 ' Deletes visible search result
 	ReleaseID = ResultsReleaseID.Item(ResultID)
-
+	If Right(Results.Item(ResultID), 1) = "*" Then  'Master-Release
+		searchURL = "http://api.discogs.com/masters/" & ReleaseID
+	Else
+		searchURL = "http://api.discogs.com/releases/" & ReleaseID
+	End If
 
 	' use json api with vbsjson class at start of file now
 	Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
@@ -2540,8 +2456,6 @@ Sub ShowResult(ResultID)
 	Set json = New VbsJson
 
 	Dim response
-
-	searchURL = "http://api.discogs.com/releases/" & ReleaseID
 
 	Call oXMLHTTP.open("GET", searchURL, false)
 	Call oXMLHTTP.setRequestHeader("Content-Type","application/json")
@@ -2552,6 +2466,7 @@ Sub ShowResult(ResultID)
 		Set CurrentRelease = json.Decode(oXMLHTTP.responseText)
 
 		CurrentResultID = ReleaseID
+		UserChoose = False
 
 		ReloadResults
 	End If
@@ -2561,6 +2476,106 @@ End Sub
 
 ' This does the final clean up, so that our script doesn't leave any unwanted traces
 Sub FinishSearch(Panel)
+
+	Dim ret, res, RndFileName, i, itm, path, j, k, ImageSelected
+	If ImageList.Count > 0 Then
+		ImageSelected = False
+		For i = 0 to ImageList.Count - 1
+			If SaveImage.Item(i) = 1 Then ImageSelected = True
+		Next
+		If ImageSelected = True Then
+			res = SDB.MessageBox("Save the selected image(s) ?", mtConfirmation, Array(mbYes, mbNo))
+			If res = 6 Then
+				For i = 0 to ImageList.Count - 1
+					res = 0
+					If SaveImage.Item(i) = 1 Then
+						Set itm = SelectedSongsGlobal.item(0)
+						path = Mid(itm.Path,1,InStrRev(itm.Path,"\")-1)
+						If CoverStorage = 1 Or CoverStorage = 3 Then
+							If SDB.Tools.FileSystem.FileExists(path & "\" & FileNameList.Item(i)) = True Then
+								res = SDB.MessageBox("The file " & FileNameList.Item(i) & " already exist. Overwrite it ?", mtConfirmation, Array(mbYes, mbNo))
+								If res = 6 Then
+									SDB.Tools.FileSystem.DeleteFile(path & "\" & FileNameList.Item(i))
+									ret = getimages(ImageList.Item(i), path & "\" & FileNameList.Item(i))
+								End If
+							Else
+								ret = getimages(ImageList.Item(i), path & "\" & FileNameList.Item(i))
+								If ret = "" Then DebugOut("ERROR:Image Download failed !")
+							End If
+						End If
+						If CoverStorage = 0 Then
+							Dim max, min
+							max=100000
+							min=10000
+							Randomize
+							RndFileName = Int((max-min+1)*Rnd+min) & ".jpg"
+							ret = getimages(ImageList.Item(i), path & "\" & RndFileName)
+						End If
+
+						If res <> 7 Then 'don't overwrite file
+							For j = 0 To SelectedSongsGlobal.Count - 1
+								Set itm = SelectedSongsGlobal.item(j)
+								Dim pics : Set pics = itm.AlbumArt
+								If pics Is Nothing Then
+									Exit Sub
+								End If
+								Dim img, ImageTagCount
+								ImageTagCount = pics.Count
+
+								Set img = pics.AddNew
+								img.Description = ""
+
+								If CoverStorage = 1 Or CoverStorage = 3 Then
+									img.PicturePath = path & "\" & FileNameList.Item(i)
+									img.ItemStorage = 1
+								Else
+									img.PicturePath = path & "\" & RndFileName
+									img.ItemStorage = 0
+								End If
+								For k = 0 to ImageTypeList.Count - 1
+									If SaveImageType.Item(i) = ImageTypeList.Item(k) Then
+										If k = 0 Then k = -2
+										If k > 14 Then k = k + 1
+										img.ItemType = k + 2
+										pics.UpdateDB
+										Exit For
+									End If
+								Next
+								Set pics = itm.AlbumArt
+								If ImageTagCount + 1 = pics.Count Then
+								Else
+								End If
+								If CoverStorage = 3 Then
+									Set pics = itm.AlbumArt
+									ImageTagCount = pics.Count
+									Set img = pics.AddNew
+									img.Description = ""
+									img.PicturePath = path & "\" & FileNameList.Item(i)
+									img.ItemStorage = 0
+									For k = 0 to ImageTypeList.Count - 1
+										If SaveImageType.Item(i) = ImageTypeList.Item(k) Then
+											If k = 0 Then k = -2
+											If k > 14 Then k = k + 1
+											img.ItemType = k + 2
+											pics.UpdateDB
+											Exit For
+										End If
+									Next
+									Set pics = itm.AlbumArt
+									If ImageTagCount + 1 = pics.Count Then
+									Else
+									End If
+								End If
+							Next
+						End If
+						If CoverStorage = 0 Then
+							SDB.Tools.FileSystem.DeleteFile(path & "\" & RndFileName)
+						End If
+					End If
+				Next
+			End If
+		End If
+	End If
 
 	WebBrowser.Common.DestroyControl      ' Destroy the external control
 	Set WebBrowser = Nothing              ' Release global variable
@@ -2575,6 +2590,7 @@ End Sub
 
 Function GetHeader()
 
+	Dim templateHTML, i
 	templateHTML = "<HTML>"
 	templateHTML = templateHTML &  "<HEAD>"
 	templateHTML = templateHTML &  "<style type=""text/css"" media=""screen"">"
@@ -2586,6 +2602,7 @@ Function GetHeader()
 	templateHTML = templateHTML &  "<tr>"
 	templateHTML = templateHTML &  "<td align=left><a href=""http://www.discogs.com"" target=""_blank""><img src=""http://s.discogss.com/images/discogs-white-2.png"" border=""0""/ alt=""Discogs Homepage""></a><b>" & VersionStr & "</b></td>"
 	templateHTML = templateHTML &  "<td colspan=3 align=right valign=top>"
+
 	templateHTML = templateHTML &  "<table border=0 cellspacing=0 cellpadding=2 class=tabletext>"
 	templateHTML = templateHTML &  "<tr><td colspan=2></td><td><b>Filter Results: </b></td><td colspan=3> </td></tr>"
 	templateHTML = templateHTML &  "<tr>"
@@ -2596,14 +2613,15 @@ Function GetHeader()
 	templateHTML = templateHTML &  "<td align=left><button type=button class=tabletext id=""showcountryfilter"">Set Country Filter</button></td>"
 	templateHTML = templateHTML &  "<td align=left><button type=button class=tabletext id=""showyearfilter"">Set Year Filter</button></td>"
 	templateHTML = templateHTML &  "</tr>"
-	REM templateHTML = templateHTML &  "<tr>"
-	
-	REM templateHTML = templateHTML &  "<td colspan=4> </td>"
-
-	REM templateHTML = templateHTML &  "</tr>"
 	templateHTML = templateHTML &  "<tr>"
 	templateHTML = templateHTML &  "<td>"
-	templateHTML = templateHTML &  "<select id=""load"" class=tabletext>"
+	templateHTML = templateHTML &  "<select id=""load"" class=tabletext title=""Search Result=Search with Artist and Album Title" & vbCrLf & "Master Release=Show all releases from the master"">"
+
+	LoadList.Add "Search Results"
+	LoadList.Add "Master Release"
+	LoadList.Add "Releases of Artist"
+	LoadList.Add "Releases of Label"
+
 	For i = 0 To LoadList.Count - 1
 		If LoadList.Item(i) <> CurrentLoadType Then
 			templateHTML = templateHTML &  "<option value=""" & EncodeHtmlChars(LoadList.Item(i)) & """>" & LoadList.Item(i) & "</option>"
@@ -2629,7 +2647,7 @@ Function GetHeader()
 	'Filters Begin
 	templateHTML = templateHTML &  "<td>"
 	templateHTML = templateHTML &  "<select id=""filtermediatype"" class=tabletext>"
-	
+
 	If FilterMediaType = "None" Then
 		templateHTML = templateHTML &  "<option value=""None"">No MediaType Filter</option>"
 		templateHTML = templateHTML &  "<option value=""Use MediaType Filter"">Use MediaType Filter</option>"
@@ -2653,7 +2671,7 @@ Function GetHeader()
 
 	templateHTML = templateHTML &  "<td>"
 	templateHTML = templateHTML &  "<select id=""filtermediaformat"" class=tabletext>"
-	
+
 	If FilterMediaFormat = "None" Then
 		templateHTML = templateHTML &  "<option value=""None"">No MediaFormat Filter</option>"
 		templateHTML = templateHTML &  "<option value=""Use MediaFormat Filter"">Use MediaFormat Filter</option>"
@@ -2700,7 +2718,7 @@ Function GetHeader()
 
 	templateHTML = templateHTML &  "<td>"
 	templateHTML = templateHTML &  "<select id=""filteryear"" class=tabletext>"
-	
+
 	If FilterYear = "None" Then
 		templateHTML = templateHTML &  "<option value=""None"">No Year Filter</option>"
 		templateHTML = templateHTML &  "<option value=""Use Year Filter"">Use Year Filter</option>"
@@ -2727,20 +2745,21 @@ Function GetHeader()
 	templateHTML = templateHTML &  "</table>"
 	templateHTML = templateHTML &  "</td>"
 	templateHTML = templateHTML &  "</tr>"
-	
+
 	GetHeader = templateHTML
-	
+
 End Function
 
 
 Function GetFooter()
 
+	Dim templateHTML
 	templateHTML = templateHTML &  "</table>"
 	templateHTML = templateHTML &  "</body>"
 	templateHTML = templateHTML &  "</HTML>"
-	
+
 	GetFooter = templateHTML
-	
+
 End Function
 
 
@@ -2748,6 +2767,10 @@ End Function
 ' We use this procedure to reformat results as soon as they are downloaded
 Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtist, AlbumArtistTitle, ArtistTitles, AlbumTitle, ReleaseDate, OriginalDate, Genres, Styles, theLabels, theCountry, theArt, releaseID, Catalog, Lyricists, Composers, Conductors, Producers, InvolvedPeople, theFormat, theMaster, comment, DiscogsTracksNum, DataQuality)
 
+	Dim templateHTML, checkBox, text, listBox, submitButton
+	Dim SelectedTracksCount, UnSelectedTracksCount
+	Dim SubTrackFlag
+	Dim i, theTracks, currentCD, theGenres
 	templateHTML = ""
 	templateHTML = templateHTML &  GetHeader()
 
@@ -2768,14 +2791,18 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 		templateHTML = templateHTML &  "<tr><td colspan=2><table width=150 height=150 border=1><tr><td><center>No Image<br>Available</center></td></tr></table></td></tr>"
 	End If
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""cover"" >Large <input type=checkbox id=""smallcover"" >Small (150px)</td></tr>"
+	If ImagesCount > 1 Then
+		templateHTML = templateHTML &  "<tr><td colspan=2 align=center><button type=button class=tabletext id=""moreimages"">More Images</button></td></tr>"
+	End If
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=center><br></td></tr>"
-
+	' Release Cover End
 
 	' Options Begin
 	REM templateHTML = templateHTML &  "<tr><td colspan=2 align=center><br></td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=center><button type=button class=tabletext id=""saveoptions"">Save Options</button></td></tr>"
 	templateHTML = templateHTML &  "<tr><td align=center colspan=2><b>Options:</b></td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""lyricist"" >Save Lyricist</td></tr>"
+	REM " & SDB.Localize("Save") & " Lyricist</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""composer"" >Save Composer</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""conductor"" >Save Conductor</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""producer"" >Save Producer</td></tr>"
@@ -2784,16 +2811,18 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""useanv"" title=""Artist Name Variation - Using no name variation (e.g. nickname)"" >Don't Use ANV's</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""yearonlydate"" title=""If checked only the Year will be saved (e.g. 14.01.1982 -> 1982)"" >Only Year Of Date</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""titlefeaturing"" title=""If checked the feat. Artist appears in the title tag (e.g. Aaliyah (ft. Timbaland) - We Need a Resolution  ->  Aaliyah - We Need a Resolution (ft. Timbaland) )"" >feat. Artist behind Title</td></tr>"
-	
+
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""FeaturingName"" title=""Rename 'feat.' to the given word"" >Rename 'feat.' to:</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=text id=""TxtFeaturingName"" ></td></tr>"
-	
+
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""various"" title=""Rename 'Various' Artist to the given word"" >Rename 'Various' Artist to:</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=text id=""txtvarious"" ></td></tr>"
 
 	templateHTML = templateHTML &  "<tr><td align=center colspan=2><br></td></tr>"
 	templateHTML = templateHTML &  "<tr><td align=center colspan=2><b>Disc/Track Numbering:</b></td></tr>"
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""OriginalDiscogsTrack"" title=""Show the original Discogs track position"" >Discogs track position</td></tr>"
+		templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""UnselectNoTrackPos"" title=""Tracks without track-number at discogs will automatically unselect (e.g. 'Bonus Tracks')"" >Unselect Index-Tracks</td></tr>"
+	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""SubTrackNameSelection"" title=""If checked the Sub-Track will be named like 'Sub-Track 1, Sub-Track 2, Sub Track 3'  if not checked the Sub-Tracks will be named like 'Track Name (Sub-Track 1, Sub-Track 2, Sub Track 3)'"" >Other Sub-Track Naming</td></tr>"
+
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""forcenumeric"" title=""Always use numbers instead of letters (Vinyl-releases use A1, A2,..., B1, B2 as track numbering)"" >Force To Numeric</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""sidestodisc"" title=""Save the Vinyl sides to the disc tag"" >Sides To Disc</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""forcedisc"" title=""Always add a disc-number"" >Force Disc Usage</td></tr>"
@@ -2801,71 +2830,43 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""leadingzero"" title=""Track Position: 1 -> 01   2 -> 02 ..."" >Add Leading Zero</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=center><br></td></tr>"
 
-	REM templateHTML = templateHTML &  "</table>"
-	REM templateHTML = templateHTML &  "</td>"
-	' Options End
-
-
-	REM templateHTML = templateHTML &  "<tr><td align=left valign=center>Release Tag  </td>"
-	REM templateHTML = templateHTML &  "<td align=left>"
-	REM templateHTML = templateHTML &  "<select id=""ReleaseTag"" title=""Choose the Custom Tag where the Discogs release number will be saved"" class=tabletext>"
-	REM For i = 0 To ReleaseTagList.Count - 1
-		REM If ReleaseTag <> ReleaseTagList.Item(i) Then
-			REM templateHTML = templateHTML &  "<option value=""" & EncodeHtmlChars(ReleaseTagList.Item(i)) & """>" & ReleaseTagList.Item(i) & "</option>"
-		REM Else
-			REM templateHTML = templateHTML &  "<option value=""" & EncodeHtmlChars(ReleaseTagList.Item(i)) & """ selected>" & ReleaseTagList.Item(i) & "</option>"
-		REM End If
-	REM Next
-	REM templateHTML = templateHTML &  "</select>"
-	REM templateHTML = templateHTML &  "</td></tr>"
-	REM templateHTML = templateHTML &  "<tr><td colspan=2 align=center><br></td></tr>"
-
-	REM templateHTML = templateHTML &  "<tr><td align=left valign=center>Catalog Tag  </td>"
-	REM templateHTML = templateHTML &  "<td align=left>"
-	REM templateHTML = templateHTML &  "<select id=""CatalogTag"" title=""Choose the Custom Tag where the Discogs catalog number will be saved"" class=tabletext>"
-	REM For i = 0 To CatalogTagList.Count - 1
-		REM If CatalogTag <> CatalogTagList.Item(i) Then
-			REM templateHTML = templateHTML &  "<option value=""" & EncodeHtmlChars(CatalogTagList.Item(i)) & """>" & CatalogTagList.Item(i) & "</option>"
-		REM Else
-			REM templateHTML = templateHTML &  "<option value=""" & EncodeHtmlChars(CatalogTagList.Item(i)) & """ selected>" & CatalogTagList.Item(i) & "</option>"
-		REM End If
-	REM Next
-	REM templateHTML = templateHTML &  "</select>"
-	REM templateHTML = templateHTML &  "</td></tr>"
-	REM templateHTML = templateHTML &  "<tr><td colspan=2 align=center><br></td></tr>"
-
-	REM templateHTML = templateHTML &  "<tr><td align=left valign=center>Country Tag  </td>"
-	REM templateHTML = templateHTML &  "<td align=left>"
-	REM templateHTML = templateHTML &  "<select id=""CountryTag"" title=""Choose the Custom Tag where the Discogs release country will be saved"" class=tabletext>"
-	REM For i = 0 To CountryTagList.Count - 1
-		REM If CountryTag <> CountryTagList.Item(i) Then
-			REM templateHTML = templateHTML &  "<option value=""" & EncodeHtmlChars(CountryTagList.Item(i)) & """>" & CountryTagList.Item(i) & "</option>"
-		REM Else
-			REM templateHTML = templateHTML &  "<option value=""" & EncodeHtmlChars(CountryTagList.Item(i)) & """ selected>" & CountryTagList.Item(i) & "</option>"
-		REM End If
-	REM Next
-	REM templateHTML = templateHTML &  "</select>"
-	REM templateHTML = templateHTML &  "</td></tr>"
-	REM templateHTML = templateHTML &  "<tr><td colspan=2 align=center><br></td></tr>"
-
-	REM templateHTML = templateHTML &  "<tr><td align=left valign=center>Format Tag  </td>"
-	REM templateHTML = templateHTML &  "<td align=left>"
-	REM templateHTML = templateHTML &  "<select id=""FormatTag"" title=""Choose the Custom Tag where the Discogs format info will be saved"" class=tabletext>"
-	REM For i = 0 To FormatTagList.Count - 1
-		REM If FormatTag <> FormatTagList.Item(i) Then
-			REM templateHTML = templateHTML &  "<option value=""" & EncodeHtmlChars(FormatTagList.Item(i)) & """>" & FormatTagList.Item(i) & "</option>"
-		REM Else
-			REM templateHTML = templateHTML &  "<option value=""" & EncodeHtmlChars(FormatTagList.Item(i)) & """ selected>" & FormatTagList.Item(i) & "</option>"
-		REM End If
-	REM Next
-	REM templateHTML = templateHTML &  "</select>"
-	REM templateHTML = templateHTML &  "</td></tr>"
 	templateHTML = templateHTML &  "</table>"
 	templateHTML = templateHTML &  "</td>"
-	' Release Cover End
+	' Options End
+	
 	' Release Information Begin
 	templateHTML = templateHTML &  "<td align=left valign=top>"
 	templateHTML = templateHTML &  "<table border=0 cellspacing=0 cellpadding=1 class=tabletext>"
+	
+	iMaxTracks = Tracks.Count
+	If TracksCD.Count < iMaxTracks Then
+		iMaxTracks = TracksCD.Count
+	End If
+	
+	'Check for different Track number
+	SelectedTracksCount = 0
+	UnSelectedTracksCount = 0
+	SubTrackFlag = False
+	For i = 0 To iMaxTracks - 1
+		If (UnselectedTracks(i) = "") Then
+			If instr(DiscogsTracksNum.Item(i), ".") <> 0 Then
+				If SubTrackFlag = False Then
+					SubTrackFlag = True
+					SelectedTracksCount = SelectedTracksCount + 1
+				End If
+			Else
+				If SubTrackFlag = True Then SubTrackFlag = False
+				SelectedTracksCount = SelectedTracksCount + 1
+			End If
+		Else
+			UnSelectedTracksCount = UnSelectedTracksCount + 1
+		End If
+	Next
+	If (iMaxTracks - UnSelectedTracksCount) <> SDB.Tools.WebSearch.NewTracks.Count Then
+		templateHTML = templateHTML &  "<tr><td colspan=3 align=center><b><span style=""color:#FF0000"">There are different numbers of tracks !</span></b></td></tr>"
+		templateHTML = templateHTML &  "<tr><td colspan=3 align=center><br></td></tr>"
+	End If
+	REM bgcolor=""#FFFF00""
 	templateHTML = templateHTML &  "<tr>"
 	templateHTML = templateHTML &  "<td><input type=checkbox id=""releaseid"" ></td>"
 	templateHTML = templateHTML &  "<td>Release:</td>"
@@ -2953,10 +2954,6 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 
 	theTracks = ""
 	currentCD = 0
-	iMaxTracks = Tracks.Count
-	If TracksCD.Count < iMaxTracks Then
-		iMaxTracks = TracksCD.Count
-	End If
 
 	For i=0 To iMaxTracks - 1
 		templateHTML = templateHTML &  "<tr>"
@@ -2990,7 +2987,6 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	' Tracklisting End
 
 
-
 	templateHTML = templateHTML &  GetFooter()
 
 	templateHTML = Replace(templateHTML, "<!RELEASEID!>", releaseID)
@@ -3009,7 +3005,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 
 	theGenres = ""
 
-	If Genres <> "" Then 
+	If Genres <> "" Then
 		If CheckGenre Then
 			theGenres = Genres
 		Else
@@ -3017,7 +3013,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 		End If
 	End If
 
-	If Styles <> "" Then 
+	If Styles <> "" Then
 		If theGenres <> "" Then
 			If CheckGenre Then
 				theGenres = theGenres & Separator
@@ -3032,9 +3028,10 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 		End If
 	End If
 	templateHTML = Replace(templateHTML, "<!GENRE!>", theGenres)
-	
+
 	WebBrowser.SetHTMLDocument templateHTML
 
+	Dim templateHTMLDoc
 	Set templateHTMLDoc = WebBrowser.Interf.Document
 
 	Set checkBox = templateHTMLDoc.getElementById("album")
@@ -3118,9 +3115,6 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Set checkBox = templateHTMLDoc.getElementById("forcedisc")
 	checkBox.Checked = CheckForceDisc
 	Script.RegisterEvent checkBox, "onclick", "Update"
-	Set checkBox = templateHTMLDoc.getElementById("OriginalDiscogsTrack")
-	checkBox.Checked = CheckOriginalDiscogsTrack
-	Script.RegisterEvent checkBox, "onclick", "Update"
 	Set checkBox = templateHTMLDoc.getElementById("nodisc")
 	checkBox.Checked = CheckNoDisc
 	Script.RegisterEvent checkBox, "onclick", "Update"
@@ -3145,6 +3139,12 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Set checkBox = templateHTMLDoc.getElementById("various")
 	checkBox.Checked = CheckVarious
 	Script.RegisterEvent checkBox, "onclick", "Update"
+	Set checkBox = templateHTMLDoc.getElementById("UnselectNoTrackPos")
+	checkBox.Checked = CheckUnselectNoTrackPos
+	Script.RegisterEvent checkBox, "onclick", "NoTrackPos"
+	Set checkBox = templateHTMLDoc.getElementById("SubTrackNameSelection")
+	checkBox.Checked = SubTrackNameSelection
+	Script.RegisterEvent checkBox, "onclick", "Update"
 	
 	Set listBox = templateHTMLDoc.getElementById("filtermediatype")
 	Script.RegisterEvent listBox, "onchange", "Filter"
@@ -3156,15 +3156,6 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Script.RegisterEvent listBox, "onchange", "Filter"
 	Set listBox = templateHTMLDoc.getElementById("load")
 	Script.RegisterEvent listBox, "onchange", "Filter"
-
-	Set listBox = templateHTMLDoc.getElementById("ReleaseTag")
-	Script.RegisterEvent listBox, "onchange", "CustomChange"
-	Set listBox = templateHTMLDoc.getElementById("CatalogTag")
-	Script.RegisterEvent listBox, "onchange", "CustomChange"
-	Set listBox = templateHTMLDoc.getElementById("CountryTag")
-	Script.RegisterEvent listBox, "onchange", "CustomChange"
-	Set listBox = templateHTMLDoc.getElementById("FormatTag")
-	Script.RegisterEvent listBox, "onchange", "CustomChange"
 
 	For i=0 To iMaxTracks - 1
 		Set checkBox = templateHTMLDoc.getElementById("unselected["&i&"]")
@@ -3193,10 +3184,15 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Set submitButton = templateHTMLDoc.getElementById("showyearfilter")
 	Script.RegisterEvent submitButton, "onclick", "ShowYearFilter"
 
+	Set submitButton = templateHTMLDoc.getElementById("moreimages")
+	Script.RegisterEvent submitButton, "onclick", "MoreImages"
+
 End Sub
 
 
 Sub Update()
+
+	Dim templateHTMLDoc, checkBox, text
 	Set WebBrowser = SDB.Objects("WebBrowser")
 	Set templateHTMLDoc = WebBrowser.Interf.Document
 
@@ -3213,21 +3209,21 @@ Sub Update()
 	Set checkBox = templateHTMLDoc.getElementById("origdate")
 	CheckOrigDate = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("label")
-	CheckLabel = checkBox.Checked 
+	CheckLabel = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("genre")
-	CheckGenre = checkBox.Checked   
+	CheckGenre = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("style")
-	CheckStyle = checkBox.Checked 
+	CheckStyle = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("country")
-	CheckCountry = checkBox.Checked 
+	CheckCountry = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("cover")
-	If Not CheckCover And checkBox.Checked Then 
+	If Not CheckCover And checkBox.Checked Then
 		CheckSmallCover = false
 		CheckCover = checkBox.Checked
 	Else
 		CheckCover = checkBox.Checked
 		Set checkBox = templateHTMLDoc.getElementById("smallcover")
-		If Not CheckSmallCover And checkBox.Checked Then 
+		If Not CheckSmallCover And checkBox.Checked Then
 			CheckCover = false
 		End If
 		CheckSmallCover = checkBox.Checked
@@ -3251,9 +3247,9 @@ Sub Update()
 	Set checkBox = templateHTMLDoc.getElementById("tracknum")
 	CheckTrackNum = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("format")
-	CheckFormat = checkBox.Checked 
+	CheckFormat = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("useanv")
-	CheckUseAnv = checkBox.Checked 
+	CheckUseAnv = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("yearonlydate")
 	CheckYearOnlyDate = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("forcenumeric")
@@ -3261,19 +3257,17 @@ Sub Update()
 	Set checkBox = templateHTMLDoc.getElementById("sidestodisc")
 	CheckSidesToDisc = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("forcedisc")
-	If Not CheckForceDisc And checkBox.Checked Then 
+	If Not CheckForceDisc And checkBox.Checked Then
 		CheckNoDisc = false
 		CheckForceDisc = checkBox.Checked
 	Else
 		CheckForceDisc = checkBox.Checked
 		Set checkBox = templateHTMLDoc.getElementById("nodisc")
-		If Not CheckNoDisc And checkBox.Checked Then 
+		If Not CheckNoDisc And checkBox.Checked Then
 			CheckForceDisc = false
 		End If
 		CheckNoDisc = checkBox.Checked
 	End If
-	Set checkBox = templateHTMLDoc.getElementById("OriginalDiscogsTrack")
-	CheckOriginalDiscogsTrack = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("leadingzero")
 	CheckLeadingZero = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("titlefeaturing")
@@ -3288,34 +3282,43 @@ Sub Update()
 	CheckVarious = checkBox.Checked
 	Set text = templateHTMLDoc.getElementById("txtvarious")
 	TxtVarious = text.Value
+	Set checkBox = templateHTMLDoc.getElementById("SubTrackNameSelection")
+	SubTrackNameSelection = checkBox.Checked
 
 	ReloadResults
+
 End Sub
 
-Sub Unselect()
+
+Sub NoTrackPos()
+
+	Dim checkBox, templateHTMLDoc, i
 	Set WebBrowser = SDB.Objects("WebBrowser")
 	Set templateHTMLDoc = WebBrowser.Interf.Document
-
-	For i=0 To iMaxTracks - 1
-		Set checkBox = templateHTMLDoc.getElementById("unselected["&i&"]")
-		If checkBox.Checked Then 
+	Set checkBox = templateHTMLDoc.getElementById("UnselectNoTrackPos")
+	CheckUnselectNoTrackPos = checkBox.Checked
+	If Not CheckUnselectNoTrackPos Then
+		For i = 0 To iMaxTracks - 1
 			UnselectedTracks(i) = ""
-		Else
-			UnselectedTracks(i) = "x"
-		End If
-	Next
+		Next
+	End If
 
 	ReloadResults
+
 End Sub
 
+
 Sub SwitchAll()
+
+	Dim templateHTMLDoc, i, checkBox
 	Set WebBrowser = SDB.Objects("WebBrowser")
 	Set templateHTMLDoc = WebBrowser.Interf.Document
 	Set checkBox = templateHTMLDoc.getElementById("selectall")
 	SelectAll = checkBox.Checked
+	UserChoose = True
 
-	For i=0 To iMaxTracks - 1
-		If SelectAll Then 
+	For i = 0 To iMaxTracks - 1
+		If SelectAll Then
 			UnselectedTracks(i) = ""
 		Else
 			UnselectedTracks(i) = "x"
@@ -3323,9 +3326,13 @@ Sub SwitchAll()
 	Next
 
 	ReloadResults
+	
 End Sub
 
+
 Sub Filter()
+
+	Dim templateHTMLDoc, listBox
 	Set WebBrowser = SDB.Objects("WebBrowser")
 	Set templateHTMLDoc = WebBrowser.Interf.Document
 
@@ -3376,34 +3383,27 @@ Sub Filter()
 	ElseIf(CurrentLoadType = "Releases of Label") Then
 		LoadLabelResults(SavedLabelId)
 	Else
-		FindResults (SavedSearchTerm)
+		FindResults(SavedSearchTerm)
 	End If
+
 End Sub
 
-
-Sub CustomChange()
-	Set WebBrowser = SDB.Objects("WebBrowser")
-	Set templateHTMLDoc = WebBrowser.Interf.Document
-
-	Set listBox = templateHTMLDoc.getElementById("ReleaseTag")
-	ReleaseTag = listBox.Value
-	Set listBox = templateHTMLDoc.getElementById("CatalogTag")
-	CatalogTag = listBox.Value
-	Set listBox = templateHTMLDoc.getElementById("CountryTag")
-	CountryTag = listBox.Value
-	Set listBox = templateHTMLDoc.getElementById("FormatTag")
-	FormatTag = listBox.Value
-End Sub
 
 Sub Alternative()
+
+	Dim templateHTMLDoc
 	Set WebBrowser = SDB.Objects("WebBrowser")
 	Set templateHTMLDoc = WebBrowser.Interf.Document
 	SavedSearchTerm =  templateHTMLDoc.getElementById("alternative").Value
 	CurrentLoadType = "Search Results"
-	FindResults SavedSearchTerm
+	FindResults(SavedSearchTerm)
+	
 End Sub
 
+
 Sub SaveOptions()
+
+	Dim a, tmp
 	' save options if ini exists
 	If Not (ini Is Nothing) Then
 		ini.BoolValue("DiscogsAutoTagWeb","CheckAlbum") = CheckAlbum
@@ -3433,7 +3433,6 @@ Sub SaveOptions()
 		ini.BoolValue("DiscogsAutoTagWeb","CheckForceNumeric") = CheckForceNumeric
 		ini.BoolValue("DiscogsAutoTagWeb","CheckSidesToDisc") = CheckSidesToDisc
 		ini.BoolValue("DiscogsAutoTagWeb","CheckForceDisc") = CheckForceDisc
-		ini.BoolValue("DiscogsAutoTagWeb","CheckOriginalDiscogsTrack") = CheckOriginalDiscogsTrack
 		ini.BoolValue("DiscogsAutoTagWeb","CheckNoDisc") = CheckNoDisc
 		ini.BoolValue("DiscogsAutoTagWeb","CheckLeadingZero") = CheckLeadingZero
 		ini.StringValue("DiscogsAutoTagWeb","ReleaseTag") = ReleaseTag
@@ -3446,6 +3445,9 @@ Sub SaveOptions()
 		ini.StringValue("DiscogsAutoTagWeb","TxtFeaturingName") = TxtFeaturingName
 		ini.BoolValue("DiscogsAutoTagWeb","CheckFeaturingName") = CheckFeaturingName
 		ini.BoolValue("DiscogsAutoTagWeb","CheckComment") = CheckComment
+		ini.BoolValue("DiscogsAutoTagWeb","CheckUnselectNoTrackPos") = CheckUnselectNoTrackPos
+		ini.BoolValue("DiscogsAutoTagWeb","SubTrackNameSelection") = SubTrackNameSelection
+		
 		tmp = CountryFilterList.Item(0)
 		For a = 1 To CountryList.Count - 1
 			tmp = tmp & "," & CountryFilterList.Item(a)
@@ -3467,11 +3469,13 @@ Sub SaveOptions()
 		Next
 		ini.StringValue("DiscogsAutoTagWeb","CurrentYearFilter") = tmp
 	End If
+
 End Sub
 
 ' Format Error Message
 Sub FormatErrorMessage(ErrorMessage)
 
+	Dim templateHTML, listBox, templateHTMLDoc, submitButton
 	templateHTML = ""
 	templateHTML = templateHTML &  GetHeader()
 	templateHTML = templateHTML &  "<tr>"
@@ -3482,7 +3486,7 @@ Sub FormatErrorMessage(ErrorMessage)
 	WebBrowser.SetHTMLDocument templateHTML
 
 	Set templateHTMLDoc = WebBrowser.Interf.Document
-	
+
 	Set listBox = templateHTMLDoc.getElementById("alternative")
 	Script.RegisterEvent listBox, "onchange", "Alternative"
 
@@ -3504,12 +3508,15 @@ Sub FormatErrorMessage(ErrorMessage)
 	Script.RegisterEvent submitButton, "onclick", "ShowMediaFormatFilter"
 	Set submitButton = templateHTMLDoc.getElementById("showyearfilter")
 	Script.RegisterEvent submitButton, "onclick", "ShowYearFilter"
+	
 End Sub
 
 
 Function URLEncodeUTF8(ByRef input)
+
 	' urlencode a string with UTF8 encoding - yes, it is cryptic but it works!
-	Dim i, result
+	Dim i, result, CurrentChar
+	Dim FirstByte, SecondByte, ThirdByte
 
 	result = ""
 	For i = 1 To Len(input)
@@ -3522,7 +3529,7 @@ Function URLEncodeUTF8(ByRef input)
 
 		If (CurrentChar >= 0) And (CurrentChar < 128) Then
 			' 1 byte
-			If(CurrentChar = 32) Then 
+			If(CurrentChar = 32) Then
 				' replace space with "+"
 				result = result & "+"
 			Else
@@ -3551,24 +3558,31 @@ Function URLEncodeUTF8(ByRef input)
 
 End Function
 
+
 Function DecodeHtmlChars(Text)
+
 	DecodeHtmlChars = Text
 	DecodeHtmlChars = Replace(DecodeHtmlChars,"&quot;",	"""")
 	DecodeHtmlChars = Replace(DecodeHtmlChars,"&lt;",	"<")
 	DecodeHtmlChars = Replace(DecodeHtmlChars,"&gt;",	">")
 	DecodeHtmlChars = Replace(DecodeHtmlChars,"&amp;",	"&")
+	
 End Function
 
+
 Function EncodeHtmlChars(Text)
+
 	EncodeHtmlChars= Text
 	EncodeHtmlChars= Replace(EncodeHtmlChars, "&",	"&amp;")
 	EncodeHtmlChars= Replace(EncodeHtmlChars,"""",	"&quot;")
 	EncodeHtmlChars= Replace(EncodeHtmlChars,"<",	"&lt;")
 	EncodeHtmlChars= Replace(EncodeHtmlChars, ">",	"&gt;")
+	
 End Function
 
 
 Function CleanSearchString(Text)
+
 	CleanSearchString = Text
 	CleanSearchString = Replace(CleanSearchString,")", " ") 'remove paranthesis to avoid search errors (discogs bug)
 	CleanSearchString = Replace(CleanSearchString,"(", " ") 'also clean other unneccessary characters
@@ -3578,16 +3592,22 @@ Function CleanSearchString(Text)
 	CleanSearchString = Replace(CleanSearchString,"@", " ")
 	CleanSearchString = Replace(CleanSearchString,"_", " ")
 	CleanSearchString = Replace(CleanSearchString,"?", " ")
+	
 End Function
 
 
 Function CleanArtistName(artistname)
+
 	CleanArtistName = DecodeHtmlChars(artistname)
 	If instr(CleanArtistName, " (") > 0 Then CleanArtistName = left(CleanArtistName, instrrev(CleanArtistName, " (") - 1)
 	If instr(CleanArtistName, ", The") > 0 Then CleanArtistName = "The " & left(CleanArtistName, instrrev(CleanArtistName, ", The") - 1)
+	
 End Function
 
+
 Function AddAlternative(Alternative)
+
+	Dim i
 	If Trim(Alternative) <> "" Then
 		For i = 0 To AlternativeList.Count - 1
 			If AlternativeList.Item(i) = Trim(Alternative) Then
@@ -3596,9 +3616,13 @@ Function AddAlternative(Alternative)
 		Next
 		AlternativeList.Add Trim(Alternative)
 	End If
+
 End Function
 
+
 Function AddAlternatives(Song)
+
+	Dim SavedArtist, SavedTitle, SavedAlbum, SavedAlbumArtist, SavedFolderName, SavedFileName, Custom
 	SavedArtist = Song.ArtistName
 	SavedTitle = Song.Title
 	SavedAlbum = Song.AlbumName
@@ -3643,37 +3667,52 @@ Function AddAlternatives(Song)
 	AddAlternative SavedAlbumArtist & " " & SavedAlbum
 	AddAlternative SavedArtist & " " & SavedTitle
 	AddAlternative SavedAlbumArtist & " " & SavedTitle
+	
 End Function
 
+
 Function IsInteger(Str)
+
+	Dim i, d
 	IsInteger = true
-	For i = 1 To len(str)
-		d = Mid(str, i, 1)
+	For i = 1 To len(Str)
+		d = Mid(Str, i, 1)
 		If asc(d) < 48 Or asc(d) > 57 Then
 			IsInteger = false
 			Exit For
 		End If
-	Next 
+	Next
+
 End Function
 
+
 Function PackSpaces(Text)
+
 	PackSpaces = Text
 	PackSpaces = Replace(PackSpaces,"  ", " ") 'pack spaces
 	PackSpaces = Replace(PackSpaces,"  ", " ") 'pack spaces left
+
 End Function
 
+
 Function search_involved(Text, SearchText)
+
+	Dim i
 	For i = 1 To UBound(Text)
-		If InStr(Text(i), SearchText) <> 0 Then
+		If Left(Text(i), Len(SearchText)) = SearchText Then
 			search_involved = i
 			Exit Function
 		End If
 	Next
 	search_involved = -1
+
 End Function
+
 
 Function JSONParser_find_result(searchURL, ArrayName)
 
+	Dim oXMLHTTP, r, f
+	WriteLog("Arrayname=" & ArrayName)
 	' use json api with vbsjson class at start of file now
 	Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 
@@ -3681,11 +3720,10 @@ Function JSONParser_find_result(searchURL, ArrayName)
 	Set json = New VbsJson
 
 	Dim response
-
+	Dim format, title, country, v_year, label, artist, Rtype, catNo, main_release, tmp, ReleaseDesc, FilterFound
 	REM searchURL = "http://api.discogs.com/database/search?q=" & URLEncodeUTF8(CleanSearchString(SearchString)) & "&type=release&title"
 	REM Rel = JSONParser(searchURL)
 
-	'WriteLog SearchURL
 	Call oXMLHTTP.open("GET", searchURL, false)
 	Call oXMLHTTP.setRequestHeader("Content-Type","application/json")
 	Call oXMLHTTP.setRequestHeader("User-Agent","MediaMonkeyDiscogsAutoTagWeb/2.0 +http://mediamonkey.com")
@@ -3696,15 +3734,26 @@ Function JSONParser_find_result(searchURL, ArrayName)
 		'check if any results
 		'and add titles to drop down
 		'msgbox response(ArrayName)(0)("title")
-		Dim format, title, country, year, label, artist, Rtype
+
 		For Each r In response(ArrayName)
 			format = ""
 			title = ""
 			country = ""
-			year = ""
+			v_year = ""
 			artist = ""
 			label = ""
 			Rtype = ""
+			catNo = ""
+			main_release = ""
+
+			title = response(ArrayName)(r)("title")
+			Set tmp = response(ArrayName)(r)
+			If tmp.Exists("artist") Then
+				artist = tmp("artist")
+			End If
+			If tmp.Exists("main_release") Then
+				main_release = tmp("main_release")
+			End If
 			If ArrayName = "results" Then
 				For Each f In response(ArrayName)(r)("format")
 					format = format & response(ArrayName)(r)("format")(f) & ", "
@@ -3713,14 +3762,19 @@ Function JSONParser_find_result(searchURL, ArrayName)
 			Else
 				format = response(ArrayName)(r)("format")
 			End If
-			title = response(ArrayName)(r)("title")
-			Set tmp = response(ArrayName)(r)
-			If tmp.Exists("artist") Then
-				artist = tmp("artist")
-			End If
+
 			country = response(ArrayName)(r)("country")
-			If tmp.Exists("year") Then
-				year = response(ArrayName)(r)("year")
+			If ArrayName = "versions" Then
+				If tmp.Exists("released") Then
+					v_year = response(ArrayName)(r)("released")
+				End If
+			Else
+				If tmp.Exists("year") Then
+					v_year = response(ArrayName)(r)("year")
+				End If
+			End If
+			If tmp.Exists("catno") Then
+				catNo = response(ArrayName)(r)("catno")
 			End If
 			If tmp.Exists("type") Then
 				Rtype = response(ArrayName)(r)("type")
@@ -3748,42 +3802,43 @@ Function JSONParser_find_result(searchURL, ArrayName)
 					Next
 					If FilterFound = False Then Exit Do
 				End If
-				If(FilterMediaType <> "None" And FilterMediaType <> "Use MediaType Filter" And InStr(Format, FilterMediaType) = 0 And Format <> "") Then Exit Do
+				If(FilterMediaType <> "None" And FilterMediaType <> "Use MediaType Filter" And InStr(format, FilterMediaType) = 0 And format <> "") Then Exit Do
 
-				If FilterMediaFormat = "Use MediaFormat Filter" And Format <> "" Then
+				If FilterMediaFormat = "Use MediaFormat Filter" And format <> "" Then
 					FilterFound = False
 					For a = 1 To MediaFormatList.Count - 1
-						If InStr(Format, MediaFormatList.Item(a)) <> 0 And MediaFormatFilterList.Item(a) = "1" Then FilterFound = True
+						If InStr(format, MediaFormatList.Item(a)) <> 0 And MediaFormatFilterList.Item(a) = "1" Then FilterFound = True
 					Next
 					If FilterFound = False Then Exit Do
 				End If
-				If(FilterMediaFormat <> "None" And FilterMediaFormat <> "Use MediaFormat Filter" And InStr(Format, FilterMediaFormat) = 0 And Format <> "") Then Exit Do
+				If(FilterMediaFormat <> "None" And FilterMediaFormat <> "Use MediaFormat Filter" And InStr(format, FilterMediaFormat) = 0 And Format <> "") Then Exit Do
 
-				If FilterCountry = "Use Country Filter" And Country <> "" Then
+				If FilterCountry = "Use Country Filter" And country <> "" Then
 					FilterFound = False
 					For a = 1 To CountryList.Count - 1
-						If InStr(Country, CountryList.Item(a)) <> 0 And CountryFilterList.Item(a) = "1" Then FilterFound = True
+						If InStr(country, CountryList.Item(a)) <> 0 And CountryFilterList.Item(a) = "1" Then FilterFound = True
 					Next
 					If FilterFound = False Then Exit Do
 				End If
-				If(FilterCountry <> "None" And FilterCountry <> "Use Country Filter" And InStr(Country, FilterCountry) = 0 And Country <> "") Then Exit Do
+				If(FilterCountry <> "None" And FilterCountry <> "Use Country Filter" And InStr(country, FilterCountry) = 0 And country <> "") Then Exit Do
 
-				If FilterYear = "Use Year Filter" And Year <> "" Then
+				If FilterYear = "Use Year Filter" And v_year <> "" Then
 					FilterFound = False
 					For a = 1 To YearList.Count - 1
-						If InStr(Year, YearList.Item(a)) <> 0 And YearFilterList.Item(a) = "1" Then FilterFound = True
+						If InStr(v_year, YearList.Item(a)) <> 0 And YearFilterList.Item(a) = "1" Then FilterFound = True
 					Next
 					If FilterFound = False Then Exit Do
 				End If
-				If(FilterYear <> "None" And FilterYear <> "Use Year Filter" And InStr(Year, FilterYear) = 0 And Year <> "") Then Exit Do
+				If(FilterYear <> "None" And FilterYear <> "Use Year Filter" And InStr(v_year, FilterYear) = 0 And v_year <> "") Then Exit Do
 
 				If artist <> "" Then ReleaseDesc = ReleaseDesc & " " & artist End If
 				If artist <> "" and title <> "" Then ReleaseDesc = ReleaseDesc & " -" End If
 				If title <> "" Then ReleaseDesc = ReleaseDesc & " " & title End If
-				If Format <> "" Then ReleaseDesc = ReleaseDesc & " [" & Format & "]" End If
-				If Label <> "" Then ReleaseDesc = ReleaseDesc & " " & Label End If
-				If Country <> "" Then ReleaseDesc = ReleaseDesc & " / " & Country End If
-				If Year <> "" Then ReleaseDesc = ReleaseDesc & " (" & Year & ")" End If
+				If format <> "" Then ReleaseDesc = ReleaseDesc & " [" & format & "]" End If
+				If label <> "" Then ReleaseDesc = ReleaseDesc & " " & label End If
+				If country <> "" Then ReleaseDesc = ReleaseDesc & " / " & country End If
+				If v_year <> "" Then ReleaseDesc = ReleaseDesc & " (" & v_year & ")" End If
+				If catNo <> "" Then ReleaseDesc = ReleaseDesc & " catNo:" & catNo End If
 				If Rtype = "master" Then ReleaseDesc = ReleaseDesc & " *" End If
 
 				Results.Add ReleaseDesc
@@ -3797,6 +3852,7 @@ End Function
 
 Function ReloadMaster(SavedMasterId)
 
+	Dim oXMLHTTP
 	masterURL = "http://api.discogs.com/masters/" & SavedMasterId
 	Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 
@@ -3846,7 +3902,7 @@ Function exchange_roman_numbers(Text)
 	If Text = "XIX" Then Text = 19
 	If Text = "XX" Then Text = 20
 	exchange_roman_numbers = Text
-	
+
 End Function
 
 
@@ -3857,19 +3913,20 @@ Function get_release_ID(FirstTrack)
 	If ReleaseTag = "Custom3" Then CurrentResultID = FirstTrack.Custom3
 	If ReleaseTag = "Custom4" Then CurrentResultID = FirstTrack.Custom4
 	If ReleaseTag = "Custom5" Then CurrentResultID = FirstTrack.Custom5
-			
+
 	get_release_ID = CurrentResultID
-	
+
 End Function
 
+
 Sub WriteLog(Text)
-	'Do NOT write UTF8 Chars !!
+
 	Dim filesys, filetxt, logdatei, tmpText
 	'Const ForReading = 1, ForWriting = 2, ForAppending = 8
 	logdatei = SDB.ScriptsPath & "Discogs_Script.log"
 	Set filesys = CreateObject("Scripting.FileSystemObject")
 	Set filetxt = filesys.OpenTextFile(logdatei, 8, true)
-	tmpText = Time & Chr(9) & Text
+	tmpText = Time & Chr(9) & SDB.ToAscii(Text)
 	filetxt.WriteLine(tmpText)
 	filetxt.Close
 
@@ -3887,9 +3944,9 @@ Sub WriteLogInit
 End Sub
 
 
-	' for adding data to multi-valued fields
 Function AddToField(ByRef field, ByVal ftext)
 
+	' for adding data to multi-valued fields
 	If field = "" Then
 		field = ftext
 	Else
@@ -3930,10 +3987,393 @@ Function CheckLeadingZeroTrackPosition(TrackPosition)
 End Function
 
 
+Class VbsJson
+	'Author: Demon
+	'Date: 2012/5/3
+	'Website: http://demon.tw
+	Private Whitespace, NumberRegex, StringChunk
+	Private b, f, r, n, t
+
+	Private Sub Class_Initialize
+		Whitespace = " " & vbTab & vbCr & vbLf
+		b = ChrW(8)
+		f = vbFormFeed
+		r = vbCr
+		n = vbLf
+		t = vbTab
+
+		Set NumberRegex = New RegExp
+		NumberRegex.Pattern = "(-?(?:0|[1-9]\d*))(\.\d+)?([eE][-+]?\d+)?"
+		NumberRegex.Global = false
+		NumberRegex.MultiLine = true
+		NumberRegex.IgnoreCase = true
+
+		Set StringChunk = New RegExp
+		StringChunk.Pattern = "([\s\S]*?)([""\\\x00-\x1f])"
+		StringChunk.Global = false
+		StringChunk.MultiLine = true
+		StringChunk.IgnoreCase = true
+	End Sub
+
+	'Return a JSON string representation of a VBScript data structure
+	'Supports the following objects and types
+	'+-------------------+---------------+
+	'| VBScript          | JSON          |
+	'+===================+===============+
+	'| Dictionary        | object        |
+	'+-------------------+---------------+
+	'| Array             | array         |
+	'+-------------------+---------------+
+	'| String            | string        |
+	'+-------------------+---------------+
+	'| Number            | number        |
+	'+-------------------+---------------+
+	'| True              | true          |
+	'+-------------------+---------------+
+	'| False             | false         |
+	'+-------------------+---------------+
+	'| Null              | null          |
+	'+-------------------+---------------+
+	Public Function Encode(ByRef obj)
+		Dim buf, i, c, g
+		Set buf = CreateObject("Scripting.Dictionary")
+		Select Case VarType(obj)
+			Case vbNull
+				buf.Add buf.Count, "null"
+			Case vbBoolean
+				If obj Then
+					buf.Add buf.Count, "true"
+				Else
+					buf.Add buf.Count, "false"
+				End If
+			Case vbInteger, vbLong, vbSingle, vbDouble
+				buf.Add buf.Count, obj
+			Case vbString
+				buf.Add buf.Count, """"
+				For i = 1 To Len(obj)
+					c = Mid(obj, i, 1)
+					Select Case c
+						Case """" buf.Add buf.Count, "\"""
+						Case "\"  buf.Add buf.Count, "\\"
+						Case "/"  buf.Add buf.Count, "/"
+						Case b    buf.Add buf.Count, "\b"
+						Case f    buf.Add buf.Count, "\f"
+						Case r    buf.Add buf.Count, "\r"
+						Case n    buf.Add buf.Count, "\n"
+						Case t    buf.Add buf.Count, "\t"
+						Case Else
+							If AscW(c) >= 0 And AscW(c) <= 31 Then
+								c = Right("0" & Hex(AscW(c)), 2)
+								buf.Add buf.Count, "\u00" & c
+							Else
+								buf.Add buf.Count, c
+							End If
+					End Select
+				Next
+				buf.Add buf.Count, """"
+			Case vbArray + vbVariant
+				g = true
+				buf.Add buf.Count, "["
+				For Each i In obj
+					If g Then g = false Else buf.Add buf.Count, ","
+					buf.Add buf.Count, Encode(i)
+				Next
+				buf.Add buf.Count, "]"
+			Case vbObject
+				If TypeName(obj) = "Dictionary" Then
+					g = true
+					buf.Add buf.Count, "{"
+					For Each i In obj
+						If g Then g = false Else buf.Add buf.Count, ","
+						buf.Add buf.Count, """" & i & """" & ":" & Encode(obj(i))
+					Next
+					buf.Add buf.Count, "}"
+				Else
+					Err.Raise 8732,,"None dictionary object"
+				End If
+			Case Else
+				buf.Add buf.Count, """" & CStr(obj) & """"
+		End Select
+		Encode = Join(buf.Items, "")
+	End Function
+
+	'Return the VBScript representation of ``str(``
+	'Performs the following translations in decoding
+	'+---------------+-------------------+
+	'| JSON          | VBScript          |
+	'+===============+===================+
+	'| object        | Dictionary        |
+	'+---------------+-------------------+
+	'| array         | Array             |
+	'+---------------+-------------------+
+	'| string        | String            |
+	'+---------------+-------------------+
+	'| number        | Double            |
+	'+---------------+-------------------+
+	'| true          | True              |
+	'+---------------+-------------------+
+	'| false         | False             |
+	'+---------------+-------------------+
+	'| null          | Null              |
+	'+---------------+-------------------+
+	Public Function Decode(ByRef str)
+		'return base object
+		Set Decode = ParseObject(str, 1)
+	End Function
+
+	Private Function ParseValue(ByRef str, ByRef idx)
+		Dim c, ms
+
+		idx = NextToken(str, idx)
+		c = Mid(str, idx, 1)
+
+		If c = "{" Then
+			Set ParseValue = ParseObject(str, idx)
+			Exit Function
+		ElseIf c = "[" Then
+			Set ParseValue = ParseArray(str, idx)
+			Exit Function
+		ElseIf c = """" Then
+			idx = idx + 1
+			ParseValue = ParseString(str, idx)
+			Exit Function
+		ElseIf c = "n" And StrComp("null", Mid(str, idx, 4)) = 0 Then
+			idx = idx + 4
+			ParseValue = Null
+			Exit Function
+		ElseIf c = "t" And StrComp("true", Mid(str, idx, 4)) = 0 Then
+			idx = idx + 4
+			ParseValue = true
+			Exit Function
+		ElseIf c = "f" And StrComp("false", Mid(str, idx, 5)) = 0 Then
+			idx = idx + 5
+			ParseValue = false
+			Exit Function
+		Else
+			Set ms = NumberRegex.Execute(Mid(str, idx))
+			If ms.Count = 1 Then
+				idx = idx + ms(0).Length
+				ParseValue = CDbl(Replace(ms(0),".",","))
+				Exit Function
+			End If
+		End If
+
+		Err.Raise 8732,,"No JSON object could be ParseValued"
+	End Function
+
+	Private Function ParseObject(ByRef str, ByRef idx)
+		Dim c, key, value
+		Set ParseObject = CreateObject("Scripting.Dictionary")
+
+		idx = NextToken(str, idx)
+
+		c = Mid(str, idx, 1)
+
+		If c = "{" Then
+			idx = NextToken(str,idx+1)
+		Else
+			Err.Raise 8732,,"Expected { to begin Object"
+		End If
+
+		c = Mid(str, idx, 1)
+
+		Do
+			If c <> """" AND c <> "}" Then
+
+				Err.Raise 8732,,"Expecting property name or } near: " & Mid(str,idx)
+
+			ElseIf c = """" Then
+
+				idx = idx + 1
+				key = ParseString(str, idx)
+
+				idx = NextToken(str, idx)
+				If Mid(str, idx, 1) <> ":" Then
+					Err.Raise 8732,,"Expecting : delimiter near: " & mid(str,idx)
+				End If
+
+				' skip : and whitespace after key
+				idx = NextToken(str, idx + 1)
+
+				' check for object or array value
+				If Mid(str,idx,1) = "{" Or Mid(str,idx,1) = "[" Then
+					Set value = ParseValue(str, idx)
+				Else
+					value = ParseValue(str,idx)
+				End If
+
+				ParseObject.Add key, value
+			End If
+
+			c = Mid(str,idx,1)
+
+			If c = "}" Then
+				idx = NextToken(str,idx+1)
+				Exit Function
+			End If
+
+			If c <> "," Then
+
+				Err.Raise 8732,,"Expecting , delimiter near: " & Mid(str,idx)
+
+			End If
+
+			'skip , and whitespace after value
+			idx = NextToken(str, idx + 1)
+			c = Mid(str, idx, 1)
+			If c <> """" Then
+				Err.Raise 8732,,"Expecting property name"
+			End If
+		Loop
+	End Function
+
+	Private Function ParseArray(ByRef str, ByRef idx)
+		Dim c, values, value
+		Set ParseArray = CreateObject("Scripting.Dictionary")
+
+		idx = NextToken(str, idx)
+		c = Mid(str, idx, 1)
+
+		If c = "[" Then
+			idx = NextToken(str,idx+1)
+		Else
+			Err.Raise 8732,,"Expected [ to begin Array"
+		End If
+
+		Do
+			c = Mid(str, idx, 1)
+
+			If c = "]" Then
+				idx = NextToken(str,idx+1)
+				Exit Function
+			End If
+
+			ParseArray.Add ParseArray.Count, ParseValue(str, idx)
+
+			c = Mid(str, idx, 1)
+
+			If c = "]" Then
+				idx = NextToken(str, idx+1)
+				Exit function
+			End If
+
+			If c <> "," Then
+				Err.Raise 8732,,"Expecting , delimiter near: " & mid(str,idx)
+			End If
+
+			idx = NextToken(str,idx+1)
+
+		Loop
+	End Function
+
+	Private Function ParseString(ByRef str, ByRef idx)
+		Dim chunks, content, terminator, ms, esc, char
+		Set chunks = CreateObject("Scripting.Dictionary")
+
+		Do
+			Set ms = StringChunk.Execute(Mid(str, idx))
+			If ms.Count = 0 Then
+				Err.Raise 8732,,"Unterminated string starting"
+			End If
+
+			content = ms(0).Submatches(0)
+			terminator = ms(0).Submatches(1)
+			If Len(content) > 0 Then
+				chunks.Add chunks.Count, content
+			End If
+
+			idx = idx + ms(0).Length
+
+			If terminator = """" Then
+				Exit Do
+			ElseIf terminator <> "\" Then
+				Err.Raise 8732,,"Invalid control character"
+			End If
+
+			esc = Mid(str, idx, 1)
+
+			If esc <> "u" Then
+				Select Case esc
+					Case """" char = """"
+					Case "\"  char = "\"
+					Case "/"  char = "/"
+					Case "b"  char = b
+					Case "f"  char = f
+					Case "n"  char = n
+					Case "r"  char = r
+					Case "t"  char = t
+					Case Else Err.Raise 8732,,"Invalid escape"
+				End Select
+				idx = idx + 1
+			Else
+				char = ChrW("&H" & Mid(str, idx + 1, 4))
+				idx = idx + 5
+			End If
+
+			chunks.Add chunks.Count, char
+		Loop
+
+		ParseString = Join(chunks.Items, "")
+	End Function
+
+	Private Function NextToken(ByRef str, ByVal idx)
+		Do While idx <= Len(str) And InStr(Whitespace, Mid(str, idx, 1)) > 0
+			idx = idx + 1
+		Loop
+		NextToken = idx
+	End Function
+
+End Class
+
+
+Function searchKeyword(Keywords, Role, AlbumRole, artistName)
+
+	Dim tmp, x
+	tmp = Split(Keywords, ",")
+	For each x in tmp
+		If Role = x Then
+			If InStr(AlbumRole, artistName) = 0 Then
+				If AlbumRole = "" Then
+					AlbumRole = artistName
+				Else
+					AlbumRole = AlbumRole & Separator & artistName
+				End If
+				searchKeyword = AlbumRole
+			End If
+			Exit For
+		End If
+	Next
+
+End Function
+
+
+Sub Unselect()
+
+	Dim templateHTMLDoc, i, checkBox
+
+	Set WebBrowser = SDB.Objects("WebBrowser")
+	Set templateHTMLDoc = WebBrowser.Interf.Document
+
+	UserChoose = True
+	For i=0 To iMaxTracks - 1
+		Set checkBox = templateHTMLDoc.getElementById("unselected["&i&"]")
+		If checkBox.Checked Then
+			UnselectedTracks(i) = ""
+		Else
+			UnselectedTracks(i) = "x"
+		End If
+	Next
+
+	ReloadResults
+
+End Sub
+
+
 Sub ShowCountryFilter
 
-	Dim Form
-	Set Form = UI.NewForm 
+	Dim Form, iWidth, CountColumn, filterHTML, filterHTMLDoc, WebBrowser2, countrybutton, FilterCountry, FilterFound
+	Dim i, a
+	Set Form = UI.NewForm
 	Form.Common.Width = 675
 	Form.Common.Height = 600
 	Form.FormPosition = 4
@@ -4028,12 +4468,12 @@ Sub ShowCountryFilter
 			FilterCountry = "Use Country Filter"
 			CountryFilterList.Item(0) = "1"
 		End If
-		SDB.Objects("Webbrowser2") = Nothing
+		SDB.Objects("WebBrowser2") = Nothing
 		SDB.Objects("FilterForm") = Nothing
 		SDB.Objects("Filter") = Nothing
-		FindResults SavedSearchTerm
+		FindResults(SavedSearchTerm)
 	Else
-		SDB.Objects("Webbrowser2") = Nothing
+		SDB.Objects("WebBrowser2") = Nothing
 		SDB.Objects("FilterForm") = Nothing
 		SDB.Objects("Filter") = Nothing
 	End If
@@ -4043,8 +4483,9 @@ End Sub
 
 Sub ShowMediaFormatFilter
 
-	Dim Form
-	Set Form = UI.NewForm 
+	Dim Form, iWidth, CountColumn, filterHTML, filterHTMLDoc, WebBrowser2, MediaFormatButton, FilterMediaFormat, FilterFound
+	Dim i, a
+	Set Form = UI.NewForm
 	Form.Common.Width = 380
 	Form.Common.Height = 700
 	Form.FormPosition = 4
@@ -4066,7 +4507,7 @@ Sub ShowMediaFormatFilter
 	Btn.Caption = SDB.Localize("Cancel")
 	Btn.Common.Width = 85
 	Btn.Common.Height = 25
-	Btn.Common.Left = Form.Common.Width - Btn.Common.Width - 30
+	Btn.Common.Left = Form.Common.Width - Btn.Common.Width - 20
 	Btn.Common.Top = 6
 	Btn.Common.Anchors = 2+4
 	Btn.UseScript = Script.ScriptPath
@@ -4088,7 +4529,7 @@ Sub ShowMediaFormatFilter
 	Btn3.Caption = SDB.Localize("&Check All")
 	Btn3.Common.Width = 85
 	Btn3.Common.Height = 25
-	Btn3.Common.Left = 15
+	Btn3.Common.Left = 5
 	Btn3.Common.Top = 6
 	Btn3.Common.Anchors = 2+4
 	Script.RegisterEvent Btn3, "OnClick", "Btn3Click"
@@ -4140,12 +4581,12 @@ Sub ShowMediaFormatFilter
 			FilterMediaFormat = "Use MediaFormat Filter"
 			MediaFormatFilterList.Item(0) = "1"
 		End If
-		SDB.Objects("Webbrowser2") = Nothing
+		SDB.Objects("WebBrowser2") = Nothing
 		SDB.Objects("FilterForm") = Nothing
 		SDB.Objects("Filter") = Nothing
-		FindResults SavedSearchTerm
+		FindResults(SavedSearchTerm)
 	Else
-		SDB.Objects("Webbrowser2") = Nothing
+		SDB.Objects("WebBrowser2") = Nothing
 		SDB.Objects("FilterForm") = Nothing
 		SDB.Objects("Filter") = Nothing
 	End If
@@ -4155,8 +4596,9 @@ End Sub
 
 Sub ShowMediaTypeFilter
 
-	Dim Form
-	Set Form = UI.NewForm 
+	Dim Form, iWidth, CountColumn, filterHTML, filterHTMLDoc, WebBrowser2, MediaTypeButton, FilterMediaType, FilterFound
+	Dim i, a
+	Set Form = UI.NewForm
 	Form.Common.Width = 420
 	Form.Common.Height = 600
 	Form.FormPosition = 4
@@ -4252,12 +4694,12 @@ Sub ShowMediaTypeFilter
 			FilterMediaType = "Use MediaType Filter"
 			MediaTypeFilterList.Item(0) = "1"
 		End If
-		SDB.Objects("Webbrowser2") = Nothing
+		SDB.Objects("WebBrowser2") = Nothing
 		SDB.Objects("FilterForm") = Nothing
 		SDB.Objects("Filter") = Nothing
-		FindResults SavedSearchTerm
+		FindResults(SavedSearchTerm)
 	Else
-		SDB.Objects("Webbrowser2") = Nothing
+		SDB.Objects("WebBrowser2") = Nothing
 		SDB.Objects("FilterForm") = Nothing
 		SDB.Objects("Filter") = Nothing
 	End If
@@ -4267,8 +4709,9 @@ End Sub
 
 Sub ShowYearFilter
 
-	Dim Form
-	Set Form = UI.NewForm 
+	Dim Form, iWidth, CountColumn, filterHTML, filterHTMLDoc, WebBrowser2, YearButton, FilterYear, FilterFound
+	Dim i, a, row
+	Set Form = UI.NewForm
 	Form.Common.Width = 550
 	Form.Common.Height = 550
 	Form.FormPosition = 4
@@ -4372,12 +4815,12 @@ Sub ShowYearFilter
 			FilterYear = "Use Year Filter"
 			YearFilterList.Item(0) = "1"
 		End If
-		SDB.Objects("Webbrowser2") = Nothing
+		SDB.Objects("WebBrowser2") = Nothing
 		SDB.Objects("FilterForm") = Nothing
 		SDB.Objects("Filter") = Nothing
-		FindResults SavedSearchTerm
+		FindResults(SavedSearchTerm)
 	Else
-		SDB.Objects("Webbrowser2") = Nothing
+		SDB.Objects("WebBrowser2") = Nothing
 		SDB.Objects("FilterForm") = Nothing
 		SDB.Objects("Filter") = Nothing
 	End If
@@ -4387,6 +4830,7 @@ End Sub
 
 Sub Btn3Click
 
+	Dim WebBrowser2, FilterList, filterHTMLDoc, a, filterbutton
 	Set WebBrowser2 = SDB.Objects("WebBrowser2")
 	Set FilterList = SDB.Objects("Filter")
 	Set filterHTMLDoc = WebBrowser2.Interf.Document
@@ -4397,8 +4841,10 @@ Sub Btn3Click
 
 End Sub
 
+
 Sub Btn4Click
 
+	Dim WebBrowser2, FilterList, filterHTMLDoc, a, filterbutton
 	Set WebBrowser2 = SDB.Objects("WebBrowser2")
 	Set FilterList = SDB.Objects("Filter")
 	Set filterHTMLDoc = WebBrowser2.Interf.Document
@@ -4409,8 +4855,10 @@ Sub Btn4Click
 
 End Sub
 
+
 Function GetFilterHTML(Width, Row, CountColumn)
 
+	Dim FilterList, filterHTML, i, a
 	Set FilterList = SDB.Objects("Filter")
 	filterHTML = "<HTML>"
 	filterHTML = filterHTML & "<HEAD>"
@@ -4435,3 +4883,211 @@ Function GetFilterHTML(Width, Row, CountColumn)
 
 End Function
 
+
+Sub MoreImages()
+
+	Set ImageTypeList = SDB.NewStringList
+
+	ImageTypeList.Add SDB.Localize("Not specified")		'0
+	ImageTypeList.Add SDB.Localize("Cover (front)")		'3
+	ImageTypeList.Add SDB.Localize("Cover (back)")		'4
+	ImageTypeList.Add SDB.Localize("Leaflet Page")
+	ImageTypeList.Add SDB.Localize("Media Label")
+	ImageTypeList.Add SDB.Localize("Lead Artist")
+	ImageTypeList.Add SDB.Localize("Artist")
+	ImageTypeList.Add SDB.Localize("Conductor")
+	ImageTypeList.Add SDB.Localize("Band")
+	ImageTypeList.Add SDB.Localize("Composer")
+	ImageTypeList.Add SDB.Localize("Lyricist")
+	ImageTypeList.Add SDB.Localize("Recording Location")
+	ImageTypeList.Add SDB.Localize("During Recording")
+	ImageTypeList.Add SDB.Localize("During Performance")
+	ImageTypeList.Add SDB.Localize("Video Screen Capture")
+	ImageTypeList.Add SDB.Localize("Illustration")
+	ImageTypeList.Add SDB.Localize("Band Logotype")
+	ImageTypeList.Add SDB.Localize("Publisher Logotype")		'20
+
+	Dim iWidth, imageHTML, imageHTMLDoc, i, j
+	imageHTML = "<HTML>"
+	imageHTML = imageHTML &  "<HEAD>"
+	imageHTML = imageHTML &  "<style type=""text/css"" media=""screen"">"
+	imageHTML = imageHTML &  ".tabletext { font-family: Arial, Helvetica, sans-serif; font-size: 8pt;}"
+	imageHTML = imageHTML &  "</style>"
+	imageHTML = imageHTML &  "</HEAD>"
+	imageHTML = imageHTML &  "<body bgcolor=""#FFFFFF"">"
+	iWidth = (ImageList.Count - 1) * 200
+	imageHTML = imageHTML &  "<table border=0 width=" & iWidth & " cellspacing=0 cellpadding=1 class=tabletext>"
+	imageHTML = imageHTML &  "<tr>"
+
+	For i = 0 To ImageList.Count - 1
+		imageHTML = imageHTML &  "<td><img border=""0"" src=""" & ImageList.Item(i) & """ width=""180"" height=""180""></td>"
+	Next
+	imageHTML = imageHTML &  "</tr><tr>"
+	For i = 0 To ImageList.Count - 1
+		imageHTML = imageHTML &  "<td>"
+		imageHTML = imageHTML &  "<select id=""ImageType" & i & """ class=tabletext>"
+		For j = 0 To ImageTypeList.Count - 1
+			If SaveImageType.Item(i) <> ImageTypeList.Item(j) Then
+				imageHTML = imageHTML &  "<option value=""" & ImageTypeList.Item(j) & """>" & ImageTypeList.Item(j) & "</option>"
+			Else
+				imageHTML = imageHTML &  "<option value=""" & ImageTypeList.Item(j) & """ selected>" & ImageTypeList.Item(j) & "</option>"
+			End If
+		Next
+		imageHTML = imageHTML &  "</select></td>"
+	Next
+
+	imageHTML = imageHTML &  "</tr><tr>"
+	For i = 0 To ImageList.Count - 1
+		imageHTML = imageHTML &  "<td><input type=checkbox id=""SaveImage" & i & """ >Save Image"
+		imageHTML = imageHTML &  "</td>"
+	Next
+
+	imageHTML = imageHTML &  "</tr><tr>"
+	For i = 0 To ImageList.Count - 1
+		If CoverStorage = 1 Or CoverStorage = 3 Then
+			imageHTML = imageHTML &  "<td><input type=text id=""FileName" & i & """ >"
+		Else
+			imageHTML = imageHTML &  "<td>Store in tag"
+		End If
+		imageHTML = imageHTML &  "</td>"
+	Next
+
+	imageHTML = imageHTML &  "</tr>"
+
+	imageHTML = imageHTML &  "</table>"
+	imageHTML = imageHTML &  "</body>"
+	imageHTML = imageHTML &  "</HTML>"
+
+
+
+	Dim Form
+	Set Form = UI.NewForm 
+	Form.Common.ClientWidth = 800
+	Form.Common.ClientHeight = 400
+	Form.FormPosition = 4
+	'Form.SavePositionName = "TheDiscogsWindow" 
+	Form.Caption = "Choose additional Images for the Release"
+	Form.BorderStyle = 3
+	Form.StayOnTop = True
+	SDB.Objects("ImageForm") = Form
+
+	Dim Foot : Set Foot = SDB.UI.NewPanel(Form)
+	Foot.Common.Align = 2
+	Foot.Common.Height = 35
+
+	Dim Btn : Set Btn = SDB.UI.NewButton(Foot)
+	Btn.Caption = SDB.Localize("Cancel")
+	Btn.Common.Width = 85
+	Btn.Common.Height = 25
+	Btn.Common.Left = Form.Common.Width - Btn.Common.Width -30
+	Btn.Common.Top = 6
+	Btn.Common.Anchors = 2+4
+	Btn.UseScript = Script.ScriptPath
+	Btn.ModalResult = 2
+	Btn.Cancel = True  
+
+	Dim Btn2 : Set Btn2 = SDB.UI.NewButton(Foot)
+	Btn2.Caption = SDB.Localize("Ok")
+	Btn2.Common.Width = 85
+	Btn2.Common.Height = 25
+	Btn2.Common.Left = Btn.Common.Left - Btn2.Common.Width -5
+	Btn2.Common.Top = 6
+	Btn2.Common.Anchors = 2+4
+	Btn2.UseScript = Script.ScriptPath
+	Btn2.ModalResult = 1 
+	Btn2.Default = True
+
+	Set WebBrowser3 = UI.NewActiveX(Form, "Shell.Explorer")
+	WebBrowser3.Common.Align = 5      ' Fill whole client rectangle
+	WebBrowser3.Common.ControlName = "WebBrowser3"
+	WebBrowser3.Common.Top = 100
+	WebBrowser3.Common.Left = 100
+
+	SDB.Objects("WebBrowser3") = WebBrowser3
+	WebBrowser3.Interf.Visible = true
+	WebBrowser3.Common.BringToFront
+
+	WebBrowser3.SetHTMLDocument imageHTML
+	Set imageHTMLDoc = WebBrowser3.Interf.Document
+
+	Dim saveimagebutton, text
+	For i = 0 To ImageList.Count - 1
+		Set saveimagebutton = imageHTMLDoc.getElementById("SaveImage" & i)
+		If SaveImage.Item(i) = 1 Then
+			saveimagebutton.checked = 1
+		End If
+		If CoverStorage = 1 Or CoverStorage = 3 Then
+			Set text = imageHTMLDoc.getElementById("FileName" & i)
+			text.value = "folder" & i & ".jpg"
+		End If
+	Next
+
+	If Form.ShowModal = 1 Then
+		SetSaveImages()
+	End If
+
+	WebBrowser3.SetHTMLDocument ""
+	SDB.Objects("ImageForm") = Nothing
+	WebBrowser3.Common.DestroyControl      ' Destroy the external control
+	Set WebBrowser3 = Nothing              ' Release global variable
+	SDB.Objects("WebBrowser3") = Nothing
+
+End Sub
+
+
+Sub SetSaveImages()
+
+	Dim imageHTMLDoc, i, checkbox, listbox, text
+
+	Set SaveImage = SDB.NewStringList
+	Set SaveImageType = SDB.NewStringList
+	Set FileNameList = SDB.NewStringList
+
+	Set imageHTMLDoc = WebBrowser3.Interf.Document
+	For i = 0 To ImageList.Count - 1
+		Set checkBox = imageHTMLDoc.getElementById("SaveImage" & i)
+		If checkBox.Checked Then
+			SaveImage.Add "1"
+			Set listBox = imageHTMLDoc.getElementById("ImageType" & i)
+			SaveImageType.Add listBox.Value
+			If CoverStorage = 1 Or CoverStorage = 3 Then
+				Set text = imageHTMLDoc.getElementById("FileName" & i)
+				FileNameList.Add text.Value
+			Else
+				FileNameList.Add "nothing"
+			End If
+		Else
+			SaveImage.Add "0"
+			SaveImageType.Add "other"
+			FileNameList.Add "nothing"
+		End If
+	Next
+
+End Sub
+
+
+function getimages(DownloadDest, LocalFile)
+
+	dim xmlhttp
+	set xmlhttp=createobject("MSXML2.XMLHTTP.3.0")
+
+	xmlhttp.Open "GET", DownloadDest, false
+
+	xmlhttp.Send
+	If xmlhttp.Status = 200 Then
+		Dim objStream
+		set objStream = CreateObject("ADODB.Stream")
+		objStream.Type = 1 'adTypeBinary
+		objStream.Open
+		objStream.Write xmlhttp.responseBody
+		objStream.SaveToFile LocalFile
+		objStream.Close
+		set objStream = Nothing
+		set xmlhttp=Nothing
+		getimages = LocalFile
+	Else
+		set xmlhttp=Nothing
+		getimages = ""
+	End If
+
+End function
