@@ -6,6 +6,10 @@ Option Explicit
 '
 Const VersionStr = "v4.46"
 
+'Changes from 4.46 to 4.47 by crap_inhuman in 07.2014
+'	Changed the Delay - Function, WScript.sleep didn't work on all windows plattforms.
+
+
 'Changes from 4.45 to 4.46 by crap_inhuman in 07.2014
 '	The default settings for saving the Cover Images can now be changed in the options menu
 '	Bug removed: Empty format-tag produced an error
@@ -1024,7 +1028,7 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		WriteLog "Start Discogs Request"
 
 		dim IEobj, objShell, objShellWindows
-		Dim WScript, objIE, strURL, retIE
+		Dim dteWait, objIE, strURL, retIE
 
 		If AccessToken = "" Or AccessTokenSecret = "" Then
 			MsgBox("Starting August 15th, access to discogs database will require authentication." & vbNewLine & "This is part of an ongoing effort to improve API uptime and response times" & vbNewLine & vbNewLine & "You need an account at discogs in order to use Discogs Tagger.")
@@ -1037,12 +1041,11 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 
 			WriteLog "IE started"
 
-			Set WScript = CreateObject("WScript.Shell")
-			While (IEobj.busy)
+			dteWait = DateAdd("s", 10, Now())
+			Do Until (Now() > dteWait)
 				SDB.ProcessMessages
-				WScript.Sleep 15000
-			Wend
-
+			Loop
+			
 			Do
 				If objShellWindows.Count = 0 Then
 					Exit Do
@@ -2777,7 +2780,6 @@ Function CheckSpecialRole(Role)
 		tmp = InStr(Role, ",")
 		tmp2 = InStr(Role, "[")
 		tmp3 = InStr(Role, "]")
-		WriteLog tmp & " " & tmp2 & " " & tmp3
 		If tmp = 0 Then
 			ReDim Preserve SingleRole(UBound(SingleRole)+1)
 			SingleRole(UBound(SingleRole)) = Role
