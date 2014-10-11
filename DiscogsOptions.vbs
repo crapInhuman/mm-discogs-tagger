@@ -1,7 +1,7 @@
 '
 ' MediaMonkey Script
 '
-' NAME: Discogs Tagger Options 1.9
+' NAME: Discogs Tagger Options 2.0
 '
 ' AUTHOR: crap_inhuman
 ' DATE : 25/03/2014
@@ -9,6 +9,9 @@
 '
 ' INSTALL: Automatic installation during Discogs Tagger install
 '
+'Changes from 1.9 to 2.0
+'Added text fields to manually copy/paste the access token and access token secret
+
 'Changes from 1.8 to 1.9
 'Added metal-archives.com for release search instead of discogs(BETA)
 
@@ -100,6 +103,12 @@ Sub InitSheet(Sheet)
 		If ini.StringValue("DiscogsAutoTagWeb","UseMetalArchives") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","UseMetalArchives") = False
 		End If
+		If ini.StringValue("DiscogsAutoTagWeb","AccessToken") = "" Then
+			ini.StringValue("DiscogsAutoTagWeb","AccessToken") = ""
+		End If
+		If ini.StringValue("DiscogsAutoTagWeb","AccessTokenSecret") = "" Then
+			ini.StringValue("DiscogsAutoTagWeb","AccessTokenSecret") = ""
+		End If
 	End If
 
 
@@ -115,6 +124,8 @@ Sub InitSheet(Sheet)
 	CheckSaveImage = ini.StringValue("DiscogsAutoTagWeb","CheckSaveImage")			'0 = Always save - 1 = Only when no image found - 2 = always don't save
 	CheckSmallCover = ini.BoolValue("DiscogsAutoTagWeb","CheckSmallCover")
 	UseMetalArchives = ini.BoolValue("DiscogsAutoTagWeb","UseMetalArchives")
+	AccessToken = ini.StringValue("DiscogsAutoTagWeb","AccessToken")
+	AccessTokenSecret = ini.StringValue("DiscogsAutoTagWeb","AccessTokenSecret")
 
 	CustomField1 = "Custom1 (" & ini.StringValue("CustomFields","Fld1Name") & ")"
 	CustomField2 = "Custom2 (" & ini.StringValue("CustomFields","Fld2Name") & ")"
@@ -434,6 +445,31 @@ Sub InitSheet(Sheet)
 	Checkbox4.Common.Hint = "At the moment only the Title will be compared"
 	If UseMetalArchives = true Then Checkbox4.Checked = true
 
+	Dim GroupBox4
+	Set GroupBox4 = UI.NewGroupBox(Sheet)
+	GroupBox4.Caption = "Discogs Access Token"
+	GroupBox4.Common.SetRect 10, 465, 500, 90
+
+	Set Label2 = UI.NewLabel(GroupBox4)
+	Label2.Common.SetRect 300, 25, 100, 25
+	Label2.Caption = "Access Token"
+
+	Dim At
+	Set At = UI.NewEdit(GroupBox4)
+	At.Common.SetRect 20, 20, 275, 35
+	At.Common.ControlName = "AccessToken"
+	At.Text = AccessToken
+
+	Set Label2 = UI.NewLabel(GroupBox4)
+	Label2.Common.SetRect 300, 55, 100, 25
+	Label2.Caption = "Access Token Secret"
+
+	Dim Ats
+	Set Ats = UI.NewEdit(GroupBox4)
+	Ats.Common.SetRect 20, 50, 275, 35
+	Ats.Common.ControlName = "AccessTokenSecret"
+	Ats.Text = AccessTokenSecret
+
 End Sub
 
 Sub ChBClick(CheckBox1)
@@ -501,7 +537,13 @@ Sub SaveSheet(Sheet)
 	Else
 		ini.BoolValue("DiscogsAutoTagWeb", "UseMetalArchives") = false
 	End If
-	
+
+	Set edt = Sheet.Common.ChildControl("AccessToken")
+	ini.StringValue("DiscogsAutoTagWeb", "AccessToken") = edt.Text
+
+	Set edt = Sheet.Common.ChildControl("AccessTokenSecret")
+	ini.StringValue("DiscogsAutoTagWeb", "AccessTokenSecret") = edt.Text
+
 
 	Script.UnregisterAllEvents
 
