@@ -2,7 +2,12 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v4.31"
+Const VersionStr = "v4.32"
+
+'Changes from 4.31 to 4.32 by crap_inhuman in 10.2013
+	'Removed bug in extra artist assignment
+	'Added 'Don't save' and 4 more fields for saving release-number
+
 
 'Changes from 4.30 to 4.31 by crap_inhuman in 09.2013
 	'Removed bug: Sub track name will not recognized if it is the last track
@@ -1330,23 +1335,31 @@ Sub ReloadResults
 						Else
 							Do
 								tmp = searchKeyword(LyricistKeywords, currentRole, AlbumLyricist, artistName)
-								If tmp <> "" Then
+								If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 									AlbumLyricist = tmp
+									Exit Do
+								ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 									Exit Do
 								End If
 								tmp = searchKeyword(ConductorKeywords, currentRole, AlbumConductor, artistName)
-								If tmp <> "" Then
+								If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 									AlbumConductor = tmp
+									Exit Do
+								ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 									Exit Do
 								End If
 								tmp = searchKeyword(ProducerKeywords, currentRole, AlbumProducer, artistName)
-								If tmp <> "" Then
+								If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 									AlbumProducer = tmp
+									Exit Do
+								ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 									Exit Do
 								End If
 								tmp = searchKeyword(ComposerKeywords, currentRole, AlbumComposer, artistName)
-								If tmp <> "" Then
+								If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 									AlbumComposer = tmp
+									Exit Do
+								ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 									Exit Do
 								End If
 								tmp2 = search_involved(Involved_R, currentRole)
@@ -1763,23 +1776,31 @@ Sub ReloadResults
 					Else
 						Do
 							ret = searchKeyword(LyricistKeywords, involvedRole, TrackLyricists, involvedArtist)
-							If ret <> "" Then
+							If ret <> "" And ret <> "ALREADY_INSIDE_ROLE" Then
 								TrackLyricists = ret
+								Exit Do
+							ElseIf ret = "ALREADY_INSIDE_ROLE" Then
 								Exit Do
 							End If
 							ret = searchKeyword(ConductorKeywords, involvedRole, TrackConductors, involvedArtist)
-							If ret <> "" Then
+							If ret <> "" And ret <> "ALREADY_INSIDE_ROLE" Then
 								TrackConductors = ret
+								Exit Do
+							ElseIf ret = "ALREADY_INSIDE_ROLE" Then
 								Exit Do
 							End If
 							ret = searchKeyword(ProducerKeywords, involvedRole, TrackProducers, involvedArtist)
-							If ret <> "" Then
+							If ret <> "" And ret <> "ALREADY_INSIDE_ROLE" Then
 								TrackProducers = ret
+								Exit Do
+							ElseIf ret = "ALREADY_INSIDE_ROLE" Then
 								Exit Do
 							End If
 							ret = searchKeyword(ComposerKeywords, involvedRole, TrackComposers, involvedArtist)
-							If ret <> "" Then
+							If ret <> "" And ret <> "ALREADY_INSIDE_ROLE" Then
 								TrackComposers = ret
+								Exit Do
+							ElseIf ret = "ALREADY_INSIDE_ROLE" Then
 								Exit Do
 							End If
 							tmp2 = search_involved(Involved_R_T, involvedRole)
@@ -1879,23 +1900,31 @@ Sub ReloadResults
 							Else
 								Do
 									tmp = searchKeyword(LyricistKeywords, involvedRole, TrackLyricists, involvedArtist)
-									If tmp <> "" Then
+									If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 										TrackLyricists = tmp
+										Exit Do
+									ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 										Exit Do
 									End If
 									tmp = searchKeyword(ConductorKeywords, involvedRole, TrackConductors, involvedArtist)
-									If tmp <> "" Then
+									If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 										TrackConductors = tmp
+										Exit Do
+									ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 										Exit Do
 									End If
 									tmp = searchKeyword(ProducerKeywords, involvedRole, TrackProducers, involvedArtist)
-									If tmp <> "" Then
+									If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 										TrackProducers = tmp
+										Exit Do
+									ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 										Exit Do
 									End If
 									tmp = searchKeyword(ComposerKeywords, involvedRole, TrackComposers, involvedArtist)
-									If tmp <> "" Then
+									If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 										TrackComposers = tmp
+										Exit Do
+									ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 										Exit Do
 									End If
 									tmp2 = search_involved(Involved_R_T, involvedRole)
@@ -2261,6 +2290,10 @@ Sub ReloadResults
 			If ReleaseTag = "Custom3" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom3 = CurrentResultID
 			If ReleaseTag = "Custom4" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom4 = CurrentResultID
 			If ReleaseTag = "Custom5" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom5 = CurrentResultID
+			If ReleaseTag = "Grouping" Then SDB.Tools.WebSearch.NewTracks.Item(i).Grouping = CurrentResultID
+			If ReleaseTag = "ISRC" Then SDB.Tools.WebSearch.NewTracks.Item(i).ISRC = CurrentResultID
+			If ReleaseTag = "Encoding" Then SDB.Tools.WebSearch.NewTracks.Item(i).Encodiung = CurrentResultID
+			If ReleaseTag = "Copyright" Then SDB.Tools.WebSearch.NewTracks.Item(i).Copyright = CurrentResultID
 		End If
 
 		If CheckCatalog Then
@@ -3922,11 +3955,16 @@ End Function
 
 Function get_release_ID(FirstTrack)
 
+	CurrentResultID = ""
 	If ReleaseTag = "Custom1" Then CurrentResultID = FirstTrack.Custom1
 	If ReleaseTag = "Custom2" Then CurrentResultID = FirstTrack.Custom2
 	If ReleaseTag = "Custom3" Then CurrentResultID = FirstTrack.Custom3
 	If ReleaseTag = "Custom4" Then CurrentResultID = FirstTrack.Custom4
 	If ReleaseTag = "Custom5" Then CurrentResultID = FirstTrack.Custom5
+	If ReleaseTag = "Grouping" Then CurrentResultID = FirstTrack.Grouping
+	If ReleaseTag = "ISRC" Then CurrentResultID = FirstTrack.ISRC
+	If ReleaseTag = "Encoding" Then CurrentResultID = FirstTrack.Encoding
+	If ReleaseTag = "Copyright" Then CurrentResultID = FirstTrack.Copyright
 
 	get_release_ID = CurrentResultID
 
@@ -4353,6 +4391,8 @@ Function searchKeyword(Keywords, Role, AlbumRole, artistName)
 					AlbumRole = AlbumRole & Separator & artistName
 				End If
 				searchKeyword = AlbumRole
+			Else
+				searchKeyword = "ALREADY_INSIDE_ROLE"
 			End If
 			Exit For
 		End If
