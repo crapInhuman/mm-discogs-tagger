@@ -2,7 +2,13 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v4.40"
+Const VersionStr = "v4.41"
+
+'Changes from 4.40 to 4.41 by crap_inhuman in 03.2014
+	'Removed bug with more than one artist for a title
+	'Added Artist separator to options menu
+	'Added simple routine to check for false position separators
+
 
 'Changes from 4.39 to 4.40 by crap_inhuman in 03.2014
 	'featuring Keywords are now not case sensitive
@@ -155,6 +161,7 @@ Dim SavedMasterId, SavedArtistId, SavedLabelId
 
 Dim FilterMediaType, FilterCountry, FilterYear, FilterMediaFormat, CurrentLoadType
 Dim MediaTypeList, MediaFormatList, CountryList, YearList, AlternativeList, LoadList
+Dim ArtistSeparator
 
 Dim FirstTrack
 Dim AlbumArtURL, AlbumArtThumbNail
@@ -381,6 +388,9 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		If ini.StringValue("DiscogsAutoTagWeb","CheckStyleField") = "" Then
 			ini.StringValue("DiscogsAutoTagWeb","CheckStyleField") = "Default (stored with Genre)"
 		End If
+		If ini.StringValue("DiscogsAutoTagWeb","ArtistSeparator") = "" Then
+			ini.StringValue("DiscogsAutoTagWeb","ArtistSeparator") = ", "
+		End If
 
 		'----------------------------------DiscogsImages----------------------------------------
 		CoverStorage = ini.StringValue("PreviewSettings","DefaultCoverStorage")
@@ -460,6 +470,7 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	FeaturingKeywords = ini.StringValue("DiscogsAutoTagWeb","FeaturingKeywords")
 	CheckNotAlwaysSaveImage = ini.BoolValue("DiscogsAutoTagWeb","CheckNotAlwaysSaveImage")
 	CheckStyleField = ini.StringValue("DiscogsAutoTagWeb","CheckStyleField")
+	ArtistSeparator = ini.StringValue("DiscogsAutoTagWeb","ArtistSeparator")
 
 	Separator = Left(Separator, Len(Separator)-1)
 	Separator = Right(Separator, Len(Separator)-1)
@@ -1225,6 +1236,7 @@ Sub ReloadResults
 	Dim currentImage, currentLabel, currentFormat, theMaster, i, g, l, s, f, d
 	Dim ReleaseDate, ReleaseSplit, theLabels, theCatalogs, theCountry, theFormat
 	Dim Genres, Styles, Comment, DataQuality
+	Dim NoSubTrackUsing
 
 	Set Tracks = SDB.NewStringList
 	Set TracksNum = SDB.NewStringList
@@ -1314,14 +1326,22 @@ Sub ReloadResults
 
 			If currentArtist("join") <> "" Then
 				tmp = currentArtist("join")
-				If LookForFeaturing(tmp) And CheckFeaturingName Then
-					AlbumArtistTitle = AlbumArtistTitle & " " & TxtFeaturingName & " "
+				If tmp = "," Then
+					AlbumArtistTitle = AlbumArtistTitle & ArtistSeparator
+				ElseIf LookForFeaturing(tmp) And CheckFeaturingName Then
+					If TxtFeaturingName = "," or TxtFeaturingName = ";" Then
+						AlbumArtistTitle = AlbumArtistTitle & TxtFeaturingName & " "
+					Else
+						AlbumArtistTitle = AlbumArtistTitle & " " & TxtFeaturingName & " "
+					End If
 				Else
 					AlbumArtistTitle = AlbumArtistTitle & " " & currentArtist("join") & " "
 				End If
 			End If
 		Next
 		Writelog("AlbumArtistTitle=" & AlbumArtistTitle)
+
+		If Right(AlbumArtistTitle, 3) = " , " Then AlbumArtistTitle = Left(AlbumArtistTitle, Len(AlbumArtistTitle)-3)
 
 		If (Not CheckAlbumArtistFirst) Then
 			AlbumArtist = AlbumArtistTitle
@@ -1482,10 +1502,26 @@ Sub ReloadResults
 		Rem CharSeparatorSubTrack: 0 = nothing    1 = "."     2 = a-z
 		Rem subTrackStart = 1 '0 = Song -1    1 = First Song
 
+		'Workaround for using "." as separator at discogs -----------------------------------------------------------------------------------------------------------
+		tmp = 0 : tmp2 = 0
+		NoSubTrackUsing = False
+		For Each t In CurrentRelease("tracklist")
+			Set currentTrack = CurrentRelease("tracklist")(t)
+			position = currentTrack("position")
+			If position <> "" Then
+				tmp2 = tmp2 + 1
+			End If
+			If InStr(position, ".") <> 0 Then tmp = tmp + 1
+		Next
+		If tmp = tmp2 Then NoSubTrackUsing = True	'all tracks have "." in position tag, this can't be a subtrack
+		'Workaround for using "." as separator at discogs -----------------------------------------------------------------------------------------------------------
+
+
 		For Each t In CurrentRelease("tracklist")
 			Set currentTrack = CurrentRelease("tracklist")(t)
 
 			position = currentTrack("position")
+			If NoSubTrackUsing = True Then position = Replace(position, ".", "-")
 			trackName = PackSpaces(DecodeHtmlChars(currentTrack("title")))
 			Durations.Add currentTrack("duration")
 			position = exchange_roman_numbers(position)
@@ -1509,30 +1545,32 @@ Sub ReloadResults
 				If InStr(LCase(position), "-") > 0 Then
 					pos = InStr(LCase(position), "-")
 				End If
-				'SubTrack Function ---------------------------------------------------------
-				If InStr(LCase(position), ".") > 0 Then
-					CharSeparatorSubTrack = 1
-				End If
-				If Not IsNumeric(Right(position, 1)) And Len(position) > 1 Then
-					CharSeparatorSubTrack = 2
-				End If
-				If CharSeparatorSubTrack <> 0 Then
-					If cSubTrack = -1 Then 'new subtrack
-						If SubTrackNameSelection = false Then
-							cSubTrack = iTrackNum - 1
-						Else
-							cSubTrack = iTrackNum
-						End If
-					End If
-					If subTrackTitle = "" Then
-						subTrackTitle = trackName
-					Else
-						subTrackTitle = subTrackTitle & ", " & trackName
-					End If
-					If UserChoose = False Then
-						UnselectedTracks(iTrackNum) = "x"
-					End If
+				If NoSubTrackUsing = False Then
 					'SubTrack Function ---------------------------------------------------------
+					If InStr(LCase(position), ".") > 0 Then
+						CharSeparatorSubTrack = 1
+					End If
+					If Not IsNumeric(Right(position, 1)) And Len(position) > 1 Then
+						CharSeparatorSubTrack = 2
+					End If
+					If CharSeparatorSubTrack <> 0 Then
+						If cSubTrack = -1 Then 'new subtrack
+							If SubTrackNameSelection = false Then
+								cSubTrack = iTrackNum - 1
+							Else
+								cSubTrack = iTrackNum
+							End If
+						End If
+						If subTrackTitle = "" Then
+							subTrackTitle = trackName
+						Else
+							subTrackTitle = subTrackTitle & ", " & trackName
+						End If
+						If UserChoose = False Then
+							UnselectedTracks(iTrackNum) = "x"
+						End If
+						'SubTrack Function ---------------------------------------------------------
+					End If
 				End If
 				If pos > 0 And CheckNoDisc = false Then ' Disc Number Included
 					If CheckForceNumeric Then
@@ -1863,6 +1901,7 @@ Sub ReloadResults
 			artistList = ""
 			tmpJoin = ""
 
+			WriteLog("TrackArtist")
 			If currentTrack.Exists("artists") Then
 				FoundFeaturing = false
 				For Each artist in currentTrack("artists")
@@ -1887,7 +1926,7 @@ Sub ReloadResults
 						WriteLog("TrackFeaturing=" & TrackFeaturing)
 					End If
 					'TitleFeaturing
-					If currentArtist("join") <> "" And currentArtist("join") <> "," Then
+					If currentArtist("join") <> "" Then
 						If LookForFeaturing(currentArtist("join")) Then
 							FoundFeaturing = true
 							tmpJoin = currentArtist("join")
@@ -1896,10 +1935,13 @@ Sub ReloadResults
 							FoundFeaturing = false
 						End If
 					End If
+					WriteLog("artistlist=" & artistlist)
 				Next
 			End If
 
 			If artistList = "" Then artistList = AlbumArtistTitle
+
+			If Right(artistList, 3) = " , " Then artistList = Left(artistList, Len(artistList)-3)
 
 			If currentTrack.Exists("extraartists") Then
 				For Each extra In currentTrack("extraartists")
@@ -2004,7 +2046,12 @@ Sub ReloadResults
 				End If
 			End If
 
-			artistList = Replace(artistList, " , ", ", ")
+			If ArtistSeparator <> ", " Then
+				artistList = Replace(artistList, ", ", ArtistSeparator)
+				artistList = Replace(artistList, " " & ArtistSeparator, ArtistSeparator)
+			Else
+				artistList = Replace(artistList, " , ", ", ")
+			End If
 			ArtistTitles.Add artistList
 
 			TrackLyricists = FindArtist(TrackLyricists, AlbumLyricist)
@@ -3544,6 +3591,8 @@ Sub SaveOptions()
 		ini.BoolValue("DiscogsAutoTagWeb","CheckComment") = CheckComment
 		ini.BoolValue("DiscogsAutoTagWeb","CheckUnselectNoTrackPos") = CheckUnselectNoTrackPos
 		ini.BoolValue("DiscogsAutoTagWeb","SubTrackNameSelection") = SubTrackNameSelection
+		ini.StringValue("DiscogsAutoTagWeb","ArtistSeparator") = ArtistSeparator
+		
 
 		tmp = CountryFilterList.Item(0)
 		For a = 1 To CountryList.Count - 1

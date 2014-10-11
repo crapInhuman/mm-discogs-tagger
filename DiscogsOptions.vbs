@@ -1,13 +1,16 @@
 '
 ' MediaMonkey Script
 '
-' NAME: Discogs Tagger Options 1.5
+' NAME: Discogs Tagger Options 1.6
 '
 ' AUTHOR: crap_inhuman
-' DATE : 14/11/2013
+' DATE : 11/03/2014
 '
 '
 ' INSTALL: Automatic installation during Discogs Tagger install
+'
+'Changes from 1.5 to 1.6
+'Added the option for changing the artist separator
 '
 'Changes from 1.4 to 1.5
 'Added the "featuring" keywords
@@ -82,6 +85,10 @@ Sub InitSheet(Sheet)
 		If Not InStr(ini.StringValue("DiscogsAutoTagWeb","ConductorKeywords"), "|") = 0 Then ini.StringValue("DiscogsAutoTagWeb","ConductorKeywords") = Replace(ini.StringValue("DiscogsAutoTagWeb","ConductorKeywords"), "|", ",")
 		If Not InStr(ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords"), "|") = 0 Then ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords") = Replace(ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords"), "|", ",")
 		If Not InStr(ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords"), "|") = 0 Then ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords") = Replace(ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords"), "|", ",")
+
+		If ini.StringValue("DiscogsAutoTagWeb","ArtistSeparator") = "" Then
+			ini.StringValue("DiscogsAutoTagWeb","ArtistSeparator") = ", "
+		End If
 	End If
 
 
@@ -97,6 +104,7 @@ Sub InitSheet(Sheet)
 	CheckNotAlwaysSaveimage = ini.BoolValue("DiscogsAutoTagWeb","CheckNotAlwaysSaveimage")
 	CheckOriginalDiscogsTrack = ini.BoolValue("DiscogsAutoTagWeb","CheckOriginalDiscogsTrack")
 	CheckStyleField = ini.StringValue("DiscogsAutoTagWeb","CheckStyleField")
+	ArtistSeparator = ini.StringValue("DiscogsAutoTagWeb","ArtistSeparator")
 
 	CustomField1 = "Custom1 (" & ini.StringValue("CustomFields","Fld1Name") & ")"
 	CustomField2 = "Custom2 (" & ini.StringValue("CustomFields","Fld2Name") & ")"
@@ -379,6 +387,15 @@ Sub InitSheet(Sheet)
 	Checkbox2.Common.ControlName = "CheckOriginalDiscogsTrack"
 	If CheckOriginalDiscogsTrack = true Then Checkbox2.Checked = true
 
+	Set Label2 = UI.NewLabel(Sheet)
+	Label2.Common.SetRect 20, 510, 50, 25
+	Label2.Caption = SDB.Localize("Artist Separator")
+	Set EditArtistSep = UI.NewEdit(Sheet)
+	EditArtistSep.Common.SetRect 20, 525, 50, 35
+	EditArtistSep.Common.ControlName = "ArtistSeparator"
+	EditArtistSep.Text = ArtistSeparator
+	EditArtistSep.Common.Hint = "Standard is ', ' without apostrophe"
+
 End Sub
 
 Sub SaveSheet(Sheet)
@@ -451,6 +468,9 @@ Sub SaveSheet(Sheet)
 	Else
 		ini.BoolValue("DiscogsAutoTagWeb", "CheckOriginalDiscogsTrack") = false
 	End If
+
+	Set edt = Sheet.Common.ChildControl("ArtistSeparator")
+	ini.StringValue("DiscogsAutoTagWeb", "ArtistSeparator") = edt.Text
 
 End Sub
 
