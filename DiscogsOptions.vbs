@@ -4,7 +4,7 @@
 ' NAME: Discogs Tagger Options 2.1
 '
 ' AUTHOR: crap_inhuman
-' DATE : 25/03/2014
+' DATE : 09/09/2014
 '
 '
 ' INSTALL: Automatic installation during Discogs Tagger install

@@ -2,7 +2,12 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.0"
+Const VersionStr = "v5.01"
+
+'Changes from 5.0 to 5.01 by crap_inhuman in 09.2014
+'	Removed bug with search result
+'	Removed bug if no release found
+
 
 'Changes from 4.52 to 5.0 by crap_inhuman in 09.2014
 '	Changed OAuth Authorization procedure (now wait 30 seconds for authorize)
@@ -579,10 +584,10 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	WriteLogInit  'Only use for debugging
 
 	WriteLog " "
-	WriteLog("SearchTerm=" & SearchTerm)
-	WriteLog("SavedSearchTerm=" & SavedSearchTerm)
-	WriteLog("SearchArtist=" & SearchArtist)
-	WriteLog("SearchAlbum=" & SearchAlbum)
+	WriteLog "SearchTerm=" & SearchTerm
+	WriteLog "SavedSearchTerm=" & SavedSearchTerm
+	WriteLog "SearchArtist=" & SearchArtist
+	WriteLog "SearchAlbum=" & SearchAlbum
 	WriteLog " "
 
 
@@ -1351,11 +1356,11 @@ Sub FindResults(SearchTerm, QueryPage)
 
 
 	SearchTerm = LTrim(SearchTerm)
-	WriteLog("+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-")
-	WriteLog("Start FindResults")
-	WriteLog("SearchTerm=" & SearchTerm)
-	WriteLog("SavedSearchArtist=" & SavedSearchArtist)
-	WriteLog("SavedSearchAlbum=" & SavedSearchAlbum)
+	WriteLog "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-"
+	WriteLog "Start FindResults"
+	WriteLog "SearchTerm=" & SearchTerm
+	WriteLog "SavedSearchArtist=" & SavedSearchArtist
+	WriteLog "SavedSearchAlbum=" & SavedSearchAlbum
 	
 	Dim ErrorMessage, FilterFound, a, searchURL, searchURL_F, searchURL_L
 	Dim TXTBegin, TXTEnd, ResponseHTML, ReleaseDesc, i, tmp
@@ -1364,6 +1369,7 @@ Sub FindResults(SearchTerm, QueryPage)
 	Set ResultsReleaseID = SDB.NewStringList
 	ErrorMessage = ""
 
+	SDB.Tools.WebSearch.ClearTracksData
 	Set FirstTrack = SDB.Tools.WebSearch.NewTracks.item(0)
 
 	If (InStr(SearchTerm," - [search by release id]") > 0) Then
@@ -1412,9 +1418,10 @@ Sub FindResults(SearchTerm, QueryPage)
 
 	SDB.ProcessMessages
 
-	REM If SearchTerm = "" Then
-		REM ErrorMessage = "No search term"
-	If IsNumeric(SearchTerm) Then
+	If SearchTerm = "" and SavedSearchArtist = "" And SavedSearchAlbum = "" Then
+		ErrorMessage = "No search term"
+		WriteLog "No search term"
+	ElseIf IsNumeric(SearchTerm) Then
 		Results.Add SearchTerm & " - [search by release id]"
 		ResultsReleaseID.Add SearchTerm
 	ElseIf (InStr(SearchTerm,"/release/") > 0) Then
@@ -1422,21 +1429,19 @@ Sub FindResults(SearchTerm, QueryPage)
 		ResultsReleaseID.Add Mid(SearchTerm,InStrRev(SearchTerm,"/")+1)
 	Else
 
-		If SearchTerm = SavedSearchTerm Then SearchTerm = ""
+		If SearchTerm = SavedSearchTerm And (SavedSearchArtist <> "" Or SavedSearchAlbum <> "") Then SearchTerm = ""
 		If QueryPage = "MetalArchives" Then
 			Dim oXMLHTTP, MAReleases
 			Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 
-			WriteLog("Start FindResults MetalArchives")
-			WriteLog("SavedSearchArtist=" & SavedSearchArtist)
-			WriteLog("SavedSearchAlbum=" & SavedSearchAlbum)
-			WriteLog("SavedSearchTerm=" & SavedSearchTerm)
+			WriteLog "Start FindResults MetalArchives"
+			WriteLog "SavedSearchArtist=" & SavedSearchArtist
+			WriteLog "SavedSearchAlbum=" & SavedSearchAlbum
+			WriteLog "SavedSearchTerm=" & SavedSearchTerm
 
 			Set Results = SDB.NewStringList
 			Set ResultsReleaseID = SDB.NewStringList
 			ErrorMessage = ""
-			
-			Set FirstTrack = SDB.Tools.WebSearch.NewTracks.item(0)
 
 			'searchURL = "http://www.metal-archives.com/search/ajax-advanced/searching/albums?bandName=" & URLEncodeUTF8(CleanSearchString(SavedSearchArtist)) & "&exactBandMatch=1&releaseTitle=" & URLEncodeUTF8(CleanSearchString(SavedSearchAlbum)) & "&exactReleaseMatch=1&releaseYearFrom=&releaseMonthFrom=&releaseYearTo=&releaseMonthTo=&country=&location=&releaseLabelName=&genre=#albums"
 			searchURL = "http://www.metal-archives.com/search/ajax-advanced/searching/albums/?bandName=" & URLEncodeUTF8(CleanSearchString(SavedSearchArtist)) & "&exactBandMatch=1&releaseTitle=" & URLEncodeUTF8(CleanSearchString(SavedSearchAlbum)) & "&exactReleaseMatch=1&releaseYearFrom=&releaseMonthFrom=&releaseYearTo=&releaseMonthTo=&country=&location=&releaseLabelName=&genre="
@@ -1514,11 +1519,15 @@ Sub FindResults(SearchTerm, QueryPage)
 				searchURL = CleanSearchString(SavedSearchArtist)
 				searchURL_F = "http://api.discogs.com/database/search?type=release%26artist="
 				searchURL_L = "%26per_page=100"
+			Else
+				ErrorMessage = "No SearchTerm found"
+				WriteLog "No SearchTerm found"
 			End If
 
-			WriteLog("Complete searchURL=" & searchURL_F & searchURL & searchURL_L)
-
-			JSONParser_find_result searchURL, "results", searchURL_F, searchURL_L, "Discogs"
+			If ErrorMessage = "" Then
+				WriteLog "Complete searchURL=" & searchURL_F & searchURL & searchURL_L
+				JSONParser_find_result searchURL, "results", searchURL_F, searchURL_L, "Discogs"
+			End If
 		End If
 
 		If QueryPage = "MusicBrainz" Then
@@ -1528,7 +1537,7 @@ Sub FindResults(SearchTerm, QueryPage)
 			End If
 			WriteLog "searchTerm=" & searchTerm
 			WriteLog "newsearchTerm=" & NewSearchTerm
-			WriteLog("SavedSearchTerm=" & SavedSearchTerm)
+			WriteLog "SavedSearchTerm=" & SavedSearchTerm
 			If SearchTerm <> "" Then
 				searchURL = "http://musicbrainz.org/ws/2/release?query=" & Chr(34) & CleanSearchString(SearchTerm) & Chr(34) & "&limit=50&offset=0&fmt=json"
 			ElseIf SavedSearchArtist <> "" And SavedSearchAlbum <> "" Then
@@ -1539,7 +1548,7 @@ Sub FindResults(SearchTerm, QueryPage)
 				searchURL = "http://musicbrainz.org/ws/2/release?query=artist:" & Chr(34) & CleanSearchString(SavedSearchArtist) & Chr(34) & "&limit=50&offset=0&fmt=json"
 			End If
 
-			WriteLog("searchURL=" & searchURL)
+			WriteLog "searchURL=" & searchURL
 
 			JSONParser_find_result searchURL, "releases", "", "", "MusicBrainz"
 		End If
@@ -1632,7 +1641,7 @@ End Sub
 Sub LoadMasterResults(MasterId)
 
 	Dim ErrorMessage, masterURL
-	WriteLog("MasterResult")
+	WriteLog "MasterResult"
 
 	Set Results = SDB.NewStringList
 	Set ResultsReleaseID = SDB.NewStringList
@@ -1820,7 +1829,7 @@ Sub ReloadResults
 			' Get artist title
 			For Each artist in CurrentRelease("artists")
 				Set currentArtist = CurrentRelease("artists")(artist)
-				WriteLog("currentArtist=" & currentArtist("name"))
+				WriteLog "currentArtist=" & currentArtist("name")
 				If Not CheckUseAnv And currentArtist("anv") <> "" Then
 					artistName = CleanArtistName(currentArtist("anv"))
 					' !!!!!artistName <- currentArtist
@@ -1834,7 +1843,7 @@ Sub ReloadResults
 					AlbumArtist = artistName
 				End If
 
-				Writelog("SavedArtistId=" & SavedArtistId)
+				Writelog "SavedArtistId=" & SavedArtistId
 				AlbumArtistTitle = AlbumArtistTitle & artistName
 
 				If currentArtist("join") <> "" Then
@@ -1853,7 +1862,7 @@ Sub ReloadResults
 				End If
 			Next
 
-			Writelog("AlbumArtistTitle=" & AlbumArtistTitle)
+			Writelog "AlbumArtistTitle=" & AlbumArtistTitle
 
 			If Right(AlbumArtistTitle, 3) = " , " Then AlbumArtistTitle = Left(AlbumArtistTitle, Len(AlbumArtistTitle)-3)
 
@@ -1881,7 +1890,7 @@ Sub ReloadResults
 						Else
 							artistName = CleanArtistName(currentArtist("name"))
 						End If
-						WriteLog ("ArtistName=" & artistName)
+						WriteLog "ArtistName=" & artistName
 						WriteLog "Without Track Info"
 						role = currentArtist("role")
 						NoSplit = False
@@ -1895,14 +1904,14 @@ Sub ReloadResults
 							zahl = UBound(rolea)
 						End If
 
-						WriteLog ("Role count=" & zahl)
+						WriteLog "Role count=" & zahl
 						For zahltemp = 1 To zahl
 							If NoSplit = False Then
 								currentRole = Trim(rolea(zahltemp))
 							End If
-							WriteLog ("currentRole=" & currentRole)
+							WriteLog "currentRole=" & currentRole
 							If LookForFeaturing(currentRole) Then
-								WriteLog ("Featuring found")
+								WriteLog "Featuring found"
 								If InStr(AlbumFeaturing, artistName) = 0 Then
 									If AlbumFeaturing = "" Then
 										If CheckFeaturingName Then
@@ -1919,7 +1928,7 @@ Sub ReloadResults
 									tmp = searchKeyword(LyricistKeywords, currentRole, AlbumLyricist, artistName)
 									If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 										AlbumLyricist = tmp
-										WriteLog ("AlbumLyricist=" & AlbumLyricist)
+										WriteLog "AlbumLyricist=" & AlbumLyricist
 										Exit Do
 									ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 										WriteLog "ALREADY_INSIDE_ROLE"
@@ -1928,7 +1937,7 @@ Sub ReloadResults
 									tmp = searchKeyword(ConductorKeywords, currentRole, AlbumConductor, artistName)
 									If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 										AlbumConductor = tmp
-										WriteLog ("AlbumConductor=" & AlbumConductor)
+										WriteLog "AlbumConductor=" & AlbumConductor
 										Exit Do
 									ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 										WriteLog "ALREADY_INSIDE_ROLE"
@@ -1937,7 +1946,7 @@ Sub ReloadResults
 									tmp = searchKeyword(ProducerKeywords, currentRole, AlbumProducer, artistName)
 									If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 										AlbumProducer = tmp
-										WriteLog ("AlbumProducer=" & AlbumProducer)
+										WriteLog "AlbumProducer=" & AlbumProducer
 										Exit Do
 									ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 										WriteLog "ALREADY_INSIDE_ROLE"
@@ -1946,7 +1955,7 @@ Sub ReloadResults
 									tmp = searchKeyword(ComposerKeywords, currentRole, AlbumComposer, artistName)
 									If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 										AlbumComposer = tmp
-										WriteLog ("AlbumComposer=" & AlbumComposer)
+										WriteLog "AlbumComposer=" & AlbumComposer
 										Exit Do
 									ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 										WriteLog "ALREADY_INSIDE_ROLE"
@@ -1956,13 +1965,13 @@ Sub ReloadResults
 									If tmp2 = -1 Then
 										ReDim Preserve Involved_R(UBound(Involved_R)+1)
 										Involved_R(UBound(Involved_R)) = currentRole & ": " & artistName
-										WriteLog ("New Role: " & currentRole & ": " & artistName)
+										WriteLog "New Role: " & currentRole & ": " & artistName
 									Else
 										If InStr(Involved_R(tmp2), artistName) = 0 Then
 											Involved_R(tmp2) = Involved_R(tmp2) & ", " & artistName
-											WriteLog ("Role updated: " & Involved_R(tmp2))
+											WriteLog "Role updated: " & Involved_R(tmp2)
 										Else
-											WriteLog ("artist already inside role")
+											WriteLog "artist already inside role"
 										End If
 									End If
 									Exit Do
@@ -1975,11 +1984,11 @@ Sub ReloadResults
 						Else
 							artistName = CleanArtistName(currentArtist("name"))
 						End If
-						WriteLog ("ArtistName=" & artistName)
+						WriteLog "ArtistName=" & artistName
 						role = currentArtist("role")
 						rTrack = currentArtist("tracks")
-						WriteLog ("Track(s)=" & rTrack)
-						WriteLog ("Role(s)=" & role)
+						WriteLog "Track(s)=" & rTrack
+						WriteLog "Role(s)=" & role
 						NoSplit = False
 						If InStr(role, ",") <> 0 Then
 							Rem rolea = Split(role, ",")
@@ -1997,7 +2006,7 @@ Sub ReloadResults
 							If NoSplit = False Then
 								involvedRole = Trim(rolea(zahltemp))
 							End If
-							WriteLog ("involvedRole=" & involvedRole)
+							WriteLog "involvedRole=" & involvedRole
 							If InStr(rTrack, ",") = 0 And InStr(rTrack, " to ") = 0 And InStr(rTrack, " & ") = 0 Then
 								currentTrack = rTrack
 								Add_Track_Role currentTrack, artistName, involvedRole, TrackRoles, TrackArtist2, TrackPos
@@ -2125,7 +2134,7 @@ Sub ReloadResults
 										End If
 									End If
 								Else   'new subtrack
-									WriteLog("New SubTrack found")
+									WriteLog "New SubTrack found"
 									If SubTrackNameSelection = False Then
 										cSubTrack = iTrackNum - 1
 									Else
@@ -2138,7 +2147,7 @@ Sub ReloadResults
 										oldSubTrackNumber = FindSubTrackSplit(position)
 										If oldSubTrackNumber = "" Then oldSubTrackNumber = position
 									End If
-									WriteLog ("oldSubTrackNumber=" & oldSubTrackNumber)
+									WriteLog "oldSubTrackNumber=" & oldSubTrackNumber
 								End If
 								
 								If subTrackTitle = "" Then
@@ -2437,13 +2446,13 @@ Sub ReloadResults
 									TrackFeaturing = TrackFeaturing & Separator & involvedArtist
 								End If
 							End If
-							WriteLog("TrackFeaturing=" & TrackFeaturing)
+							WriteLog "TrackFeaturing=" & TrackFeaturing
 						Else
 							Do
 								ret = searchKeyword(LyricistKeywords, involvedRole, TrackLyricists, involvedArtist)
 								If ret <> "" And ret <> "ALREADY_INSIDE_ROLE" Then
 									TrackLyricists = ret
-									WriteLog ("TrackLyricists=" & TrackLyricists)
+									WriteLog "TrackLyricists=" & TrackLyricists
 									Exit Do
 								ElseIf ret = "ALREADY_INSIDE_ROLE" Then
 									WriteLog "ALREADY_INSIDE_ROLE"
@@ -2452,7 +2461,7 @@ Sub ReloadResults
 								ret = searchKeyword(ConductorKeywords, involvedRole, TrackConductors, involvedArtist)
 								If ret <> "" And ret <> "ALREADY_INSIDE_ROLE" Then
 									TrackConductors = ret
-									WriteLog ("TrackConductors=" & TrackConductors)
+									WriteLog "TrackConductors=" & TrackConductors
 									Exit Do
 								ElseIf ret = "ALREADY_INSIDE_ROLE" Then
 									WriteLog "ALREADY_INSIDE_ROLE"
@@ -2461,7 +2470,7 @@ Sub ReloadResults
 								ret = searchKeyword(ProducerKeywords, involvedRole, TrackProducers, involvedArtist)
 								If ret <> "" And ret <> "ALREADY_INSIDE_ROLE" Then
 									TrackProducers = ret
-									WriteLog ("TrackProducers=" & TrackProducers)
+									WriteLog "TrackProducers=" & TrackProducers
 									Exit Do
 								ElseIf ret = "ALREADY_INSIDE_ROLE" Then
 									WriteLog "ALREADY_INSIDE_ROLE"
@@ -2470,7 +2479,7 @@ Sub ReloadResults
 								ret = searchKeyword(ComposerKeywords, involvedRole, TrackComposers, involvedArtist)
 								If ret <> "" And ret <> "ALREADY_INSIDE_ROLE" Then
 									TrackComposers = ret
-									WriteLog ("TrackComposers=" & TrackComposers)
+									WriteLog "TrackComposers=" & TrackComposers
 									Exit Do
 								ElseIf ret = "ALREADY_INSIDE_ROLE" Then
 									WriteLog "ALREADY_INSIDE_ROLE"
@@ -2480,13 +2489,13 @@ Sub ReloadResults
 								If tmp2 = -1 Then
 									ReDim Preserve Involved_R_T(UBound(Involved_R_T)+1)
 									Involved_R_T(UBound(Involved_R_T)) = involvedRole & ": " & TrackArtist2(tmp)
-									WriteLog ("New Role: " & involvedRole & ": " & TrackArtist2(tmp))
+									WriteLog "New Role: " & involvedRole & ": " & TrackArtist2(tmp)
 								Else
 									If InStr(Involved_R_T(tmp2), TrackArtist2(tmp)) = 0 Then
 										Involved_R_T(tmp2) = Involved_R_T(tmp2) & ", " & TrackArtist2(tmp)
-										WriteLog ("Role updated: " & Involved_R_T(tmp2))
+										WriteLog "Role updated: " & Involved_R_T(tmp2)
 									Else
-										WriteLog ("artist already inside role")
+										WriteLog "artist already inside role"
 									End If
 								End If
 								Exit Do
@@ -2499,7 +2508,7 @@ Sub ReloadResults
 				tmpJoin = ""
 
 				WriteLog " "
-				WriteLog("Search for TrackArtist")
+				WriteLog "Search for TrackArtist"
 				If currentTrack.Exists("artists") Then
 					FoundFeaturing = False
 					For Each artist in currentTrack("artists")
@@ -2522,7 +2531,7 @@ Sub ReloadResults
 							Else
 								TrackFeaturing = TrackFeaturing & ", " & tmpTrackArtist
 							End If
-							WriteLog("TrackFeaturing=" & TrackFeaturing)
+							WriteLog "TrackFeaturing=" & TrackFeaturing
 						End If
 						'TitleFeaturing
 						If currentArtist("join") <> "" Then
@@ -2534,7 +2543,7 @@ Sub ReloadResults
 								FoundFeaturing = False
 							End If
 						End If
-						WriteLog("artistlist=" & artistlist)
+						WriteLog "artistlist=" & artistlist
 					Next
 				End If
 
@@ -2587,7 +2596,7 @@ Sub ReloadResults
 										tmp = searchKeyword(LyricistKeywords, involvedRole, TrackLyricists, involvedArtist)
 										If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 											TrackLyricists = tmp
-											WriteLog ("TrackLyricists=" & TrackLyricists)
+											WriteLog "TrackLyricists=" & TrackLyricists
 											Exit Do
 										ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 											WriteLog "ALREADY_INSIDE_ROLE"
@@ -2596,7 +2605,7 @@ Sub ReloadResults
 										tmp = searchKeyword(ConductorKeywords, involvedRole, TrackConductors, involvedArtist)
 										If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 											TrackConductors = tmp
-											WriteLog ("TrackConductors=" & TrackConductors)
+											WriteLog "TrackConductors=" & TrackConductors
 											Exit Do
 										ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 											WriteLog "ALREADY_INSIDE_ROLE"
@@ -2605,7 +2614,7 @@ Sub ReloadResults
 										tmp = searchKeyword(ProducerKeywords, involvedRole, TrackProducers, involvedArtist)
 										If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 											TrackProducers = tmp
-											WriteLog ("TrackProducers=" & TrackProducers)
+											WriteLog "TrackProducers=" & TrackProducers
 											Exit Do
 										ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 											WriteLog "ALREADY_INSIDE_ROLE"
@@ -2614,7 +2623,7 @@ Sub ReloadResults
 										tmp = searchKeyword(ComposerKeywords, involvedRole, TrackComposers, involvedArtist)
 										If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 											TrackComposers = tmp
-											WriteLog ("TrackComposers=" & TrackComposers)
+											WriteLog "TrackComposers=" & TrackComposers
 											Exit Do
 										ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 											WriteLog "ALREADY_INSIDE_ROLE"
@@ -2624,13 +2633,13 @@ Sub ReloadResults
 										If tmp2 = -1 Then
 											ReDim Preserve Involved_R_T(UBound(Involved_R_T)+1)
 											Involved_R_T(UBound(Involved_R_T)) = involvedRole & ": " & involvedArtist
-											WriteLog ("New Role: " & involvedRole & ": " & involvedArtist)
+											WriteLog "New Role: " & involvedRole & ": " & involvedArtist
 										Else
 											If InStr(Involved_R_T(tmp2), involvedArtist) = 0 Then
 												Involved_R_T(tmp2) = Involved_R_T(tmp2) & ", " & involvedArtist
-												WriteLog ("Role updated: " & Involved_R_T(tmp2))
+												WriteLog "Role updated: " & Involved_R_T(tmp2)
 											Else
-												WriteLog ("artist already inside role")
+												WriteLog "artist already inside role"
 											End If
 										End If
 										Exit Do
@@ -2639,7 +2648,7 @@ Sub ReloadResults
 							Next
 						End If
 					Next
-					WriteLog("TrackArtist end")
+					WriteLog "TrackArtist end"
 				End If
 
 				If TrackFeaturing <> "" Then
@@ -2900,7 +2909,7 @@ Sub ReloadResults
 			' Get release artist
 			For Each artist in CurrentRelease("artist-credit")
 				Set currentArtist = CurrentRelease("artist-credit")(artist)
-				WriteLog("currentArtist=" & currentArtist("name"))
+				WriteLog "currentArtist=" & currentArtist("name")
 				artistName = CleanArtistName(currentArtist("name"))
 				' !!!!!artistName <- currentArtist
 				If SavedArtistId = "" Then SavedArtistId = currentArtist("artist")("id")
@@ -2909,7 +2918,7 @@ Sub ReloadResults
 					AlbumArtist = artistName
 				End If
 
-				Writelog("SavedArtistId=" & SavedArtistId)
+				Writelog "SavedArtistId=" & SavedArtistId
 				AlbumArtistTitle = AlbumArtistTitle & artistName
 
 				If currentArtist("joinphrase") <> "" Then
@@ -2930,7 +2939,7 @@ Sub ReloadResults
 
 			If Right(AlbumArtistTitle, 3) = " , " Then AlbumArtistTitle = Left(AlbumArtistTitle, Len(AlbumArtistTitle)-3)
 
-			Writelog("AlbumArtistTitle=" & AlbumArtistTitle)
+			Writelog "AlbumArtistTitle=" & AlbumArtistTitle
 
 			If (Not CheckAlbumArtistFirst) Then
 				AlbumArtist = AlbumArtistTitle
@@ -2952,7 +2961,7 @@ Sub ReloadResults
 						WriteLog " "
 						Set currentArtist = CurrentRelease("relations")(extraArtist)
 						artistName = CleanArtistName(currentArtist("artist")("name"))
-						WriteLog ("ArtistName=" & artistName)
+						WriteLog "ArtistName=" & artistName
 						role = currentArtist("type")
 						role2 = ""
 						tmp3 = 0
@@ -2975,12 +2984,12 @@ Sub ReloadResults
 							Else
 								currentRole = UCase(Left(role, 1)) & Mid(role, 2)
 							End If
-							WriteLog ("currentRole=" & currentRole)
+							WriteLog "currentRole=" & currentRole
 							Do
 								tmp = searchKeyword(LyricistKeywords, currentRole, AlbumLyricist, artistName)
 								If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 									AlbumLyricist = tmp
-									WriteLog ("AlbumLyricist=" & AlbumLyricist)
+									WriteLog "AlbumLyricist=" & AlbumLyricist
 									Exit Do
 								ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 									WriteLog "ALREADY_INSIDE_ROLE"
@@ -2989,7 +2998,7 @@ Sub ReloadResults
 								tmp = searchKeyword(ConductorKeywords, currentRole, AlbumConductor, artistName)
 								If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 									AlbumConductor = tmp
-									WriteLog ("AlbumConductor=" & AlbumConductor)
+									WriteLog "AlbumConductor=" & AlbumConductor
 									Exit Do
 								ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 									WriteLog "ALREADY_INSIDE_ROLE"
@@ -2998,7 +3007,7 @@ Sub ReloadResults
 								tmp = searchKeyword(ProducerKeywords, currentRole, AlbumProducer, artistName)
 								If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 									AlbumProducer = tmp
-									WriteLog ("AlbumProducer=" & AlbumProducer)
+									WriteLog "AlbumProducer=" & AlbumProducer
 									Exit Do
 								ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 									WriteLog "ALREADY_INSIDE_ROLE"
@@ -3007,7 +3016,7 @@ Sub ReloadResults
 								tmp = searchKeyword(ComposerKeywords, currentRole, AlbumComposer, artistName)
 								If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 									AlbumComposer = tmp
-									WriteLog ("AlbumComposer=" & AlbumComposer)
+									WriteLog "AlbumComposer=" & AlbumComposer
 									Exit Do
 								ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 									WriteLog "ALREADY_INSIDE_ROLE"
@@ -3017,13 +3026,13 @@ Sub ReloadResults
 								If tmp2 = -1 Then
 									ReDim Preserve Involved_R(UBound(Involved_R)+1)
 									Involved_R(UBound(Involved_R)) = currentRole & ": " & artistName
-									WriteLog ("New Role: " & currentRole & ": " & artistName)
+									WriteLog "New Role: " & currentRole & ": " & artistName
 								Else
 									If InStr(Involved_R(tmp2), artistName) = 0 Then
 										Involved_R(tmp2) = Involved_R(tmp2) & ", " & artistName
-										WriteLog ("Role updated: " & Involved_R(tmp2))
+										WriteLog "Role updated: " & Involved_R(tmp2)
 									Else
-										WriteLog ("artist already inside role")
+										WriteLog "artist already inside role"
 									End If
 								End If
 								Exit Do
@@ -3133,13 +3142,13 @@ Sub ReloadResults
 										TrackFeaturing = TrackFeaturing & Separator & involvedArtist
 									End If
 								End If
-								WriteLog("TrackFeaturing=" & TrackFeaturing)
+								WriteLog "TrackFeaturing=" & TrackFeaturing
 							Else
 								Do
 									ret = searchKeyword(LyricistKeywords, involvedRole, TrackLyricists, involvedArtist)
 									If ret <> "" And ret <> "ALREADY_INSIDE_ROLE" Then
 										TrackLyricists = ret
-										WriteLog ("TrackLyricists=" & TrackLyricists)
+										WriteLog "TrackLyricists=" & TrackLyricists
 										Exit Do
 									ElseIf ret = "ALREADY_INSIDE_ROLE" Then
 										WriteLog "ALREADY_INSIDE_ROLE"
@@ -3148,7 +3157,7 @@ Sub ReloadResults
 									ret = searchKeyword(ConductorKeywords, involvedRole, TrackConductors, involvedArtist)
 									If ret <> "" And ret <> "ALREADY_INSIDE_ROLE" Then
 										TrackConductors = ret
-										WriteLog ("TrackConductors=" & TrackConductors)
+										WriteLog "TrackConductors=" & TrackConductors
 										Exit Do
 									ElseIf ret = "ALREADY_INSIDE_ROLE" Then
 										WriteLog "ALREADY_INSIDE_ROLE"
@@ -3157,7 +3166,7 @@ Sub ReloadResults
 									ret = searchKeyword(ProducerKeywords, involvedRole, TrackProducers, involvedArtist)
 									If ret <> "" And ret <> "ALREADY_INSIDE_ROLE" Then
 										TrackProducers = ret
-										WriteLog ("TrackProducers=" & TrackProducers)
+										WriteLog "TrackProducers=" & TrackProducers
 										Exit Do
 									ElseIf ret = "ALREADY_INSIDE_ROLE" Then
 										WriteLog "ALREADY_INSIDE_ROLE"
@@ -3166,7 +3175,7 @@ Sub ReloadResults
 									ret = searchKeyword(ComposerKeywords, involvedRole, TrackComposers, involvedArtist)
 									If ret <> "" And ret <> "ALREADY_INSIDE_ROLE" Then
 										TrackComposers = ret
-										WriteLog ("TrackComposers=" & TrackComposers)
+										WriteLog "TrackComposers=" & TrackComposers
 										Exit Do
 									ElseIf ret = "ALREADY_INSIDE_ROLE" Then
 										WriteLog "ALREADY_INSIDE_ROLE"
@@ -3176,13 +3185,13 @@ Sub ReloadResults
 									If tmp2 = -1 Then
 										ReDim Preserve Involved_R_T(UBound(Involved_R_T)+1)
 										Involved_R_T(UBound(Involved_R_T)) = involvedRole & ": " & TrackArtist2(tmp)
-										WriteLog ("New Role: " & involvedRole & ": " & TrackArtist2(tmp))
+										WriteLog "New Role: " & involvedRole & ": " & TrackArtist2(tmp)
 									Else
 										If InStr(Involved_R_T(tmp2), TrackArtist2(tmp)) = 0 Then
 											Involved_R_T(tmp2) = Involved_R_T(tmp2) & ", " & TrackArtist2(tmp)
-											WriteLog ("Role updated: " & Involved_R_T(tmp2))
+											WriteLog "Role updated: " & Involved_R_T(tmp2)
 										Else
-											WriteLog ("artist already inside role")
+											WriteLog "artist already inside role"
 										End If
 									End If
 									Exit Do
@@ -3195,12 +3204,12 @@ Sub ReloadResults
 					tmpJoin = ""
 		
 					WriteLog " "
-					WriteLog("Search for TrackArtist <> Release Artist")
+					WriteLog "Search for TrackArtist <> Release Artist"
 					
 					
 					For Each artist in CurrentTrack("artist-credit")
 						Set currentArtist = CurrentTrack("artist-credit")(artist)
-						WriteLog("currentArtist=" & currentArtist("name"))
+						WriteLog "currentArtist=" & currentArtist("name")
 						tmpTrackArtist = CleanArtistName(currentArtist("name"))
 						If FoundFeaturing = False Then
 							artistList = artistList & tmpTrackArtist
@@ -3214,7 +3223,7 @@ Sub ReloadResults
 							Else
 								TrackFeaturing = TrackFeaturing & ", " & tmpTrackArtist
 							End If
-							WriteLog("TrackFeaturing=" & TrackFeaturing)
+							WriteLog "TrackFeaturing=" & TrackFeaturing
 						End If
 						'TitleFeaturing
 						If currentArtist("joinphrase") <> "" Then
@@ -3230,7 +3239,7 @@ Sub ReloadResults
 					Next
 					If artistList = "" Then artistList = AlbumArtistTitle
 					If Right(artistList, 3) = " , " Then artistList = Left(artistList, Len(artistList)-3)
-					WriteLog("artistlist=" & artistlist)
+					WriteLog "artistlist=" & artistlist
 
 
 					Set tmp = currentTrack("recording")
@@ -3328,7 +3337,7 @@ Sub ReloadResults
 							Next
 						End If
 					End If
-					WriteLog("TrackArtist end")
+					WriteLog "TrackArtist end"
 
 					If TrackFeaturing <> "" Then
 						If CheckTitleFeaturing = True Then
@@ -3766,7 +3775,7 @@ Function getinvolvedRole(involvedArtist, involvedRole, byRef artistList, byRef T
 			tmp = searchKeyword(LyricistKeywords, involvedRole, TrackLyricists, involvedArtist)
 			If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 				TrackLyricists = tmp
-				WriteLog ("TrackLyricists=" & TrackLyricists)
+				WriteLog "TrackLyricists=" & TrackLyricists
 				Exit Do
 			ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 				WriteLog "ALREADY_INSIDE_ROLE"
@@ -3775,7 +3784,7 @@ Function getinvolvedRole(involvedArtist, involvedRole, byRef artistList, byRef T
 			tmp = searchKeyword(ConductorKeywords, involvedRole, TrackConductors, involvedArtist)
 			If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 				TrackConductors = tmp
-				WriteLog ("TrackConductors=" & TrackConductors)
+				WriteLog "TrackConductors=" & TrackConductors
 				Exit Do
 			ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 				WriteLog "ALREADY_INSIDE_ROLE"
@@ -3784,7 +3793,7 @@ Function getinvolvedRole(involvedArtist, involvedRole, byRef artistList, byRef T
 			tmp = searchKeyword(ProducerKeywords, involvedRole, TrackProducers, involvedArtist)
 			If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 				TrackProducers = tmp
-				WriteLog ("TrackProducers=" & TrackProducers)
+				WriteLog "TrackProducers=" & TrackProducers
 				Exit Do
 			ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 				WriteLog "ALREADY_INSIDE_ROLE"
@@ -3793,7 +3802,7 @@ Function getinvolvedRole(involvedArtist, involvedRole, byRef artistList, byRef T
 			tmp = searchKeyword(ComposerKeywords, involvedRole, TrackComposers, involvedArtist)
 			If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 				TrackComposers = tmp
-				WriteLog ("TrackComposers=" & TrackComposers)
+				WriteLog "TrackComposers=" & TrackComposers
 				Exit Do
 			ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 				WriteLog "ALREADY_INSIDE_ROLE"
@@ -3803,13 +3812,13 @@ Function getinvolvedRole(involvedArtist, involvedRole, byRef artistList, byRef T
 			If tmp2 = -1 Then
 				ReDim Preserve Involved_R_T(UBound(Involved_R_T)+1)
 				Involved_R_T(UBound(Involved_R_T)) = involvedRole & ": " & involvedArtist
-				WriteLog ("New Role: " & involvedRole & ": " & involvedArtist)
+				WriteLog "New Role: " & involvedRole & ": " & involvedArtist
 			Else
 				If InStr(Involved_R_T(tmp2), involvedArtist) = 0 Then
 					Involved_R_T(tmp2) = Involved_R_T(tmp2) & ", " & involvedArtist
-					WriteLog ("Role updated: " & Involved_R_T(tmp2))
+					WriteLog "Role updated: " & Involved_R_T(tmp2)
 				Else
-					WriteLog ("artist already inside role")
+					WriteLog "artist already inside role"
 				End If
 			End If
 			Exit Do
@@ -4092,7 +4101,7 @@ Sub ShowResult(ResultID)
 	' http://musicbrainz.org/ws/2/release/e3b950f4-cc3b-3f84-b80f-2c254ffd956f?inc=recordings+recording-level-rels+work-rels+work-level-rels+artist-rels+artist-credits+media+release-group-rels+release-groups+labels&fmt=json
 	If QueryPage = "MusicBrainz" Then
 
-		WriteLog("+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-")
+		WriteLog "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-"
 		WriteLog "Start ShowResult MusicBrainz"
 		ReleaseID = ResultsReleaseID.Item(ResultID)
 		WriteLog "ReleaseID=" & ReleaseID
@@ -4118,7 +4127,7 @@ Sub ShowResult(ResultID)
 
 	If QueryPage = "Discogs" Then
 
-		WriteLog("+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-")
+		WriteLog "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-"
 		WriteLog "Start ShowResult Discogs"
 		ReleaseID = ResultsReleaseID.Item(ResultID)
 		WriteLog "ReleaseID=" & ReleaseID
@@ -5267,15 +5276,15 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 	Dim json
 	Set json = New VbsJson
 
-	Dim response
+	Dim response, ErrorMessage
 	Dim format, title, country, v_year, label, artist, Rtype, catNo, main_release, tmp, ReleaseDesc, FilterFound, SongCount, SongCountMax, isRelease, listCount
 	Dim Page, SongPages, tmpArtist
 
-	WriteLog (" ")
-	WriteLog ("+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+")
-	WriteLog ("Start JSONParser_find_result")
-	WriteLog("Arrayname=" & ArrayName)
-	WriteLog("QueryPage=" & QueryPage)
+	WriteLog " "
+	WriteLog "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+	WriteLog "Start JSONParser_find_result"
+	WriteLog "Arrayname=" & ArrayName
+	WriteLog "QueryPage=" & QueryPage
 
 
 	Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
@@ -5461,7 +5470,7 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 
 	Else
 	
-		WriteLog("Complete searchURL=" & searchURL_F & searchURL & searchURL_L)
+		WriteLog "Complete searchURL=" & searchURL_F & searchURL & searchURL_L
 		' use json api with vbsjson class at start of file now
 
 		oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
@@ -5477,14 +5486,14 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 
 			SongCount = 0
 			SongCountMax = response("pagination")("items")
-			WriteLog ("SongCountMax=" & SongCountMax)
+			WriteLog "SongCountMax=" & SongCountMax
 			If Int(SongCountMax) = 0 Then
 				ErrorMessage = "No Release found at Discogs !!"
 			Else
 				isRelease = False
 				If Results.Count = 1 Then isRelease = True
 				SongPages = response("pagination")("pages")
-				WriteLog ("SongPages=" & SongPages)
+				WriteLog "SongPages=" & SongPages
 				For Page = 1 to SongPages
 					If Page <> 1 Then
 						oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
@@ -5634,7 +5643,7 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 			End If
 		End If
 	End If
-	WriteLog ("End JSONParser_find_result")
+	WriteLog "End JSONParser_find_result"
 	
 End Function
 
