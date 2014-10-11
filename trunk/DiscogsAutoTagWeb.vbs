@@ -1,10 +1,12 @@
-
-
 Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v4.51"
+Const VersionStr = "v4.52"
+
+'Changes from 4.51 to 4.52 by crap_inhuman in 08.2014
+'	Changed OAuth Authorization procedure
+
 
 'Changes from 4.50 to 4.51 by crap_inhuman in 07.2014
 '	Removed bug with & character in searchstring
@@ -235,7 +237,7 @@ Dim AccessToken, AccessTokenSecret
 Dim fso, loc, logf
 
 Dim UseMetalArchives
-REM UseMetalArchives = False
+Rem UseMetalArchives = False
 
 '----------------------------------DiscogsImages----------------------------------------
 Dim SaveImageType, SaveImage, CoverStorage, FileNameList
@@ -1019,94 +1021,12 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 
 	CurrentLoadType = "Search Results"
 
-	' This is a web browser that we use to present results to the user
-	Set WebBrowser = UI.NewActiveX(Panel, "Shell.Explorer")
-	WebBrowser.Common.Align = 5
-	WebBrowser.Common.ControlName = "WebBrowser"
-	WebBrowser.Common.Top = 0
-	WebBrowser.Common.Left = 0
-	SDB.Objects("WebBrowser") = WebBrowser
-	WebBrowser.Interf.Visible = true
-	WebBrowser.Common.BringToFront
-
 	If SDB.Tools.WebSearch.NewTracks.Count > 0 Then
 		Set FirstTrack = SDB.Tools.WebSearch.NewTracks.item(0)
 		SavedReleaseId = get_release_ID(FirstTrack) 'get saved Release_ID from User-Defined Custom-Tag
 		SavedSearchTerm = SearchTerm
 		SavedSearchArtist = SearchArtist
 		SavedSearchAlbum = SearchAlbum
-	End If
-
-
-
-
-
-
-	If UseMetalArchives = False Then
-		WriteLog "Start Discogs Request"
-
-		Dim IEobj, objShell, objShellWindows
-		Dim dteWait, objIE, strURL, retIE
-
-		If AccessToken = "" Or AccessTokenSecret = "" Then
-			MsgBox("Starting August 15th, access to discogs database will require authentication." & vbNewLine & "This is part of an ongoing effort to improve API uptime and response times" & vbNewLine & vbNewLine & "You need an account at discogs in order to use Discogs Tagger.")
-			set IEobj = CreateObject("InternetExplorer.Application")
-			Set objShell = CreateObject("Shell.Application")
-			Set objShellWindows = objShell.Windows
-			IEobj.visible = true
-
-			IEobj.navigate ("http://www.germanc64.de/mm/oauth/login_with_discogs.php")
-
-			WriteLog "IE started"
-
-			dteWait = DateAdd("s", 20, Now())
-	
-			Do Until (Now() > dteWait)
-				SDB.ProcessMessages
-			Loop
-			
-			Do
-				If objShellWindows.Count = 0 Then
-					Exit Do
-				End If
-				For i = 0 to objShellWindows.Count - 1
-					Set objIE = objShellWindows.Item(i)
-					strURL = objIE.LocationURL
-					If InStr(strURL, "oauth_verifier") <> 0 Then
-						writeLog strURL
-						retIE = objIE.document.body.innerText
-						WriteLog retIE
-						Exit Do
-					End If
-				Next
-			Loop While 1 = 1
-
-			WriteLog "IE finished"
-			
-			Dim start
-			If InStr(retIE, "AccessToken=") <> 0 Then
-				start = InStr(retIE, "AccessToken=")
-				retIE = Mid(retIE, start + 12)
-				start = InStr(retIE, " ")
-				AccessToken = Left(retIE, start -1)
-				ini.StringValue("DiscogsAutoTagWeb","AccessToken") = AccessToken
-				WriteLog "AccessToken=" & AccessToken
-				start = InStr(retIE, "AccessTokenSecret=")
-				retIE = Mid(retIE, start + 18)
-				start = InStr(retIE, " ")
-				AccessTokenSecret = Left(retIE, start -1)
-				ini.StringValue("DiscogsAutoTagWeb","AccessTokenSecret") = AccessTokenSecret
-				WriteLog "AccessTokenSecret=" & AccessTokenSecret
-			End If
-				
-			objIE.visible = False 
-			'IEobj = Nothing
-			objIE.Quit
-		Else
-			WriteLog "AccessToken found in ini = " & AccessToken
-			WriteLog "AccessTokenSecret found in ini = " & AccessTokenSecret
-		End If
-		WriteLog "End Discogs Request"
 	End If
 
 
@@ -1138,26 +1058,98 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	Next
 	WriteLog " "
 
-	REM If SearchArtist = "" Or SearchAlbum = "" Then Exit Sub
+	Rem If SearchArtist = "" Or SearchAlbum = "" Then Exit Sub
 
-	If UseMetalArchives = True Then
-		FindResults2(SavedSearchTerm)
-	Else
+
+
+	If UseMetalArchives = False Then
+		WriteLog "Start Discogs Request"
+
+		Dim IEobj, oXMLHTTP, TypeLib, GUID
+		Dim retIE, retryCnt, start
+
 		If AccessToken = "" Or AccessTokenSecret = "" Then
-			MsgBox("You don't have a valid AccessToken !")
-			WebBrowser.Common.DestroyControl      ' Destroy the external control
-			Set WebBrowser = Nothing              ' Release global variable
-			SDB.Objects("WebBrowser") = Nothing
+			SDB.MessageBox "Starting August 15th, access to discogs database will require authentication." & vbNewLine & "This is part of an ongoing effort to improve API uptime and response times" & vbNewLine & vbNewLine & "You need an account at discogs in order to use Discogs Tagger.", mtInformation, Array(mbOk)
 
-			Set ini = Nothing
-			Set ResultsReleaseID = Nothing
-			Script.UnregisterAllEvents
+			Set TypeLib = CreateObject("Scriptlet.TypeLib")
+
+			set IEobj = CreateObject("InternetExplorer.Application")
+			
+			GUID = Mid(TypeLib.Guid, 2, 36)
+			WriteLog "GUID=" & GUID
+			IEobj.visible = true
+
+			IEobj.navigate ("http://www.germanc64.de/mm/oauth/oauth_guid.php?f=" & GUID)
+
+			WriteLog "IE started"
+
+			For a = 1 to 50
+				SDB.Tools.Sleep(100)
+				SDB.ProcessMessages
+			Next
+			retryCnt = 0
+			Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
+
+			Do While 1=1
+				oXMLHTTP.open "GET", "http://www.germanc64.de/mm/oauth/get_oauth_guid.php?f=" & GUID, false
+				oXMLHTTP.send()
+				If oXMLHTTP.Status = 200 Then
+					retIE = oXMLHTTP.responseText
+
+					If InStr(retIE, "AccessToken=") <> 0 Then
+						start = InStr(retIE, "AccessToken=")
+						retIE = Mid(retIE, start + 12)
+						AccessToken = Left(retIE, 40)
+						ini.StringValue("DiscogsAutoTagWeb","AccessToken") = AccessToken
+						WriteLog "AccessToken=" & AccessToken
+						start = InStr(retIE, "AccessTokenSecret=")
+						retIE = Mid(retIE, start + 18)
+						AccessTokenSecret = Left(retIE, 40)
+						ini.StringValue("DiscogsAutoTagWeb","AccessTokenSecret") = AccessTokenSecret
+						WriteLog "AccessTokenSecret=" & AccessTokenSecret
+						SDB.MessageBox "The Access Token was stored on your Computer. Now you can use Discogs Tagger till you revoke the permission", mtInformation, Array(mbOk)
+						Exit Do
+					End If
+				End If
+				retryCnt = retryCnt + 1
+				If retryCnt = 45 Then
+					WriteLog "Authorize failed (Err=1)!"
+					SDB.MessageBox "Authorize failed (Err=1)! You have to authorize Discogs Tagger to use it with your Discogs account !" & vbNewLine & "Please restart Discogs Tagger to authorize it !", mtError, Array(mbOk)
+					Exit Do
+				End If
+				For a = 1 to 100
+					SDB.Tools.Sleep(10)
+					SDB.ProcessMessages
+				Next
+			Loop
 		Else
+			WriteLog "AccessToken found in ini = " & AccessToken
+			WriteLog "AccessTokenSecret found in ini = " & AccessTokenSecret
+		End If
+		WriteLog "End Discogs Request"
+	End If
+
+	If (AccessToken <> "" And AccessTokenSecret <> "") Or UseMetalArchives = True Then
+		' This is a web browser that we use to present results to the user
+		Set WebBrowser = UI.NewActiveX(Panel, "Shell.Explorer")
+		WebBrowser.Common.Align = 5
+		WebBrowser.Common.ControlName = "WebBrowser"
+		WebBrowser.Common.Top = 0
+		WebBrowser.Common.Left = 0
+		SDB.Objects("WebBrowser") = WebBrowser
+		WebBrowser.Interf.Visible = true
+		WebBrowser.Common.BringToFront
+
+		If UseMetalArchives = False Then
 			FindResults(SavedSearchTerm)
 		End If
 	End If
+	If UseMetalArchives = True Then
+		FindResults2(SavedSearchTerm)
+	End If
 
 End Sub
+
 
 
 Sub FindResults2(SearchTerm)
@@ -1679,7 +1671,7 @@ Sub ReloadResults
 						NoSplit = True
 					Else
 						rolea = CheckSpecialRole(role)
-						REM rolea = Split(role, ",")
+						Rem rolea = Split(role, ",")
 						zahl = UBound(rolea)
 					End If
 
@@ -1766,7 +1758,7 @@ Sub ReloadResults
 					WriteLog ("Role(s)=" & role)
 					NoSplit = False
 					If InStr(role, ",") <> 0 Then
-						REM rolea = Split(role, ",")
+						Rem rolea = Split(role, ",")
 						rolea = CheckSpecialRole(role)
 						zahl = UBound(rolea)
 					ElseIf InStr(role, " & ") <> 0 Then
@@ -1835,7 +1827,7 @@ Sub ReloadResults
 			End If
 			If InStr(position, ".") <> 0 Then tmp = tmp + 1
 		Next
-		If tmp = tmp2 Then NoSubTrackUsing = True	'all tracks have "." in position tag, this can't be a subtrack
+		If tmp = tmp2 And tmp <> 0 Then NoSubTrackUsing = True	'all tracks have "." in position tag, this can't be a subtrack
 		'Workaround for using "." as separator at discogs -----------------------------------------------------------------------------------------------------------
 
 
@@ -1882,6 +1874,7 @@ Sub ReloadResults
 						End If
 						If CharSeparatorSubTrack <> 0 Then
 							If cSubTrack <> -1 Then 'more subtrack
+								WriteLog "More Subtrack"
 								If CharSeparatorSubTrack = 1 Then
 									tmp = Split(position, ".")
 									If oldSubTrackNumber <> tmp(0) Then
@@ -1892,7 +1885,7 @@ Sub ReloadResults
 										End If
 										cSubTrack = -1
 										subTrackTitle = ""
-										REM CharSeparatorSubTrack = 0
+										Rem CharSeparatorSubTrack = 0
 									End If
 								ElseIf CharSeparatorSubTrack = 2 Then
 									tmp2 = FindSubTrackSplit(position)
@@ -1904,11 +1897,10 @@ Sub ReloadResults
 										End If
 										cSubTrack = -1
 										subTrackTitle = ""
-										REM CharSeparatorSubTrack = 0
+										Rem CharSeparatorSubTrack = 0
 									End If
 								End If
-							End If
-							If cSubTrack = -1 Then 'new subtrack
+							Else   'new subtrack
 								WriteLog("New SubTrack found")
 								If SubTrackNameSelection = False Then
 									cSubTrack = iTrackNum - 1
@@ -2208,7 +2200,7 @@ Sub ReloadResults
 			For tmp = 1 To UBound(TrackPos)
 				If TrackPos(tmp) = position Then
 					WriteLog "trackpos(" & tmp & ")=" & trackpos(tmp)
-					REM msgbox tmp
+					Rem msgbox tmp
 					involvedRole = TrackRoles(tmp)
 					involvedArtist = TrackArtist2(tmp)
 
@@ -2343,7 +2335,7 @@ Sub ReloadResults
 							zahl = 1
 							NoSplit = True
 						Else
-							REM rolea = Split(role, ", ")
+							Rem rolea = Split(role, ", ")
 							rolea = CheckSpecialRole(role)
 							zahl = UBound(rolea)
 						End If
@@ -2836,7 +2828,7 @@ End Function
 Function FindSubTrackSplit(position)
 
 	Dim tmp
-	For tmp = 1 To Len(position)-1
+	For tmp = 2 To Len(position)
 		If Not IsNumeric(Mid(position, tmp, 1)) Then
 			FindSubTrackSplit = Left(position, tmp-1)
 			Exit For
@@ -3070,6 +3062,7 @@ Sub ShowResult(ResultID)
 
 		WriteLog "Start ShowResult"
 		ReleaseID = ResultsReleaseID.Item(ResultID)
+		WriteLog "ReleaseID=" & ReleaseID
 		If InStr(Results.Item(ResultID), "search returned no results") = 0 Then
 			If Right(Results.Item(ResultID), 1) = "*" Then  'Master-Release
 				searchURL = ReleaseID
@@ -3212,12 +3205,16 @@ Sub FinishSearch(Panel)
 		End If
 	End If
 
-	WebBrowser.Common.DestroyControl      ' Destroy the external control
-	Set WebBrowser = Nothing              ' Release global variable
-	SDB.Objects("WebBrowser") = Nothing
+	If isObject(WebBrowser) Then
+		WebBrowser.Common.DestroyControl      ' Destroy the external control
+		Set WebBrowser = Nothing              ' Release global variable
+		SDB.Objects("WebBrowser") = Nothing
+	End If
 
 	Set ini = Nothing
-	Set ResultsReleaseID = Nothing
+	If isObject(ResultsReleaseID) Then
+		Set ResultsReleaseID = Nothing
+	End If
 	Script.UnregisterAllEvents
 
 End Sub
@@ -3678,11 +3675,11 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = Replace(templateHTML, "<!GENRE!>", theGenres)
 
 	
-	REM Dim filesys, filetxt, logdatei
-	REM 'Const ForReading = 1, ForWriting = 2, ForAppending = 8
+	Rem Dim filesys, filetxt, logdatei
+	Rem 'Const ForReading = 1, ForWriting = 2, ForAppending = 8
 	REM logdatei = SDB.ScriptsPath & "HTML.htm"
-	REM Set filesys = CreateObject("Scripting.FileSystemObject")
-	REM Set filetxt = filesys.OpenTextFile(logdatei, 2, True)
+	Rem Set filesys = CreateObject("Scripting.FileSystemObject")
+	Rem Set filetxt = filesys.OpenTextFile(logdatei, 2, True)
 	REM filetxt.WriteLine(templateHTML)
 	REM filetxt.Close
 
@@ -4201,6 +4198,8 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L)
 					catNo = ""
 					main_release = ""
 
+					SDB.ProcessMessages
+
 					title = response(ArrayName)(r)("title")
 					Set tmp = response(ArrayName)(r)
 					If tmp.Exists("artist") Then
@@ -4308,9 +4307,9 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L)
 						ResultsReleaseID.Add response(ArrayName)(r)("id")
 					Loop While False
 					SongCount = SongCount + 1
-					If SongCount = 250 Then Exit For
+					If SongCount = 150 Then Exit For
 				Next
-				If SongCount = 250 Then Exit For
+				If SongCount = 150 Then Exit For
 			Next
 			ListCount = 1
 			For r = 1 to Results.Count
@@ -5210,13 +5209,12 @@ End Sub
 
 Function searchKeyword(Keywords, Role, AlbumRole, artistName)
 
-	WriteLog "Start searchKeyword"
+	'WriteLog "Start searchKeyword"
 	Dim tmp, x, RE, searchPattern
 	tmp = Split(Keywords, ",")
 	Set RE = New RegExp
 	RE.IgnoreCase = True
 	For Each searchPattern In tmp
-		WriteLog "searchPattern=" & searchPattern
 		If InStr(searchPattern, "*") <> 0 Then
 			searchPattern = Replace(searchPattern, "*", ".*")
 			RE.Pattern = "^" & searchPattern & "$"
@@ -5231,6 +5229,7 @@ Function searchKeyword(Keywords, Role, AlbumRole, artistName)
 				Else
 					searchKeyword = "ALREADY_INSIDE_ROLE"
 				End If
+				WriteLog "searchPattern=" & searchPattern
 				Exit For
 			End If
 		Else
@@ -5882,5 +5881,3 @@ Sub SwitchAll()
 	ReloadResults
 
 End Sub
-
-
