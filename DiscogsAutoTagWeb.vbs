@@ -2,152 +2,162 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v4.44"
+Const VersionStr = "v4.45"
+
+'Changes from 4.44 to 4.45 by crap_inhuman in 05.2014
+'	Bug removed: Didn't display the additional Image
+'	Adjust the script for fetching the small album art
+'	Adjust the script for removing leading and trailing spaces in Extra Artists
+'	Add option to turn off subtrack detection
+
 
 'Changes from 4.43 to 4.44 by crap_inhuman in 04.2014
-	'Added simple routine to check and remove point in track positions (1. , 2. , 3. )
-	'Bug removed: track position part
-	'Max count for releases is set to 250
+'	Added simple routine to check and remove point in track positions (1. , 2. , 3. )
+'	Bug removed: track position part
+'	Max count for releases is set to 250
+
 
 'Changes from 4.42 to 4.43 by crap_inhuman in 04.2014
-	'Bug removed: Filter now work correctly
-	'There's no max count for release results
-	'Bug removed: Artist releases and Label releases work again
+'	Bug removed: Filter now work correctly
+'	There's no max count for release results
+'	Bug removed: Artist releases and Label releases work again
+
 
 'Changes from 4.41 to 4.42 by crap_inhuman in 03.2014
-	'Bug removed: Sub-Track do not select(set) the song
-	'Added the option for switching the last artist separator ("&" or "chosen separator")
+'	Bug removed: Sub-Track do not select(set) the song
+'	Added the option for switching the last artist separator ("&" or "chosen separator")
 
 
 'Changes from 4.40 to 4.41 by crap_inhuman in 03.2014
-	'Removed bug with more than one artist for a title
-	'Added Artist separator to options menu
-	'Added simple routine to check for false position separators
+'	Removed bug with more than one artist for a title
+'	Added Artist separator to options menu
+'	Added simple routine to check for false position separators
 
 
 'Changes from 4.39 to 4.40 by crap_inhuman in 03.2014
-	'featuring Keywords are now not case sensitive
+'	featuring Keywords are now not case sensitive
 
 
 'Changes from 4.38 to 4.39 by crap_inhuman in 03.2014
-	'Keywords are now not case sensitive
-	'Added Set Locale for supporting more countries
+'	Keywords are now not case sensitive
+'	Added Set Locale for supporting more countries
 
 
 'Changes from 4.37 to 4.38 by crap_inhuman in 02.2014
-	'Added the Featuring Keywords
-	'Fixed a bug with the new submission form of discogs
+'	Added the Featuring Keywords
+'	Fixed a bug with the new submission form of discogs
 
 
 'Changes from 4.36 to 4.37 by crap_inhuman in 02.2014
-	'Changed the image access method
+'	Changed the image access method
 
 
 'Changes from 4.35 to 4.36 by crap_inhuman in 11.2013
-	'The script now shows the filtered total and the matched total
+'	The script now shows the filtered total and the matched total
 
 
 'Changes from 4.34 to 4.35 by crap_inhuman in 11.2013
-	'Raise the max count of release results to 100
-	'Display the number of matched releases and which one you are viewing in the search bar
+'	Raise the max count of release results to 100
+'	Display the number of matched releases and which one you are viewing in the search bar
 
 
 'Changes from 4.33 to 4.34 by crap_inhuman in 11.2013
-	'Now it's possible to change the search string in the top bar
+'	Now it's possible to change the search string in the top bar
 
 
 'Changes from 4.32 to 4.33 by crap_inhuman in 10.2013
-	'Fixed a bug with the Separator
+'	Fixed a bug with the Separator
 
 
 'Changes from 4.31 to 4.32 by crap_inhuman in 10.2013
-	'Removed bug in extra artist assignment
-	'Added 'Don't save' and 4 more fields for saving release-number
+'	Removed bug in extra artist assignment
+'	Added 'Don't save' and 4 more fields for saving release-number
 
 
 'Changes from 4.30 to 4.31 by crap_inhuman in 09.2013
-	'Removed bug: Sub track name will not recognized if it is the last track
-	'Removed bug: Script-Error occurred after closing the script-window, when no release found
-	'Background of filter dropdown menu change to red if filter is selected (For better recognition)
+'	Removed bug: Sub track name will not recognized if it is the last track
+'	Removed bug: Script-Error occurred after closing the script-window, when no release found
+'	Background of filter dropdown menu change to red if filter is selected (For better recognition)
 
 
 'Changes from 4.00 to 4.30 by crap_inhuman in 07-09.2013
-	'Added Sub tracks option.
-	'Added option 'Unselect tracks without track-number'
-		'Some albums at discogs have 'Index-Tracks'.
-		'These tracks aren't song-tracks (e.g. Track-Name: 'Bonus track' or 'Live side')
-		'This option unselect these tracks automatically
-	'-------------------------------------------------------
-	'Show a warning if the number of songs are different
-	'For the catalog-number, release-country and media-format you can choose "Don't save" in the option menu, if you don't need it.
-	'You can edit the keywords for linking the composer, producer, conductor,... tags with discogs
-	'included DiscogsImages: you can choose more than one image for an album
-	'New Option: Check 'Save Image' Checkbox only if release have no image
-	'New Option: Choose another field for saving Style
+'	Added Sub tracks option.
+'	Added option 'Unselect tracks without track-number'
+'		Some albums at discogs have 'Index-Tracks'.
+'		These tracks aren't song-tracks (e.g. Track-Name: 'Bonus track' or 'Live side')
+'		This option unselect these tracks automatically
+'		-------------------------------------------------------
+'	Show a warning if the number of songs are different
+'	For the catalog-number, release-country and media-format you can choose "Don't save" in the option menu, if you don't need it.
+'	You can edit the keywords for linking the composer, producer, conductor,... tags with discogs
+'	included DiscogsImages: you can choose more than one image for an album
+'	New Option: Check 'Save Image' Checkbox only if release have no image
+'	New Option: Choose another field for saving Style
 
 
 'Changes from 3.65 to 4.00 by crap_inhuman in 07.2013
-	'Bug removed with releases having leading zero in track-position
-	'Added option for "Force NO Disc Usage". Helpful if a release have tracks with varying track-numbers (e.g. http://www.discogs.com/release/2942314 )
-		'Without the option the script translate the varying track position to disc sides
-	'Added option to show the original discogs track position
-	'Moved the options to the left side for more place for the tracklisting
-	'Moving the mouse-pointer over a checkbox now show more information about the usage
-	'Now the chosen filters will be saved with the options
-		'Choose one MediaType, MediaFormat, Country or Year from the drop-down list and save the options
-		'or press one of the "Set ... Filter" button to select more than one Mediatype, MediaFormat, Country or Year
-		'Choosing "Use ... Filter" in the drop-down list uses the custom filter-settings
-		'Choosing "No ... Filter" from the drop-down list stop filtering the result
-		'The Filter settings will only be saved if you press the "Save Options" button
-	'The Custom Tags for saving the release, catalog, country and format will now be chosen in the options -> Discogs Tagger or during script installation
-	'Showing the Data Quality of the Discogs release
+'	Bug removed with releases having leading zero in track-position
+'	Added option for "Force NO Disc Usage". Helpful if a release have tracks with varying track-numbers (e.g. http://www.discogs.com/release/2942314 )
+'		Without the option the script translate the varying track position to disc sides
+'	Added option to show the original discogs track position
+'	Moved the options to the left side for more place for the tracklisting
+'	Moving the mouse-pointer over a checkbox now show more information about the usage
+'	Now the chosen filters will be saved with the options
+'		Choose one MediaType, MediaFormat, Country or Year from the drop-down list and save the options
+'		or press one of the "Set ... Filter" button to select more than one Mediatype, MediaFormat, Country or Year
+'		Choosing "Use ... Filter" in the drop-down list uses the custom filter-settings
+'		Choosing "No ... Filter" from the drop-down list stop filtering the result
+'		The Filter settings will only be saved if you press the "Save Options" button
+'	The Custom Tags for saving the release, catalog, country and format will now be chosen in the options -> Discogs Tagger or during script installation
+'	Showing the Data Quality of the Discogs release
 
 'Changes from 3.64 to 3.65 by crap_inhuman in 07.2013
-	'Bug removed: bug with additional artists removed, which only occur in rare cases
+'	Bug removed: bug with additional artists removed, which only occur in rare cases
 
 'Changes from 3.63 to 3.64 by crap_inhuman in 06.2013
-	'Bug removed: selecting "Sides To Disc" and "Add Leading Zero", zero is dropped from track number and is displayed as a single digit
+'	Bug removed: selecting "Sides To Disc" and "Add Leading Zero", zero is dropped from track number and is displayed as a single digit
 
 'Changes from 3.62 to 3.63 by crap_inhuman in 02.2013 (not released)
-	'Bug removed: no search result -> no output
+'	Bug removed: no search result -> no output
 
 'Changes from 3.61 to 3.62 by crap_inhuman in 02.2013
-	'Insert code for supporting french language machines
-	'Comments will now be saved
-	'Delete some unused but declared variables
-	'Name for "feat." can be edit
-	'Some small bugfixes
+'	Insert code for supporting french language machines
+'	Comments will now be saved
+'	Delete some unused but declared variables
+'	Name for "feat." can be edit
+'	Some small bugfixes
 
 'Changes from 3.6 to 3.61 by crap_inhuman in 02.2013
-	'Removed a bug in the option 'Featuring Artist behind title'
-	'Better implementation of the option 'Featuring Artist behind title'
-	'Inserting Master and Release URLs now work in the Search-Panel
+'	Removed a bug in the option 'Featuring Artist behind title'
+'	Better implementation of the option 'Featuring Artist behind title'
+'	Inserting Master and Release URLs now work in the Search-Panel
 
 'Changes from 3.5 to 3.6 by crap_inhuman in 02.2013
-	'Implementation of eepman's JSON-Parser
-	'Now read the user-specific Separator characters and use it for separating
-	'Label / Artist / Master Search now using the JSON Parser too
-	'Some bugfixes
+'	Implementation of eepman's JSON-Parser
+'	Now read the user-specific Separator characters and use it for separating
+'	Label / Artist / Master Search now using the JSON Parser too
+'	Some bugfixes
 
 'Changes from 3.3 to 3.5 by crap_inhuman in 01.2013
-	'Now you can choose which Custom Tag will be used for the Tags: ReleaseID, Catalog, Country and Format
-	'The "Credits for ExtraArtists in tracks" will now saved in MediaMonkey !
-	'Added option for "Add Leading zero to Tracknumbers"
-	'Added option for "Include Producer"
-	'Added JSON Parser for the new Discogs-API
+'	Now you can choose which Custom Tag will be used for the Tags: ReleaseID, Catalog, Country and Format
+'	The "Credits for ExtraArtists in tracks" will now saved in MediaMonkey !
+'	Added option for "Add Leading zero to Tracknumbers"
+'	Added option for "Include Producer"
+'	Added JSON Parser for the new Discogs-API
 
-	'Some bugfixes (Filter now working correct)
-	'Added the option to choose the place for Featuring Artist (Artist or Title)
-	'e.g. Aaliyah - We Need a Resolution (ft. Timbaland) -or- Aaliyah (ft. Timbaland) - We Need a Resolution
-	'Changeable Name for "Various" Artists (Various Artists)
-	'Added option for "Adding comment"
-	'Get OriginalDate from Master-Release if available
-	'The Script now reads the saved Discogs Release-ID from the chosen Release-Tag
+'	Some bugfixes (Filter now working correct)
+'	Added the option to choose the place for Featuring Artist (Artist or Title)
+'	e.g. Aaliyah - We Need a Resolution (ft. Timbaland) -or- Aaliyah (ft. Timbaland) - We Need a Resolution
+'	Changeable Name for "Various" Artists (Various Artists)
+'	Added option for "Adding comment"
+'	Get OriginalDate from Master-Release if available
+'	The Script now reads the saved Discogs Release-ID from the chosen Release-Tag
 
 
 ' ToDo: Add more tooltips to the html
 '		Erster und letzter Buchstabe in SearchArtist fehlt (wenn nächster Buchstabe blank ist e.g. "3 doors down", "Miss may i")
 '		Add option to limit release result for faster results
+'		Wrong Publisher, Producer, etc. in Subtracks. The script only take the info from the first subtrack..
 
 ' WebBrowser is visible browser object with display of discogs album info
 Dim WebBrowser
@@ -166,7 +176,7 @@ Dim CheckCountry, CheckCover, CheckSmallCover, CheckStyle, CheckCatalog, CheckRe
 Dim CheckComposer, CheckConductor, CheckProducer, CheckDiscNum, CheckTrackNum, CheckFormat, CheckUseAnv, CheckYearOnlyDate
 Dim CheckForceNumeric, CheckSidesToDisc, CheckForceDisc, CheckNoDisc, CheckLeadingZero, CheckVarious, TxtVarious
 Dim CheckTitleFeaturing, CheckComment, CheckFeaturingName, TxtFeaturingName, CheckOriginalDiscogsTrack, CheckNotAlwaysSaveImage
-Dim CheckUnselectNoTrackPos, CheckStyleField
+Dim CheckGroupingIndexTrack, CheckStyleField, CheckTurnOffSubTrack, IndexTrack
 Dim SubTrackNameSelection
 Dim CountryFilterList, MediaTypeFilterList, MediaFormatFilterList, YearFilterList
 Dim LyricistKeywords, ConductorKeywords, ProducerKeywords, ComposerKeywords, FeaturingKeywords
@@ -184,14 +194,17 @@ Dim AlbumArtURL, AlbumArtThumbNail
 Dim iMaxTracks
 Dim iAutoTrackNumber, iAutoDiscNumber
 Dim LastDisc
-Dim SelectAll, UnselectedTracks(1000)
+Dim SelectAll, UnselectedTracks(1000), SelectedIndexTracks(1000)
 
 Dim ReleaseTag, CountryTag, CatalogTag, FormatTag
 Dim ReleaseTagList, CountryTagList, CatalogTagList, FormatTagList
 Dim OriginalDate, Separator
-Dim UserChoose
+Dim UserChoose, OptionsChanged
 
 Dim fso, loc, logf
+
+Dim UseMetalArchives
+UseMetalArchives = False
 
 '----------------------------------DiscogsImages----------------------------------------
 Dim SaveImageType, SaveImage, CoverStorage, FileNameList
@@ -216,6 +229,8 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	Set MediaFormatFilterList = SDB.NewStringList
 	Set YearFilterList = SDB.NewStringList
 	SearchTerm = LTrim(SearchTerm)
+
+	OptionsChanged = False
 
 	'*FilterList.Item(0) = "0" -> No Filter
 	'*FilterList.Item(0) = "1" -> Custom Filter
@@ -344,8 +359,8 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		If ini.StringValue("DiscogsAutoTagWeb","CheckComment") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","CheckComment") = true
 		End If
-		If ini.StringValue("DiscogsAutoTagWeb","CheckUnselectNoTrackPos") = "" Then
-			ini.BoolValue("DiscogsAutoTagWeb","CheckUnselectNoTrackPos") = true
+		If ini.StringValue("DiscogsAutoTagWeb","CheckGroupingIndexTrack") = "" Then
+			ini.BoolValue("DiscogsAutoTagWeb","CheckGroupingIndexTrack") = true
 		End If
 		If ini.StringValue("DiscogsAutoTagWeb","SubTrackNameSelection") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","SubTrackNameSelection") = false
@@ -410,6 +425,9 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		If ini.StringValue("DiscogsAutoTagWeb","ArtistLastSeparator") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","ArtistLastSeparator") = True
 		End If
+		If ini.StringValue("DiscogsAutoTagWeb","CheckTurnOffSubTrack") = "" Then
+			ini.BoolValue("DiscogsAutoTagWeb","CheckTurnOffSubTrack") = False
+		End If
 
 		'----------------------------------DiscogsImages----------------------------------------
 		CoverStorage = ini.StringValue("PreviewSettings","DefaultCoverStorage")
@@ -424,12 +442,6 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		'----------------------------------DiscogsImages----------------------------------------
 
 	End If
-
-	WriteLogInit  'Only use for debugging
-	
-	WriteLog("SearchTerm=" & SearchTerm)
-	WriteLog("SearchArtist=" & SearchArtist)
-	WriteLog("SearchAlbum=" & SearchAlbum)
 
 	CheckAlbum = ini.BoolValue("DiscogsAutoTagWeb","CheckAlbum")
 	CheckArtist = ini.BoolValue("DiscogsAutoTagWeb","CheckArtist")
@@ -471,7 +483,7 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	CheckFeaturingName = ini.boolValue("DiscogsAutoTagWeb","CheckFeaturingName")
 	TxtFeaturingName = ini.StringValue("DiscogsAutoTagWeb","TxtFeaturingName")
 	CheckComment = ini.BoolValue("DiscogsAutoTagWeb","CheckComment")
-	CheckUnselectNoTrackPos = ini.BoolValue("DiscogsAutoTagWeb","CheckUnselectNoTrackPos")
+	CheckGroupingIndexTrack = ini.BoolValue("DiscogsAutoTagWeb","CheckGroupingIndexTrack")
 	SubTrackNameSelection = ini.BoolValue("DiscogsAutoTagWeb","SubTrackNameSelection")
 	Separator = ini.StringValue("Appearance","MultiStringSeparator")
 	tmpCountry = ini.StringValue("DiscogsAutoTagWeb","CurrentCountryFilter")
@@ -491,11 +503,22 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	CheckStyleField = ini.StringValue("DiscogsAutoTagWeb","CheckStyleField")
 	ArtistSeparator = ini.StringValue("DiscogsAutoTagWeb","ArtistSeparator")
 	ArtistLastSeparator = ini.BoolValue("DiscogsAutoTagWeb","ArtistLastSeparator")
+	CheckTurnOffSubTrack = ini.BoolValue("DiscogsAutoTagWeb","CheckTurnOffSubTrack")
 
 	Separator = Left(Separator, Len(Separator)-1)
 	Separator = Right(Separator, Len(Separator)-1)
 
 	SelectAll = true
+
+
+	WriteLogInit  'Only use for debugging
+
+	WriteLog " "
+	WriteLog("SearchTerm=" & SearchTerm)
+	WriteLog("SearchArtist=" & SearchArtist)
+	WriteLog("SearchAlbum=" & SearchAlbum)
+	WriteLog " "
+
 
 	Set MediaTypeList = SDB.NewStringList
 	Set MediaFormatList = SDB.NewStringList
@@ -980,9 +1003,107 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		End If
 	End If
 
-	FindResults(SavedSearchTerm)
+	Dim itmAlbum
+	For a = 0 To SDB.Tools.WebSearch.NewTracks.Count - 1
+		Set tmp = SDB.Tools.WebSearch.NewTracks.item(a)
+		Set itmAlbum = tmp.Album
+		WriteLog "Disc=" & tmp.DiscNumberStr & " / Track=" & tmp.TrackOrderStr & " / AlbumID=" & itmAlbum.ID & " / Artist=" & tmp.ArtistName & " / Album=" & tmp.AlbumName & " / Title=" & tmp.Title
+	Next
+	WriteLog " "
+
+	If UseMetalArchives = True Then
+		FindResults2(SavedSearchTerm)
+	Else
+		FindResults(SavedSearchTerm)
+	End If
 
 End Sub
+
+
+Sub FindResults2(SearchTerm)
+
+	Dim TXTBegin, TXTEnd, ResponseHTML, ReleaseDesc, searchURL, ErrorMessage, i, tmp
+	
+	Dim oXMLHTTP, MAReleases
+	
+	Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
+	SearchTerm = LTrim(SearchTerm)
+	WriteLog("Start FindResults2")
+	WriteLog("SavedSearchArtist=" & SavedSearchArtist)
+	WriteLog("SavedSearchAlbum=" & SavedSearchAlbum)
+	
+	Set Results = SDB.NewStringList
+	Set ResultsReleaseID = SDB.NewStringList
+	ErrorMessage = ""
+	
+	Set FirstTrack = SDB.Tools.WebSearch.NewTracks.item(0)
+
+	'searchURL = "http://www.metal-archives.com/search/ajax-advanced/searching/albums?bandName=" & URLEncodeUTF8(CleanSearchString(SavedSearchArtist)) & "&exactBandMatch=1&releaseTitle=" & URLEncodeUTF8(CleanSearchString(SavedSearchAlbum)) & "&exactReleaseMatch=1&releaseYearFrom=&releaseMonthFrom=&releaseYearTo=&releaseMonthTo=&country=&location=&releaseLabelName=&genre=#albums"
+	searchURL = "http://www.metal-archives.com/search/ajax-advanced/searching/albums/?bandName=" & URLEncodeUTF8(CleanSearchString(SavedSearchArtist)) & "&exactBandMatch=1&releaseTitle=" & URLEncodeUTF8(CleanSearchString(SavedSearchAlbum)) & "&exactReleaseMatch=1&releaseYearFrom=&releaseMonthFrom=&releaseYearTo=&releaseMonthTo=&country=&location=&releaseLabelName=&genre="
+	WriteLog searchURL
+	oXMLHTTP.open "GET", searchURL, false
+	oXMLHTTP.send()
+	if oXMLHTTP.Status = 200 Then
+		ResponseHTML = oXMLHTTP.responseText
+		Dim fso : Set fso = CreateObject("Scripting.FileSystemObject")
+		Dim f
+		Set f = fso.OpenTextFile(SDB.ScriptsPath&"test.log", 2, true, -1)
+		f.WriteLine ResponseHTML
+		f.Close
+		TXTBegin = InStr(ResponseHTML, "iTotalDisplayRecords")
+		If TXTBegin > 1 Then
+			ResponseHTML = Mid(ResponseHTML, TXTBegin + 23)
+			TXTEnd = InStr(ResponseHTML, ",")
+			MAReleases = Left(ResponseHTML, TXTEnd -1)
+			WriteLog "Anzahl=" & MAReleases
+			'WriteLog "Anzahl=" & ResponseHTML
+			For i = 1 to MAReleases
+				TXTBegin = InStr(ResponseHTML, "\" & Chr(34) & ">")
+				If TXTBegin > 1 Then
+					ResponseHTML = Mid(ResponseHTML, TXTBegin + 3)
+					TXTEnd = InStr(responseHTML, "</a>")
+
+					WriteLog "Band=" & Left(ResponseHTML, TXTEnd - 1)
+					ReleaseDesc = Left(ResponseHTML, TXTEnd - 1)
+					
+					TXTBegin = InStr(ResponseHTML, "href=\")
+					ResponseHTML = Mid(ResponseHTML, TXTBegin + 7)
+					TXTEnd = InStr(ResponseHTML, "\" & Chr(34) & ">")
+					WriteLog "Album-URL=" & Left(ResponseHTML, TXTEnd - 1)
+					ResultsReleaseID.Add Left(ResponseHTML, TXTEnd - 1)
+					
+					TXTBegin = TXTEnd + 3
+					ResponseHTML = Mid(ResponseHTML, TXTBegin)
+					TXTEnd = InStr(responseHTML, "</a>")
+					WriteLog "Album=" & Left(ResponseHTML, TXTEnd - 1)
+					ReleaseDesc = ReleaseDesc & " / " & Left(ResponseHTML, TXTEnd - 1)
+
+					ResponseHTML = Mid(ResponseHTML, TXTEnd)
+					TXTBegin = InStr(ResponseHTML, ",")
+					ResponseHTML = Mid(ResponseHTML, TXTBegin)
+					TXTBegin = InStr(ResponseHTML, Chr(34))
+					ResponseHTML = Mid(ResponseHTML, TXTBegin + 1)
+					TXTEnd = InStr(responseHTML, Chr(34))
+					WriteLog "Type=" & Left(ResponseHTML, TXTEnd - 1)
+					ReleaseDesc = ReleaseDesc & " / " & Left(ResponseHTML, TXTEnd - 1)
+					Results.Add ReleaseDesc
+				End If
+			Next
+		End If
+	End If
+	SDB.Tools.WebSearch.SetSearchResults Results
+	SDB.Tools.WebSearch.ResultIndex = 0
+
+	If ErrorMessage <> "" Then
+		FormatErrorMessage ErrorMessage
+	End If
+End Sub
+
+
+
+
+
+
 
 
 Sub FindResults(SearchTerm)
@@ -1030,12 +1151,12 @@ Sub FindResults(SearchTerm)
 	End If
 
 	'Will not be longer supported, cause the artist url at Discogs have no more artist-id
-	REM If (InStr(SearchTerm,"/artist/") > 0) Then
-		REM CurrentLoadType = "Releases of Artist"
-		REM WriteLog("Direct Artist url (ArtistId)=" & Mid(SearchTerm,InstrRev(SearchTerm,"/")+1))
-		REM LoadArtistResults Mid(SearchTerm,InstrRev(SearchTerm,"/")+1)
+	Rem If (InStr(SearchTerm,"/artist/") > 0) Then
+		Rem CurrentLoadType = "Releases of Artist"
+		Rem WriteLog("Direct Artist url (ArtistId)=" & Mid(SearchTerm,InstrRev(SearchTerm,"/")+1))
+		Rem LoadArtistResults Mid(SearchTerm,InstrRev(SearchTerm,"/")+1)
 		Rem Exit Sub
-	REM End If
+	Rem End If
 
 	If (InStr(SearchTerm,"/label/") > 0) Then
 		CurrentLoadType = "Releases of Label"
@@ -1260,7 +1381,7 @@ Sub ReloadResults
 	Dim currentImage, currentLabel, currentFormat, theMaster, i, g, l, s, f, d
 	Dim ReleaseDate, ReleaseSplit, theLabels, theCatalogs, theCountry, theFormat
 	Dim Genres, Styles, Comment, DataQuality
-	Dim NoSubTrackUsing
+	Dim NoSubTrackUsing, oldSubTrackNumber
 
 	Set Tracks = SDB.NewStringList
 	Set TracksNum = SDB.NewStringList
@@ -1273,6 +1394,7 @@ Sub ReloadResults
 	Set Conductors = SDB.NewStringList
 	Set Producers = SDB.NewStringList
 	Set Durations = SDB.NewStringList
+	Set IndexTrack = SDB.NewStringList
 
 	'----------------------------------DiscogsImages----------------------------------------
 	Set SaveImage = SDB.NewStringList
@@ -1281,6 +1403,11 @@ Sub ReloadResults
 	ImagesCount = 0
 	'----------------------------------DiscogsImages----------------------------------------
 
+
+	If OptionsChanged = True Then
+		OptionsChanged = False
+		WriteOptions()
+	End If
 
 	SDB.Tools.WebSearch.ClearTracksData   ' Tell MM to disregard any previously set tracks' data
 	If not isnull(CurrentRelease) Then
@@ -1380,9 +1507,11 @@ Sub ReloadResults
 		End If
 
 
+		WriteLog " "
 		WriteLog "ExtraArtists"
 		If currentRelease.Exists("extraartists") Then
 			For Each extraArtist In CurrentRelease("extraartists")
+				WriteLog " "
 				Set currentArtist = CurrentRelease("extraartists")(extraArtist)
 				If currentArtist("tracks") = "" Then
 					If (currentArtist("anv") <> "") And Not CheckUseAnv Then
@@ -1571,57 +1700,106 @@ Sub ReloadResults
 			trackName = PackSpaces(DecodeHtmlChars(currentTrack("title")))
 			Durations.Add currentTrack("duration")
 			position = exchange_roman_numbers(position)
+			WriteLog "Position=" & position
 
 			' Here comes the new track/disc numbering methods
-			If CheckUnselectNoTrackPos And position = "" Then
+			
+			'Indextrack detection
+			If position = "" Then
 				UnselectedTracks(iTrackNum) = "x"
+				If CheckGroupingIndexTrack = True Then
+					IndexTrack.Add currentTrack("title")
+				Else
+					IndexTrack.Add ""
+				End If
 			End If
+
 			If position <> "" Then
-				If (cSubTrack <> -1 And InStr(LCase(position), ".") = 0 And CharSeparatorSubTrack = 1) Or (cSubTrack <> -1 And IsNumeric(Right(position, 1)) And CharSeparatorSubTrack = 2) Then
-					If SubTrackNameSelection = false Then
-						Tracks.Item(cSubTrack) = Tracks.Item(cSubTrack) & " (" & subTrackTitle & ")"
-					Else
-						Tracks.Item(cSubTrack) = subTrackTitle
-					End If
-					cSubTrack = -1
-					subTrackTitle = ""
-					CharSeparatorSubTrack = 0
-				End If
-				pos = 0
-				If InStr(LCase(position), "-") > 0 Then
-					pos = InStr(LCase(position), "-")
-				End If
-				If NoSubTrackUsing = False Then
-					'SubTrack Function ---------------------------------------------------------
-					If InStr(LCase(position), ".") > 0 Then
-						CharSeparatorSubTrack = 1
-					End If
-					If Not IsNumeric(Right(position, 1)) And Len(position) > 1 Then
-						CharSeparatorSubTrack = 2
-					End If
-					If CharSeparatorSubTrack <> 0 Then
-						If cSubTrack = -1 Then 'new subtrack
-							If SubTrackNameSelection = false Then
-								cSubTrack = iTrackNum - 1
-							Else
-								cSubTrack = iTrackNum
-							End If
-						End If
-						If subTrackTitle = "" Then
-							subTrackTitle = trackName
-							If SubTrackNameSelection = False Then
-								UnselectedTracks(iTrackNum) = "x"
-							Else
-								UnselectedTracks(iTrackNum) = ""
-							End If
+				IndexTrack.Add ""
+				If CheckTurnOffSubTrack = False Then
+					If (cSubTrack <> -1 And InStr(LCase(position), ".") = 0 And CharSeparatorSubTrack = 1) Or (cSubTrack <> -1 And IsNumeric(Right(position, 1)) And CharSeparatorSubTrack = 2) Then
+						WriteLog "Subtrack found"
+						If SubTrackNameSelection = false Then
+							Tracks.Item(cSubTrack) = Tracks.Item(cSubTrack) & " (" & subTrackTitle & ")"
 						Else
-							subTrackTitle = subTrackTitle & ", " & trackName
-							UnselectedTracks(iTrackNum) = "x"
+							Tracks.Item(cSubTrack) = subTrackTitle
 						End If
-						If UserChoose = True Then
-							REM UnselectedTracks(iTrackNum) = ""
-						End If
+						cSubTrack = -1
+						subTrackTitle = ""
+						CharSeparatorSubTrack = 0
+					End If
+					
+					pos = 0
+					If InStr(LCase(position), "-") > 0 Then
+						pos = InStr(LCase(position), "-")
+					End If
+					If NoSubTrackUsing = False Then
+						WriteLog "Calling Subtrack Function"
 						'SubTrack Function ---------------------------------------------------------
+						If InStr(LCase(position), ".") > 0 Then
+							CharSeparatorSubTrack = 1
+						End If
+						If Not IsNumeric(Right(position, 1)) And Len(position) > 1 Then
+							CharSeparatorSubTrack = 2
+						End If
+						If CharSeparatorSubTrack <> 0 Then
+							
+							If cSubTrack <> -1 Then 'more subtrack
+								If CharSeparatorSubTrack = 1 Then
+									tmp = Split(position, ".")
+									If oldSubTrackNumber <> tmp(0) Then
+										If SubTrackNameSelection = false Then
+											Tracks.Item(cSubTrack) = Tracks.Item(cSubTrack) & " (" & subTrackTitle & ")"
+										Else
+											Tracks.Item(cSubTrack) = subTrackTitle
+										End If
+										cSubTrack = -1
+										subTrackTitle = ""
+										REM CharSeparatorSubTrack = 0
+									End If
+								ElseIf CharSeparatorSubTrack = 2 Then
+									If oldSubTrackNumber <> Left(position, Len(position)-1) Then
+										If SubTrackNameSelection = false Then
+											Tracks.Item(cSubTrack) = Tracks.Item(cSubTrack) & " (" & subTrackTitle & ")"
+										Else
+											Tracks.Item(cSubTrack) = subTrackTitle
+										End If
+										cSubTrack = -1
+										subTrackTitle = ""
+										REM CharSeparatorSubTrack = 0
+									End If
+								End If
+							End If
+							If cSubTrack = -1 Then 'new subtrack
+								If SubTrackNameSelection = false Then
+									cSubTrack = iTrackNum - 1
+								Else
+									cSubTrack = iTrackNum
+								End If
+								If CharSeparatorSubTrack = 1 Then
+									tmp = Split(position, ".")
+									oldSubTrackNumber = tmp(0)
+								ElseIf CharSeparatorSubTrack = 2 Then
+									oldSubTrackNumber = Left(position, Len(position)-1)
+								End If
+							End If
+							
+							If subTrackTitle = "" Then
+								subTrackTitle = trackName
+								If SubTrackNameSelection = False Then
+									UnselectedTracks(iTrackNum) = "x"
+								Else
+									UnselectedTracks(iTrackNum) = ""
+								End If
+							Else
+								subTrackTitle = subTrackTitle & ", " & trackName
+								UnselectedTracks(iTrackNum) = "x"
+							End If
+							If UserChoose = True Then
+								Rem UnselectedTracks(iTrackNum) = ""
+							End If
+							'SubTrack Function ---------------------------------------------------------
+						End If
 					End If
 				End If
 				If pos > 0 And CheckNoDisc = false Then ' Disc Number Included
@@ -1911,6 +2089,7 @@ Sub ReloadResults
 							ret = searchKeyword(LyricistKeywords, involvedRole, TrackLyricists, involvedArtist)
 							If ret <> "" And ret <> "ALREADY_INSIDE_ROLE" Then
 								TrackLyricists = ret
+								WriteLog ("TrackLyricists=" & TrackLyricists)
 								Exit Do
 							ElseIf ret = "ALREADY_INSIDE_ROLE" Then
 								Exit Do
@@ -1918,6 +2097,7 @@ Sub ReloadResults
 							ret = searchKeyword(ConductorKeywords, involvedRole, TrackConductors, involvedArtist)
 							If ret <> "" And ret <> "ALREADY_INSIDE_ROLE" Then
 								TrackConductors = ret
+								WriteLog ("TrackConductors=" & TrackConductors)
 								Exit Do
 							ElseIf ret = "ALREADY_INSIDE_ROLE" Then
 								Exit Do
@@ -1925,6 +2105,7 @@ Sub ReloadResults
 							ret = searchKeyword(ProducerKeywords, involvedRole, TrackProducers, involvedArtist)
 							If ret <> "" And ret <> "ALREADY_INSIDE_ROLE" Then
 								TrackProducers = ret
+								WriteLog ("TrackProducers=" & TrackProducers)
 								Exit Do
 							ElseIf ret = "ALREADY_INSIDE_ROLE" Then
 								Exit Do
@@ -1932,6 +2113,7 @@ Sub ReloadResults
 							ret = searchKeyword(ComposerKeywords, involvedRole, TrackComposers, involvedArtist)
 							If ret <> "" And ret <> "ALREADY_INSIDE_ROLE" Then
 								TrackComposers = ret
+								WriteLog ("TrackComposers=" & TrackComposers)
 								Exit Do
 							ElseIf ret = "ALREADY_INSIDE_ROLE" Then
 								Exit Do
@@ -1940,9 +2122,13 @@ Sub ReloadResults
 							If tmp2 = -1 Then
 								ReDim Preserve Involved_R_T(UBound(Involved_R_T)+1)
 								Involved_R_T(UBound(Involved_R_T)) = involvedRole & ": " & TrackArtist2(tmp)
+								WriteLog ("New Role: " & involvedRole & ": " & TrackArtist2(tmp))
 							Else
 								If InStr(Involved_R_T(tmp2), TrackArtist2(tmp)) = 0 Then
 									Involved_R_T(tmp2) = Involved_R_T(tmp2) & ", " & TrackArtist2(tmp)
+									WriteLog ("Role updated: " & Involved_R_T(tmp2))
+								Else
+									WriteLog ("artist already inside role")
 								End If
 							End If
 							Exit Do
@@ -1955,10 +2141,12 @@ Sub ReloadResults
 			artistList = ""
 			tmpJoin = ""
 
+			WriteLog " "
 			WriteLog("TrackArtist")
 			If currentTrack.Exists("artists") Then
 				FoundFeaturing = false
 				For Each artist in currentTrack("artists")
+					WriteLog " "
 					Set currentArtist = currentTrack("artists")(artist)
 					If (currentArtist("anv") <> "") And Not CheckUseAnv Then
 						tmpTrackArtist = CleanArtistName(currentArtist("anv"))
@@ -1998,6 +2186,7 @@ Sub ReloadResults
 			If Right(artistList, 3) = " , " Then artistList = Left(artistList, Len(artistList)-3)
 
 			If currentTrack.Exists("extraartists") Then
+				WriteLog " "
 				For Each extra In currentTrack("extraartists")
 					Set currentArtist = CurrentTrack("extraartists")(extra)
 					If (currentArtist("anv") <> "") And Not CheckUseAnv Then
@@ -2040,6 +2229,7 @@ Sub ReloadResults
 									tmp = searchKeyword(LyricistKeywords, involvedRole, TrackLyricists, involvedArtist)
 									If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 										TrackLyricists = tmp
+										WriteLog ("TrackLyricists=" & TrackLyricists)
 										Exit Do
 									ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 										Exit Do
@@ -2047,6 +2237,7 @@ Sub ReloadResults
 									tmp = searchKeyword(ConductorKeywords, involvedRole, TrackConductors, involvedArtist)
 									If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 										TrackConductors = tmp
+										WriteLog ("TrackConductors=" & TrackConductors)
 										Exit Do
 									ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 										Exit Do
@@ -2054,6 +2245,7 @@ Sub ReloadResults
 									tmp = searchKeyword(ProducerKeywords, involvedRole, TrackProducers, involvedArtist)
 									If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 										TrackProducers = tmp
+										WriteLog ("TrackProducers=" & TrackProducers)
 										Exit Do
 									ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 										Exit Do
@@ -2061,6 +2253,7 @@ Sub ReloadResults
 									tmp = searchKeyword(ComposerKeywords, involvedRole, TrackComposers, involvedArtist)
 									If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
 										TrackComposers = tmp
+										WriteLog ("TrackComposers=" & TrackComposers)
 										Exit Do
 									ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
 										Exit Do
@@ -2069,9 +2262,13 @@ Sub ReloadResults
 									If tmp2 = -1 Then
 										ReDim Preserve Involved_R_T(UBound(Involved_R_T)+1)
 										Involved_R_T(UBound(Involved_R_T)) = involvedRole & ": " & involvedArtist
+										WriteLog ("New Role: " & involvedRole & ": " & involvedArtist)
 									Else
 										If InStr(Involved_R_T(tmp2), involvedArtist) = 0 Then
 											Involved_R_T(tmp2) = Involved_R_T(tmp2) & ", " & involvedArtist
+											WriteLog ("Role updated: " & Involved_R_T(tmp2))
+										Else
+											WriteLog ("artist already inside role")
 										End If
 									End If
 									Exit Do
@@ -2165,9 +2362,6 @@ Sub ReloadResults
 		AlbumTitle = currentRelease("title")
 
 		' Get Album art URL
-		AlbumArtThumbnail = CurrentRelease("thumb")
-		AlbumArtThumbnail = Replace(AlbumArtThumbnail, "http://api.discogs.com", "http://s.pixogs.com")
-
 		If CurrentRelease.Exists("images") Then
 			For Each i In CurrentRelease("images")
 				Set currentImage = CurrentRelease("images")(i)
@@ -2175,6 +2369,8 @@ Sub ReloadResults
 				If currentImage("type") = "primary" Or AlbumArtURL = "" Then
 					AlbumArtURL = currentImage("uri")
 					AlbumArtURL = Replace(AlbumArtURL, "http://api.discogs.com", "http://s.pixogs.com")
+					AlbumArtThumbNail = currentImage("uri150")
+					AlbumArtThumbNail = Replace(AlbumArtThumbnail, "http://api.discogs.com", "http://s.pixogs.com")
 				End If
 			Next
 		End If
@@ -2184,31 +2380,20 @@ Sub ReloadResults
 		Set SaveImageType = SDB.NewStringList
 		Set SaveImage = SDB.NewStringList
 		ImagesCount = 0
-		Dim FirstAlbumArt, tmpArt
+		Dim tmpArt
 
 		If CurrentRelease.Exists("images") Then
 			ImagesCount = CurrentRelease("images").Count
 			If CurrentRelease("images").Count > 1 Then
 				For Each i In CurrentRelease("images")
 					Set currentImage = CurrentRelease("images")(i)
-					If currentImage("type") = "primary" Then
-						FirstAlbumArt = currentImage("uri")
-						FirstAlbumArt = Replace(FirstAlbumArt, "http://api.discogs.com", "http://s.pixogs.com")
-					End If
-				Next
-				If FirstAlbumArt = "" Then
-					FirstAlbumArt = currentImage("uri")
-					FirstAlbumArt = Replace(FirstAlbumArt, "http://api.discogs.com", "http://s.pixogs.com")
-				End If
-				For Each i In CurrentRelease("images")
-					Set currentImage = CurrentRelease("images")(i)
 					tmpArt = currentImage("uri")
 					tmpArt = Replace(tmpArt, "http://api.discogs.com", "http://s.pixogs.com")
-					If FirstAlbumArt <> tmpArt Then
+					If AlbumArtURL <> tmpArt Then
 						ImageList.add tmpArt
 						SaveImageType.add "other"
 						SaveImage.add "0"
-					End If
+					End If	
 				Next
 			End If
 		End If
@@ -2327,10 +2512,9 @@ Sub ReloadResults
 		End If
 	End If
 
+	FormatSearchResultsViewer Tracks, TracksNum, TracksCD, Durations, AlbumArtist, AlbumArtistTitle, ArtistTitles, AlbumTitle, ReleaseDate, OriginalDate, Genres, Styles, theLabels, theCountry, AlbumArtThumbNail, CurrentResultID, theCatalogs, Lyricists, Composers, Conductors, Producers, InvolvedArtists, theFormat, theMaster, comment, DiscogsTracksNum, DataQuality, IndexTrack
 
-	FormatSearchResultsViewer Tracks, TracksNum, TracksCD, Durations, AlbumArtist, AlbumArtistTitle, ArtistTitles, AlbumTitle, ReleaseDate, OriginalDate, Genres, Styles, theLabels, theCountry, AlbumArtThumbNail, CurrentResultID, theCatalogs, Lyricists, Composers, Conductors, Producers, InvolvedArtists, theFormat, theMaster, comment, DiscogsTracksNum, DataQuality
-
-	Dim SelectedTracks, j
+	Dim SelectedTracks, j, cIndexTrack, cIndexCount
 	Set SelectedTracks = SDB.NewStringList
 	Set SelectedSongsGlobal = SDB.NewSongList
 	For i = 0 To Tracks.Count - 1
@@ -2356,6 +2540,26 @@ Sub ReloadResults
 
 	cSubTrack = -1
 	subTrackTitle = ""
+	cIndexTrack = -1
+	cIndexCount = 0
+	
+	REM For i = 0 To SDB.Tools.WebSearch.NewTracks.Count - 1
+		REM If cIndexTrack > -1 And CheckGroupingIndexTrack Then
+			REM If IndexTrack.Item(i) <> "" Then
+				REM cIndexCount = cIndexCount + 1
+				REM SDB.Tools.WebSearch.NewTracks.Item(i - cIndexCount).Grouping = IndexTrack.Item(i)
+				REM cIndexTrack = i
+			REM Else
+				REM SDB.Tools.WebSearch.NewTracks.Item(i  - cIndexCount).Grouping = IndexTrack.Item(cIndexTrack)
+			REM End If
+		REM End If
+		REM If cIndexTrack = -1 And IndexTrack.Item(i) <> "" And CheckGroupingIndexTrack Then
+			REM SDB.Tools.WebSearch.NewTracks.Item(i).Grouping = IndexTrack.Item(i)
+			REM cIndexTrack = i
+			REM cIndexCount = 1
+		REM End If
+	REM Next
+
 
 	For i = 0 To SDB.Tools.WebSearch.NewTracks.Count - 1
 		If CheckArtist Then SDB.Tools.WebSearch.NewTracks.Item(i).ArtistName = AlbumArtistTitle
@@ -2642,35 +2846,86 @@ End Sub
 ' down at the top of the window
 Sub ShowResult(ResultID)
 
-	Dim ReleaseID, searchURL, oXMLHTTP
+	Dim ReleaseID, searchURL, oXMLHTTP, ResponseHTML, TXTBegin, TXTEnd, Title, SelectedTracks
 	WebBrowser.SetHTMLDocument ""                 ' Deletes visible search result
-	ReleaseID = ResultsReleaseID.Item(ResultID)
-	If Right(Results.Item(ResultID), 1) = "*" Then  'Master-Release
-		searchURL = "http://api.discogs.com/masters/" & ReleaseID
+
+	If UseMetalArchives = True Then
+		searchURL = ResultsReleaseID.Item(ResultID)
+		Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
+		Call oXMLHTTP.open("GET", searchURL, false)
+		Call oXMLHTTP.send()
+		If oXMLHTTP.Status = 200 Then
+			ResponseHTML = oXMLHTTP.responseText
+			TXTBegin = InStr(ResponseHTML, "tbody")
+			TXTEnd = InStr(ResponseHTML, "/tbody")
+			ResponseHTML = Mid(ResponseHTML, TXTBegin, TXTEnd - TXTBegin - 1)
+			Dim fso : Set fso = CreateObject("Scripting.FileSystemObject")
+			Dim f
+			Set f = fso.OpenTextFile(SDB.ScriptsPath&"test2.log", 2, true, -1)
+			f.WriteLine ResponseHTML
+			f.Close
+			
+			Set SelectedTracks = SDB.NewStringList
+
+			SDB.Tools.WebSearch.ClearTracksData
+
+			Do While 1 = 1
+				'TXTBegin = InStr(ResponseHTML, "<tr class")
+				'ResponseHTML = Mid(ResponseHTML, TXTBegin)
+				TXTBegin = InStr(ResponseHTML, "<td class=" & Chr(34) & "wrapWords")
+				If TXTBegin = 0 Then Exit Do
+				ResponseHTML = Mid(ResponseHTML, TXTBegin + 23)
+				TXTEnd = InStr(ResponseHTML, "</td>")
+				Title = Left(ResponseHTML, TXTEnd - 1)
+				Title = Trim(Replace(Title, Chr(9), " "))
+				WriteLog "Title=" & Title & chr(34)
+				SelectedTracks.add Title
+			Loop
+			SDB.Tools.WebSearch.SmartUpdateTracks SelectedTracks
+
+			SDB.Tools.WebSearch.RefreshViews
+		End If
+
+
+
+
+
+
+
+
+
+
 	Else
-		searchURL = "http://api.discogs.com/releases/" & ReleaseID
-	End If
 
-	' use json api with vbsjson class at start of file now
-	Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 
-	Dim json
-	Set json = New VbsJson
+		ReleaseID = ResultsReleaseID.Item(ResultID)
+		If Right(Results.Item(ResultID), 1) = "*" Then  'Master-Release
+			searchURL = "http://api.discogs.com/masters/" & ReleaseID
+		Else
+			searchURL = "http://api.discogs.com/releases/" & ReleaseID
+		End If
 
-	Dim response
+		' use json api with vbsjson class at start of file now
+		Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 
-	Call oXMLHTTP.open("GET", searchURL, false)
-	Call oXMLHTTP.setRequestHeader("Content-Type","application/json")
-	Call oXMLHTTP.setRequestHeader("User-Agent","MediaMonkeyDiscogsAutoTagWeb/2.0 +http://mediamonkey.com")
-	Call oXMLHTTP.send()
+		Dim json
+		Set json = New VbsJson
 
-	If oXMLHTTP.Status = 200 Then
-		Set CurrentRelease = json.Decode(oXMLHTTP.responseText)
+		'Dim response
 
-		CurrentResultID = ReleaseID
-		UserChoose = False
+		Call oXMLHTTP.open("GET", searchURL, false)
+		Call oXMLHTTP.setRequestHeader("Content-Type","application/json")
+		Call oXMLHTTP.setRequestHeader("User-Agent","MediaMonkeyDiscogsAutoTagWeb/2.0 +http://mediamonkey.com")
+		Call oXMLHTTP.send()
 
-		ReloadResults
+		If oXMLHTTP.Status = 200 Then
+			Set CurrentRelease = json.Decode(oXMLHTTP.responseText)
+
+			CurrentResultID = ReleaseID
+			UserChoose = False
+
+			ReloadResults
+		End If
 	End If
 
 End Sub
@@ -2968,7 +3223,7 @@ End Function
 
 
 ' We use this procedure to reformat results as soon as they are downloaded
-Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtist, AlbumArtistTitle, ArtistTitles, AlbumTitle, ReleaseDate, OriginalDate, Genres, Styles, theLabels, theCountry, theArt, releaseID, Catalog, Lyricists, Composers, Conductors, Producers, InvolvedPeople, theFormat, theMaster, comment, DiscogsTracksNum, DataQuality)
+Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtist, AlbumArtistTitle, ArtistTitles, AlbumTitle, ReleaseDate, OriginalDate, Genres, Styles, theLabels, theCountry, theArt, releaseID, Catalog, Lyricists, Composers, Conductors, Producers, InvolvedPeople, theFormat, theMaster, comment, DiscogsTracksNum, DataQuality, IndexTrack)
 
 	Dim templateHTML, checkBox, text, listBox, submitButton
 	Dim SelectedTracksCount, UnSelectedTracksCount
@@ -3004,7 +3259,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=center><button type=button class=tabletext id=""saveoptions"">Save Options</button></td></tr>"
 	templateHTML = templateHTML &  "<tr><td align=center colspan=2><b>Options:</b></td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""lyricist"" >Save Lyricist</td></tr>"
-	REM " & SDB.Localize("Save") & " Lyricist</td></tr>"
+	Rem " & SDB.Localize("Save") & " Lyricist</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""composer"" >Save Composer</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""conductor"" >Save Conductor</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""producer"" >Save Producer</td></tr>"
@@ -3022,7 +3277,13 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 
 	templateHTML = templateHTML &  "<tr><td align=center colspan=2><br></td></tr>"
 	templateHTML = templateHTML &  "<tr><td align=center colspan=2><b>Disc/Track Numbering:</b></td></tr>"
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""UnselectNoTrackPos"" title=""Tracks without track-number at discogs will automatically unselect (e.g. 'Bonus Tracks')"" >Unselect Index-Tracks</td></tr>"
+
+	'Grouping -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-++--+-+-+-+-+-+-+-+-+-+-+--+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
+	'templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""UnselectNoTrackPos"" title=""Tracks without track-number at discogs will automatically unselect (e.g. 'Bonus Tracks')"" >Unselect Index-Tracks</td></tr>"
+	'templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""GroupingIndexTrack"" title=""If option set, content of index track will be written into grouping tag"" >Fill Grouping-Tag with Index-Track</td></tr>"
+	'Grouping -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-++--+-+-+-+-+-+-+-+-+-+-+--+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
+
+	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""TurnOffSubTrack"" title=""If checked the Sub-Track detection is turned off"" >Turn Sub-Track detection off</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""SubTrackNameSelection"" title=""If checked the Sub-Track will be named like 'Sub-Track 1, Sub-Track 2, Sub Track 3'  if not checked the Sub-Tracks will be named like 'Track Name (Sub-Track 1, Sub-Track 2, Sub Track 3)'"" >Other Sub-Track Naming</td></tr>"
 
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""forcenumeric"" title=""Always use numbers instead of letters (Vinyl-releases use A1, A2,..., B1, B2 as track numbering)"" >Force To Numeric</td></tr>"
@@ -3139,6 +3400,12 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = templateHTML & "<td align=left valign=top>"
 	templateHTML = templateHTML & "<table border=0 cellspacing=0 cellpadding=1 class=tabletext>"
 	templateHTML = templateHTML & "<tr>"
+
+	REM If CheckGroupingIndexTrack Then
+		REM templateHTML = templateHTML & "<td align=left><b>Grouping</b></td>"
+	REM Else
+		REM templateHTML = templateHTML & "<td> </td>"
+	REM End If
 	If CheckOriginalDiscogsTrack Then
 		templateHTML = templateHTML & "<td align=left><b>Discogs</b></td>"
 	Else
@@ -3146,7 +3413,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	End If
 	templateHTML = templateHTML & "<td><input type=checkbox id=""selectall""></td>"
 	templateHTML = templateHTML & "<td align=center><input type=checkbox id=""discnum""></td>"
-	templateHTML = templateHTML & "<td align=center><input type=checkbox id=""tracknum""></td>"
+	templateHTML = templateHTML & "<td align=center><input type=checkbox id=""tracknum"" title=""If option NOT set, track numbers will not set automatically (useful when you didn't select all tracks from a release""></td>"
 	templateHTML = templateHTML & "<td align=right><b>Artist</b></td>"
 	templateHTML = templateHTML & "<td> </td>"
 	templateHTML = templateHTML & "<td align=left><b>Title</b></td>"
@@ -3158,6 +3425,15 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 
 	For i=0 To iMaxTracks - 1
 		templateHTML = templateHTML &  "<tr>"
+		REM If CheckGroupingIndexTrack And IndexTrack.Item(i) <> "" Then
+			REM If(SelectedIndexTracks(i) = "") Then
+				REM templateHTML = templateHTML & "<td><input type=checkbox id=""indextrack["&i&"]"" checked></td>"
+			REM Else
+				REM templateHTML = templateHTML & "<td><input type=checkbox id=""indextrack["&i&"]""></td>"
+			REM End If
+		REM Else
+			REM templateHTML = templateHTML & "<td> </td>"
+		REM End If
 		If CheckOriginalDiscogsTrack Then
 			templateHTML = templateHTML & "<td align=center>" & DiscogsTracksNum.Item(i) & "</td>"
 		Else
@@ -3340,11 +3616,14 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Set checkBox = templateHTMLDoc.getElementById("various")
 	checkBox.Checked = CheckVarious
 	Script.RegisterEvent checkBox, "onclick", "Update"
-	Set checkBox = templateHTMLDoc.getElementById("UnselectNoTrackPos")
-	checkBox.Checked = CheckUnselectNoTrackPos
-	Script.RegisterEvent checkBox, "onclick", "NoTrackPos"
+	REM Set checkBox = templateHTMLDoc.getElementById("GroupingIndexTrack")
+	REM checkBox.Checked = CheckGroupingIndexTrack
+	REM Script.RegisterEvent checkBox, "onclick", "Update"
 	Set checkBox = templateHTMLDoc.getElementById("SubTrackNameSelection")
 	checkBox.Checked = SubTrackNameSelection
+	Script.RegisterEvent checkBox, "onclick", "Update"
+	Set checkBox = templateHTMLDoc.getElementById("TurnOffSubTrack")
+	checkBox.Checked = CheckTurnOffSubTrack
 	Script.RegisterEvent checkBox, "onclick", "Update"
 
 	Set listBox = templateHTMLDoc.getElementById("filtermediatype")
@@ -3361,6 +3640,10 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	For i=0 To iMaxTracks - 1
 		Set checkBox = templateHTMLDoc.getElementById("unselected["&i&"]")
 		Script.RegisterEvent checkBox, "onclick", "Unselect"
+		REM If IndexTrack.Item(i) <> "" Then
+			REM Set checkBox = templateHTMLDoc.getElementById("indextrack["&i&"]")
+			REM Script.RegisterEvent checkBox, "onclick", "Unselect"
+		REM End If
 	Next
 
 	Set checkBox = templateHTMLDoc.getElementById("selectall")
@@ -3485,24 +3768,12 @@ Sub Update()
 	TxtVarious = text.Value
 	Set checkBox = templateHTMLDoc.getElementById("SubTrackNameSelection")
 	SubTrackNameSelection = checkBox.Checked
+	Set checkBox = templateHTMLDoc.getElementById("TurnOffSubTrack")
+	CheckTurnOffSubTrack = checkBox.Checked
+	REM Set checkBox = templateHTMLDoc.getElementById("GroupingIndexTrack")
+	REM CheckGroupingIndexTrack = checkBox.Checked
 
-	ReloadResults
-
-End Sub
-
-
-Sub NoTrackPos()
-
-	Dim checkBox, templateHTMLDoc, i
-	Set WebBrowser = SDB.Objects("WebBrowser")
-	Set templateHTMLDoc = WebBrowser.Interf.Document
-	Set checkBox = templateHTMLDoc.getElementById("UnselectNoTrackPos")
-	CheckUnselectNoTrackPos = checkBox.Checked
-	If Not CheckUnselectNoTrackPos Then
-		For i = 0 To iMaxTracks - 1
-			UnselectedTracks(i) = ""
-		Next
-	End If
+	OptionsChanged = True
 
 	ReloadResults
 
@@ -3646,10 +3917,10 @@ Sub SaveOptions()
 		ini.StringValue("DiscogsAutoTagWeb","TxtFeaturingName") = TxtFeaturingName
 		ini.BoolValue("DiscogsAutoTagWeb","CheckFeaturingName") = CheckFeaturingName
 		ini.BoolValue("DiscogsAutoTagWeb","CheckComment") = CheckComment
-		ini.BoolValue("DiscogsAutoTagWeb","CheckUnselectNoTrackPos") = CheckUnselectNoTrackPos
+		ini.BoolValue("DiscogsAutoTagWeb","CheckGroupingIndexTrack") = CheckGroupingIndexTrack
 		ini.BoolValue("DiscogsAutoTagWeb","SubTrackNameSelection") = SubTrackNameSelection
 		ini.StringValue("DiscogsAutoTagWeb","ArtistSeparator") = ArtistSeparator
-		
+		ini.BoolValue("DiscogsAutoTagWeb","CheckTurnOffSubTrack") = CheckTurnOffSubTrack
 
 		tmp = CountryFilterList.Item(0)
 		For a = 1 To CountryList.Count - 1
@@ -4160,31 +4431,6 @@ Function get_release_ID(FirstTrack)
 End Function
 
 
-Sub WriteLog(Text)
-
-	Dim filesys, filetxt, logdatei, tmpText
-	'Const ForReading = 1, ForWriting = 2, ForAppending = 8
-	logdatei = SDB.ScriptsPath & "Discogs_Script.log"
-	Set filesys = CreateObject("Scripting.FileSystemObject")
-	Set filetxt = filesys.OpenTextFile(logdatei, 8, true)
-	tmpText = Time & Chr(9) & SDB.ToAscii(Text)
-	filetxt.WriteLine(tmpText)
-	filetxt.Close
-
-End Sub
-
-
-Sub WriteLogInit
-
-	Dim logdatei
-	logdatei = SDB.ScriptsPath & "Discogs_Script.log"
-	If SDB.Tools.FileSystem.FileExists(logdatei) = true Then
-		SDB.Tools.FileSystem.DeleteFile(logdatei)
-	End If
-
-End Sub
-
-
 Function AddToField(ByRef field, ByVal ftext)
 
 	' for adding data to multi-valued fields
@@ -4578,7 +4824,7 @@ Function searchKeyword(Keywords, Role, AlbumRole, artistName)
 	Dim tmp, x
 	tmp = Split(Keywords, ",")
 	For each x in tmp
-		If LCase(Role) = LCase(x) Then
+		If Trim(LCase(Role)) = Trim(LCase(x)) Then
 			If InStr(AlbumRole, artistName) = 0 Then
 				If AlbumRole = "" Then
 					AlbumRole = artistName
@@ -4611,6 +4857,14 @@ Sub Unselect()
 		Else
 			UnselectedTracks(i) = "x"
 		End If
+		REM If IndexTrack.Item(i) <> "" Then
+			REM Set checkBox = templateHTMLDoc.getElementById("indextrack["&i&"]")
+			REM If checkBox.Checked Then
+				REM SelectedIndexTracks(i) = ""
+			REM Else
+				REM SelectedIndexTracks(i) = "x"
+			REM End If
+		REM End If
 	Next
 
 	ReloadResults
@@ -5340,3 +5594,81 @@ function getimages(DownloadDest, LocalFile)
 	End If
 
 End function
+
+
+Sub WriteOptions()
+
+	WriteLog " "
+	WriteLog "Options:"
+	WriteLog "CheckAlbum=" & CheckAlbum
+	WriteLog "CheckArtist=" & CheckArtist
+	WriteLog "CheckAlbumArtist=" & CheckAlbumArtist
+	WriteLog "CheckAlbumArtistFirst=" & CheckAlbumArtistFirst
+	WriteLog "CheckLabel=" & CheckLabel
+	WriteLog "CheckDate=" & CheckDate
+	WriteLog "CheckOrigDate=" & CheckOrigDate
+	WriteLog "CheckGenre=" & CheckGenre
+	WriteLog "CheckStyle=" & CheckStyle
+	WriteLog "CheckCountry=" & CheckCountry
+	WriteLog "CheckCover=" & CheckCover
+	WriteLog "CheckSmallCover=" & CheckSmallCover
+	WriteLog "CheckCatalog=" & CheckCatalog
+	WriteLog "CheckRelease=" & CheckRelease
+	WriteLog "CheckInvolved=" & CheckInvolved
+	WriteLog "CheckLyricist=" & CheckLyricist
+	WriteLog "CheckComposer=" & CheckComposer
+	WriteLog "CheckConductor=" & CheckConductor
+	WriteLog "CheckProducer=" & CheckProducer
+	WriteLog "CheckDiscNum=" & CheckDiscNum
+	WriteLog "CheckTrackNum=" & CheckTrackNum
+	WriteLog "CheckFormat=" & CheckFormat
+	WriteLog "CheckUseAnv=" & CheckUseAnv
+	WriteLog "CheckYearOnlyDate=" & CheckYearOnlyDate
+	WriteLog "CheckForceNumeric=" & CheckForceNumeric
+	WriteLog "CheckSidesToDisc=" & CheckSidesToDisc
+	WriteLog "CheckForceDisc=" & CheckForceDisc
+	WriteLog "CheckNoDisc=" & CheckNoDisc
+	WriteLog "CheckLeadingZero=" & CheckLeadingZero
+	WriteLog "ReleaseTag=" & ReleaseTag
+	WriteLog "CatalogTag=" & CatalogTag
+	WriteLog "CountryTag=" & CountryTag
+	WriteLog "FormatTag=" & FormatTag
+	WriteLog "CheckVarious=" & CheckVarious
+	WriteLog "TxtVarious=" & TxtVarious
+	WriteLog "CheckTitleFeaturing=" & CheckTitleFeaturing
+	WriteLog "TxtFeaturingName=" & TxtFeaturingName
+	WriteLog "CheckFeaturingName=" & CheckFeaturingName
+	WriteLog "CheckComment=" & CheckComment
+	WriteLog "CheckGroupingIndexTrack=" & CheckGroupingIndexTrack
+	WriteLog "SubTrackNameSelection=" & SubTrackNameSelection
+	WriteLog "CheckTurnOffSubTrack=" & CheckTurnOffSubTrack
+	WriteLog "ArtistSeparator=" & ArtistSeparator
+
+End Sub
+
+
+Sub WriteLogInit
+
+	Dim logdatei
+	logdatei = SDB.ScriptsPath & "Discogs_Script.log"
+	If SDB.Tools.FileSystem.FileExists(logdatei) = true Then
+		SDB.Tools.FileSystem.DeleteFile(logdatei)
+	End If
+	WriteLog "Start DiscogsTagger " & VersionStr
+	WriteOptions()
+
+End Sub
+
+
+Sub WriteLog(Text)
+
+	Dim filesys, filetxt, logdatei, tmpText
+	'Const ForReading = 1, ForWriting = 2, ForAppending = 8
+	logdatei = SDB.ScriptsPath & "Discogs_Script.log"
+	Set filesys = CreateObject("Scripting.FileSystemObject")
+	Set filetxt = filesys.OpenTextFile(logdatei, 8, true)
+	tmpText = Time & Chr(9) & SDB.ToAscii(Text)
+	filetxt.WriteLine(tmpText)
+	filetxt.Close
+
+End Sub
