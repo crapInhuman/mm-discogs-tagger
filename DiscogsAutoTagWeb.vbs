@@ -2,7 +2,15 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v4.35"
+Const VersionStr = "v4.37"
+
+'Changes from 4.36 to 4.37 by crap_inhuman in 02.2014
+	'Changed the image access method
+
+
+'Changes from 4.35 to 4.36 by crap_inhuman in 11.2013
+	'The script now shows the filtered total and the matched total
+
 
 'Changes from 4.34 to 4.35 by crap_inhuman in 11.2013
 	'Raise the max count of release results to 100
@@ -103,7 +111,7 @@ Const VersionStr = "v4.35"
 
 
 ' ToDo: Add more tooltips to the html
-
+'		Erster und letzter Buchstabe in SearchArtist fehlt (wenn nächster Buchstabe blank ist e.g. "3 doors down", "Miss may i")
 
 ' WebBrowser is visible browser object with display of discogs album info
 Dim WebBrowser
@@ -2028,6 +2036,7 @@ Sub ReloadResults
 
 		' Get Album art URL
 		AlbumArtThumbnail = CurrentRelease("thumb")
+		AlbumArtThumbnail = Replace(AlbumArtThumbnail, "http://api.discogs.com", "http://s.pixogs.com")
 
 		If CurrentRelease.Exists("images") Then
 			For Each i In CurrentRelease("images")
@@ -2035,6 +2044,7 @@ Sub ReloadResults
 
 				If currentImage("type") = "primary" Or AlbumArtURL = "" Then
 					AlbumArtURL = currentImage("uri")
+					AlbumArtURL = Replace(AlbumArtURL, "http://api.discogs.com", "http://s.pixogs.com")
 				End If
 			Next
 		End If
@@ -2044,7 +2054,7 @@ Sub ReloadResults
 		Set SaveImageType = SDB.NewStringList
 		Set SaveImage = SDB.NewStringList
 		ImagesCount = 0
-		Dim FirstAlbumArt
+		Dim FirstAlbumArt, tmpArt
 
 		If CurrentRelease.Exists("images") Then
 			ImagesCount = CurrentRelease("images").Count
@@ -2053,15 +2063,19 @@ Sub ReloadResults
 					Set currentImage = CurrentRelease("images")(i)
 					If currentImage("type") = "primary" Then
 						FirstAlbumArt = currentImage("uri")
+						FirstAlbumArt = Replace(FirstAlbumArt, "http://api.discogs.com", "http://s.pixogs.com")
 					End If
 				Next
 				If FirstAlbumArt = "" Then
 					FirstAlbumArt = currentImage("uri")
+					FirstAlbumArt = Replace(FirstAlbumArt, "http://api.discogs.com", "http://s.pixogs.com")
 				End If
 				For Each i In CurrentRelease("images")
 					Set currentImage = CurrentRelease("images")(i)
-					If FirstAlbumArt <> currentImage("uri") Then
-						ImageList.add currentImage("uri")
+					tmpArt = currentImage("uri")
+					tmpArt = Replace(tmpArt, "http://api.discogs.com", "http://s.pixogs.com")
+					If FirstAlbumArt <> tmpArt Then
+						ImageList.add tmpArt
 						SaveImageType.add "other"
 						SaveImage.add "0"
 					End If
@@ -3777,7 +3791,7 @@ Function JSONParser_find_result(searchURL, ArrayName)
 	Set json = New VbsJson
 
 	Dim response
-	Dim format, title, country, v_year, label, artist, Rtype, catNo, main_release, tmp, ReleaseDesc, FilterFound, SongCount, SongCountMax
+	Dim format, title, country, v_year, label, artist, Rtype, catNo, main_release, tmp, ReleaseDesc, FilterFound, SongCount, SongCountMax, isRelease, listCount
 
 	Call oXMLHTTP.open("GET", searchURL, false)
 	Call oXMLHTTP.setRequestHeader("Content-Type","application/json")
@@ -3790,9 +3804,12 @@ Function JSONParser_find_result(searchURL, ArrayName)
 		'and add titles to drop down
 		'msgbox response(ArrayName)(0)("title")
 
-		SongCount = 1
+		SongCount = 0
 		SongCountMax = response("pagination")("items")
 		WriteLog ("SongCountMax=" & SongCountMax)
+
+		isRelease = False
+		If Results.Count = 1 Then isRelease = True
 
 		For Each r In response(ArrayName)
 			format = ""
@@ -3900,19 +3917,31 @@ Function JSONParser_find_result(searchURL, ArrayName)
 				If catNo <> "" Then ReleaseDesc = ReleaseDesc & " catNo:" & catNo End If
 				If Rtype = "master" Then ReleaseDesc = ReleaseDesc & " *" End If
 
-				Results.Add "(" & SongCount & "/" & SongCountMax & ") " & ReleaseDesc
+				Results.Add ReleaseDesc
 				ResultsReleaseID.Add response(ArrayName)(r)("id")
 				SongCount = SongCount + 1
 			Loop While False
 		Next
 	End If
-
+	ListCount = 1
+	For r = 1 to Results.Count
+		If r= 1 and isRelease = True Then
+			Results.Item(0) = "(" & SongCountMax & ") " & Results.Item(0)
+		Else
+			If SongCount <> SongCountMax Then
+				Results.Item(r-1) = "(" & ListCount & "/" & SongCount & "/" & SongCountMax & ") " & Results.Item(r-1)
+			Else
+				Results.Item(r-1) = "(" & ListCount & "/" & SongCountMax & ") " & Results.Item(r-1)
+			End IF
+			ListCount = ListCount + 1
+		End If
+	Next
 End Function
 
 
 Function ReloadMaster(SavedMasterId)
 
-	Dim oXMLHTTP
+	Dim oXMLHTTP, masterURL
 	masterURL = "http://api.discogs.com/masters/" & SavedMasterId
 	Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 
