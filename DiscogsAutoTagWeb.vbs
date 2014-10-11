@@ -2,7 +2,12 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v4.34"
+Const VersionStr = "v4.35"
+
+'Changes from 4.34 to 4.35 by crap_inhuman in 11.2013
+	'Raise the max count of release results to 100
+	'Display the number of matched releases and which one you are viewing in the search bar
+
 
 'Changes from 4.33 to 4.34 by crap_inhuman in 11.2013
 	'Now it's possible to change the search string in the top bar
@@ -937,7 +942,6 @@ Sub FindResults(SearchTerm)
 	Set ResultsReleaseID = SDB.NewStringList
 	ErrorMessage = ""
 
-	Dim SearchString
 	Set FirstTrack = SDB.Tools.WebSearch.NewTracks.item(0)
 
 	If (InStr(SearchTerm," - [search by release id]") > 0) Then
@@ -991,19 +995,13 @@ Sub FindResults(SearchTerm)
 		Results.Add SearchTerm & " - [search by release url]"
 		ResultsReleaseID.Add Mid(SearchTerm,InstrRev(SearchTerm,"/")+1)
 	Else
+
 		If IsNumeric(SavedReleaseId) Then
 			Results.Add FirstTrack.Artist.Name & " - " & FirstTrack.Album.Name & " - [currently tagged with this release]"
 			ResultsReleaseID.Add get_release_ID(FirstTrack) 'get saved Release_ID from User-Defined Custom-Tag
 		End If
 
-		SearchString = SearchTerm
-
-		searchURL = "http://api.discogs.com/database/search?q=" & URLEncodeUTF8(CleanSearchString(SearchString)) & "&type=release"
-
-
-		WriteLog("SearchString=" & SearchString)
-		WriteLog("AlternativeList0=" & AlternativeList.Item(0))
-		WriteLog("AlternativeList1=" & AlternativeList.Item(1))
+		searchURL = "http://api.discogs.com/database/search?q=" & URLEncodeUTF8(CleanSearchString(SearchTerm)) & "&type=release&per_page=100"
 		WriteLog("searchURL=" & searchURL)
 
 		JSONParser_find_result searchURL, "results"
@@ -3779,7 +3777,7 @@ Function JSONParser_find_result(searchURL, ArrayName)
 	Set json = New VbsJson
 
 	Dim response
-	Dim format, title, country, v_year, label, artist, Rtype, catNo, main_release, tmp, ReleaseDesc, FilterFound
+	Dim format, title, country, v_year, label, artist, Rtype, catNo, main_release, tmp, ReleaseDesc, FilterFound, SongCount, SongCountMax
 
 	Call oXMLHTTP.open("GET", searchURL, false)
 	Call oXMLHTTP.setRequestHeader("Content-Type","application/json")
@@ -3791,6 +3789,10 @@ Function JSONParser_find_result(searchURL, ArrayName)
 		'check if any results
 		'and add titles to drop down
 		'msgbox response(ArrayName)(0)("title")
+
+		SongCount = 1
+		SongCountMax = response("pagination")("items")
+		WriteLog ("SongCountMax=" & SongCountMax)
 
 		For Each r In response(ArrayName)
 			format = ""
@@ -3898,8 +3900,9 @@ Function JSONParser_find_result(searchURL, ArrayName)
 				If catNo <> "" Then ReleaseDesc = ReleaseDesc & " catNo:" & catNo End If
 				If Rtype = "master" Then ReleaseDesc = ReleaseDesc & " *" End If
 
-				Results.Add ReleaseDesc
+				Results.Add "(" & SongCount & "/" & SongCountMax & ") " & ReleaseDesc
 				ResultsReleaseID.Add response(ArrayName)(r)("id")
+				SongCount = SongCount + 1
 			Loop While False
 		Next
 	End If
