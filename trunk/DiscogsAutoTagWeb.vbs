@@ -2,7 +2,12 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v4.42"
+Const VersionStr = "v4.43"
+
+'Changes from 4.42 to 4.43 by crap_inhuman in 04.2014
+	'Bug removed: Filter now work correctly
+	'There's no max count for release results
+	'Bug removed: Artist releases and Label releases work again
 
 'Changes from 4.41 to 4.42 by crap_inhuman in 03.2014
 	'Bug removed: Sub-Track do not select(set) the song
@@ -137,6 +142,7 @@ Const VersionStr = "v4.42"
 
 ' ToDo: Add more tooltips to the html
 '		Erster und letzter Buchstabe in SearchArtist fehlt (wenn nächster Buchstabe blank ist e.g. "3 doors down", "Miss may i")
+'		Add option to limit release result for faster results
 
 ' WebBrowser is visible browser object with display of discogs album info
 Dim WebBrowser
@@ -1195,7 +1201,7 @@ Sub LoadArtistResults(ArtistId)
 			ResultsReleaseID.Add get_release_ID(FirstTrack) 'get saved Release_ID from User-Defined Custom-Tag
 		End If
 
-		artistURL = "http://api.discogs.com/artists/" & ArtistId & "/releases&per_page=100"
+		artistURL = "http://api.discogs.com/artists/" & ArtistId & "/releases?per_page=100"
 		JSONParser_find_result artistURL, "releases"
 	End If
 
@@ -1226,7 +1232,7 @@ Sub LoadLabelResults(LabelId)
 			ResultsReleaseID.Add get_release_ID(FirstTrack) 'get saved Release_ID from User-Defined Custom-Tag
 		End If
 
-		labelURL = "http://api.discogs.com/labels/" & LabelId & "/releases&per_page=100"
+		labelURL = "http://api.discogs.com/labels/" & LabelId & "/releases?per_page=100"
 		JSONParser_find_result labelURL, "releases"
 	End If
 
@@ -1577,13 +1583,17 @@ Sub ReloadResults
 						End If
 						If subTrackTitle = "" Then
 							subTrackTitle = trackName
-							UnselectedTracks(iTrackNum) = ""
+							If SubTrackNameSelection = False Then
+								UnselectedTracks(iTrackNum) = "x"
+							Else
+								UnselectedTracks(iTrackNum) = ""
+							End If
 						Else
 							subTrackTitle = subTrackTitle & ", " & trackName
 							UnselectedTracks(iTrackNum) = "x"
 						End If
 						If UserChoose = True Then
-							UnselectedTracks(iTrackNum) = ""
+							REM UnselectedTracks(iTrackNum) = ""
 						End If
 						'SubTrack Function ---------------------------------------------------------
 					End If
@@ -1599,7 +1609,7 @@ Sub ReloadResults
 								End If
 							End If
 						End If
-						If Left(position,2) <> "CD" And iAutoDiscNumber <> Left(position,pos-1) Then
+						If Left(position,2) <> "CD" And Int(iAutoDiscNumber) <> Int(Left(position,pos-1)) Then
 							iAutoTrackNumber = 1
 						End If
 						If UnselectedTracks(iTrackNum) <> "x" Then
@@ -3886,6 +3896,7 @@ Function JSONParser_find_result(searchURL, ArrayName)
 
 	Dim response
 	Dim format, title, country, v_year, label, artist, Rtype, catNo, main_release, tmp, ReleaseDesc, FilterFound, SongCount, SongCountMax, isRelease, listCount
+	Dim Page, SongPages
 
 	Call oXMLHTTP.open("GET", searchURL, false)
 	Call oXMLHTTP.setRequestHeader("Content-Type","application/json")
@@ -3904,117 +3915,128 @@ Function JSONParser_find_result(searchURL, ArrayName)
 
 		isRelease = False
 		If Results.Count = 1 Then isRelease = True
-
-		For Each r In response(ArrayName)
-			format = ""
-			title = ""
-			country = ""
-			v_year = ""
-			artist = ""
-			label = ""
-			Rtype = ""
-			catNo = ""
-			main_release = ""
-
-			title = response(ArrayName)(r)("title")
-			Set tmp = response(ArrayName)(r)
-			If tmp.Exists("artist") Then
-				artist = tmp("artist")
+		SongPages = response("pagination")("pages")
+		WriteLog ("SongPages=" & SongPages)
+		For Page = 1 to SongPages
+			If Page <> 1 Then
+				Call oXMLHTTP.open("GET", searchURL & "&page=" & Page, False)
+				WriteLog "SearchURL=" & SearchURL & "&page=" & Page
+				Call oXMLHTTP.setRequestHeader("Content-Type","application/json")
+				Call oXMLHTTP.setRequestHeader("User-Agent","MediaMonkeyDiscogsAutoTagBatch/2.0 +http://mediamonkey.com")
+				Call oXMLHTTP.send()
+				Set response = json.Decode(oXMLHTTP.responseText)
 			End If
-			If tmp.Exists("main_release") Then
-				main_release = tmp("main_release")
-			End If
-			If ArrayName = "results" Then
-				For Each f In response(ArrayName)(r)("format")
-					format = format & response(ArrayName)(r)("format")(f) & ", "
-				Next
-				If Len(format) <> 0 Then format = Left(format, Len(format)-2)
-			Else
-				format = response(ArrayName)(r)("format")
-			End If
+			For Each r In response(ArrayName)
+				format = ""
+				title = ""
+				country = ""
+				v_year = ""
+				artist = ""
+				label = ""
+				Rtype = ""
+				catNo = ""
+				main_release = ""
 
-			country = response(ArrayName)(r)("country")
-			If ArrayName = "versions" Then
-				If tmp.Exists("released") Then
-					v_year = response(ArrayName)(r)("released")
+				title = response(ArrayName)(r)("title")
+				Set tmp = response(ArrayName)(r)
+				If tmp.Exists("artist") Then
+					artist = tmp("artist")
 				End If
-			Else
-				If tmp.Exists("year") Then
-					v_year = response(ArrayName)(r)("year")
+				If tmp.Exists("main_release") Then
+					main_release = tmp("main_release")
 				End If
-			End If
-			If tmp.Exists("catno") Then
-				catNo = response(ArrayName)(r)("catno")
-			End If
-			If tmp.Exists("type") Then
-				Rtype = response(ArrayName)(r)("type")
-			End If
-			If ArrayName = "results" Then
-				For Each f In response(ArrayName)(r)("label")
-					If label <> "" Then
-						If Left(label, Len(label)-2) <> response(ArrayName)(r)("label")(f) Then
-							label = label & response(ArrayName)(r)("label")(f) & ", "
-						End If
-					Else
-						label = response(ArrayName)(r)("label")(f) & ", "
+				If ArrayName = "results" Then
+					For Each f In response(ArrayName)(r)("format")
+						format = format & response(ArrayName)(r)("format")(f) & ", "
+					Next
+					If Len(format) <> 0 Then format = Left(format, Len(format)-2)
+				Else
+					format = response(ArrayName)(r)("format")
+				End If
+
+				country = response(ArrayName)(r)("country")
+				If ArrayName = "versions" Then
+					If tmp.Exists("released") Then
+						v_year = response(ArrayName)(r)("released")
 					End If
-				Next
-				If Len(label) <> 0 Then label = Left(label, Len(label)-2)
-			Else
-				label = response(ArrayName)(r)("label")
-			End If
-			ReleaseDesc = ""
-			Do
-				If FilterMediaType = "Use MediaType Filter" And Format <> "" Then
-					FilterFound = False
-					For a = 1 To MediaTypeList.Count - 1
-						If InStr(Format, MediaTypeList.Item(a)) <> 0 And MediaTypeFilterList.Item(a) = "1" Then FilterFound = True
-					Next
-					If FilterFound = False Then Exit Do
+				Else
+					If tmp.Exists("year") Then
+						v_year = response(ArrayName)(r)("year")
+					End If
 				End If
-				If(FilterMediaType <> "None" And FilterMediaType <> "Use MediaType Filter" And InStr(format, FilterMediaType) = 0 And format <> "") Then Exit Do
-
-				If FilterMediaFormat = "Use MediaFormat Filter" And format <> "" Then
-					FilterFound = False
-					For a = 1 To MediaFormatList.Count - 1
-						If InStr(format, MediaFormatList.Item(a)) <> 0 And MediaFormatFilterList.Item(a) = "1" Then FilterFound = True
-					Next
-					If FilterFound = False Then Exit Do
+				If tmp.Exists("catno") Then
+					catNo = response(ArrayName)(r)("catno")
 				End If
-				If(FilterMediaFormat <> "None" And FilterMediaFormat <> "Use MediaFormat Filter" And InStr(format, FilterMediaFormat) = 0 And Format <> "") Then Exit Do
-
-				If FilterCountry = "Use Country Filter" And country <> "" Then
-					FilterFound = False
-					For a = 1 To CountryList.Count - 1
-						If InStr(country, CountryList.Item(a)) <> 0 And CountryFilterList.Item(a) = "1" Then FilterFound = True
-					Next
-					If FilterFound = False Then Exit Do
+				If tmp.Exists("type") Then
+					Rtype = response(ArrayName)(r)("type")
 				End If
-				If(FilterCountry <> "None" And FilterCountry <> "Use Country Filter" And InStr(country, FilterCountry) = 0 And country <> "") Then Exit Do
-
-				If FilterYear = "Use Year Filter" And v_year <> "" Then
-					FilterFound = False
-					For a = 1 To YearList.Count - 1
-						If InStr(v_year, YearList.Item(a)) <> 0 And YearFilterList.Item(a) = "1" Then FilterFound = True
+				If ArrayName = "results" Then
+					For Each f In response(ArrayName)(r)("label")
+						If label <> "" Then
+							If Left(label, Len(label)-2) <> response(ArrayName)(r)("label")(f) Then
+								label = label & response(ArrayName)(r)("label")(f) & ", "
+							End If
+						Else
+							label = response(ArrayName)(r)("label")(f) & ", "
+						End If
 					Next
-					If FilterFound = False Then Exit Do
+					If Len(label) <> 0 Then label = Left(label, Len(label)-2)
+				Else
+					label = response(ArrayName)(r)("label")
 				End If
-				If(FilterYear <> "None" And FilterYear <> "Use Year Filter" And InStr(v_year, FilterYear) = 0 And v_year <> "") Then Exit Do
+				ReleaseDesc = ""
+				Do
+					If FilterMediaType = "Use MediaType Filter" And Format <> "" Then
+						FilterFound = False
+						For a = 1 To MediaTypeList.Count - 1
+							If InStr(Format, MediaTypeList.Item(a)) <> 0 And MediaTypeFilterList.Item(a) = "1" Then FilterFound = True
+						Next
+						If FilterFound = False Then Exit Do
+					End If
+					If(FilterMediaType <> "None" And FilterMediaType <> "Use MediaType Filter" And InStr(format, FilterMediaType) = 0 And format <> "") Then Exit Do
 
-				If artist <> "" Then ReleaseDesc = ReleaseDesc & " " & artist End If
-				If artist <> "" and title <> "" Then ReleaseDesc = ReleaseDesc & " -" End If
-				If title <> "" Then ReleaseDesc = ReleaseDesc & " " & title End If
-				If format <> "" Then ReleaseDesc = ReleaseDesc & " [" & format & "]" End If
-				If label <> "" Then ReleaseDesc = ReleaseDesc & " " & label End If
-				If country <> "" Then ReleaseDesc = ReleaseDesc & " / " & country End If
-				If v_year <> "" Then ReleaseDesc = ReleaseDesc & " (" & v_year & ")" End If
-				If catNo <> "" Then ReleaseDesc = ReleaseDesc & " catNo:" & catNo End If
-				If Rtype = "master" Then ReleaseDesc = ReleaseDesc & " *" End If
+					If FilterMediaFormat = "Use MediaFormat Filter" And format <> "" Then
+						FilterFound = False
+						For a = 1 To MediaFormatList.Count - 1
+							If InStr(format, MediaFormatList.Item(a)) <> 0 And MediaFormatFilterList.Item(a) = "1" Then FilterFound = True
+						Next
+						If FilterFound = False Then Exit Do
+					End If
+					If(FilterMediaFormat <> "None" And FilterMediaFormat <> "Use MediaFormat Filter" And InStr(format, FilterMediaFormat) = 0 And Format <> "") Then Exit Do
 
-				Results.Add ReleaseDesc
-				ResultsReleaseID.Add response(ArrayName)(r)("id")
-				SongCount = SongCount + 1
-			Loop While False
+					If FilterCountry = "Use Country Filter" And country <> "" Then
+						FilterFound = False
+						For a = 1 To CountryList.Count - 1
+							If InStr(country, CountryList.Item(a)) <> 0 And CountryFilterList.Item(a) = "1" Then FilterFound = True
+						Next
+						If FilterFound = False Then Exit Do
+					End If
+					If(FilterCountry <> "None" And FilterCountry <> "Use Country Filter" And InStr(country, FilterCountry) = 0 And country <> "") Then Exit Do
+
+					If FilterYear = "Use Year Filter" And v_year <> "" Then
+						FilterFound = False
+						For a = 1 To YearList.Count - 1
+							If InStr(v_year, YearList.Item(a)) <> 0 And YearFilterList.Item(a) = "1" Then FilterFound = True
+						Next
+						If FilterFound = False Then Exit Do
+					End If
+					If(FilterYear <> "None" And FilterYear <> "Use Year Filter" And InStr(v_year, FilterYear) = 0 And v_year <> "") Then Exit Do
+
+					If artist <> "" Then ReleaseDesc = ReleaseDesc & " " & artist End If
+					If artist <> "" and title <> "" Then ReleaseDesc = ReleaseDesc & " -" End If
+					If title <> "" Then ReleaseDesc = ReleaseDesc & " " & title End If
+					If format <> "" Then ReleaseDesc = ReleaseDesc & " [" & format & "]" End If
+					If label <> "" Then ReleaseDesc = ReleaseDesc & " " & label End If
+					If country <> "" Then ReleaseDesc = ReleaseDesc & " / " & country End If
+					If v_year <> "" Then ReleaseDesc = ReleaseDesc & " (" & v_year & ")" End If
+					If catNo <> "" Then ReleaseDesc = ReleaseDesc & " catNo:" & catNo End If
+					If Rtype = "master" Then ReleaseDesc = ReleaseDesc & " *" End If
+
+					Results.Add ReleaseDesc
+					ResultsReleaseID.Add response(ArrayName)(r)("id")
+					SongCount = SongCount + 1
+				Loop While False
+			Next
 		Next
 	End If
 	ListCount = 1
