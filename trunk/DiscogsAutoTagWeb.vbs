@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.11"
+Const VersionStr = "v5.12"
+
+'Changes from 5.11 to 5.12 by crap_inhuman in 10.2014
+'	Removed a bug with empty keyword fields in the options menu
+'	Now only the search requests use oauth
 
 'Changes from 5.10 to 5.11 by crap_inhuman in 10.2014
 '	New option "Save selected 'more images' after closing popup" fixed
@@ -1533,19 +1537,19 @@ Sub FindResults(SearchTerm, QueryPage)
 			End If
 			If SearchTerm <> "" Then
 				searchURL = CleanSearchString(SearchTerm)
-				searchURL_F = "http://api.discogs.com/database/search?q="
+				searchURL_F = "https://api.discogs.com/database/search?q="
 				searchURL_L = "%26type=release%26per_page=100"
 			ElseIf SavedSearchArtist <> "" And SavedSearchAlbum <> "" Then
 				searchURL = CleanSearchString(SavedSearchArtist) & " - " & CleanSearchString(SavedSearchAlbum)
-				searchURL_F = "http://api.discogs.com/database/search?q="
+				searchURL_F = "https://api.discogs.com/database/search?q="
 				searchURL_L = "%26type=release%26per_page=100"
 			ElseIf SavedSearchArtist = "" And SavedSearchAlbum <> "" Then
 				searchURL = CleanSearchString(SavedSearchAlbum)
-				searchURL_F = "http://api.discogs.com/database/search?type=release%26title="
+				searchURL_F = "https://api.discogs.com/database/search?type=release%26title="
 				searchURL_L = "%26per_page=100"
 			ElseIf SavedSearchArtist <> "" And SavedSearchAlbum = "" Then
 				searchURL = CleanSearchString(SavedSearchArtist)
-				searchURL_F = "http://api.discogs.com/database/search?type=release%26artist="
+				searchURL_F = "https://api.discogs.com/database/search?type=release%26artist="
 				searchURL_L = "%26per_page=100"
 			Else
 				ErrorMessage = "No SearchTerm found"
@@ -4301,20 +4305,27 @@ Sub ShowResult(ResultID)
 		WriteLog "ReleaseID=" & ReleaseID
 		If InStr(Results.Item(ResultID), "search returned no results") = 0 Then
 			If Right(Results.Item(ResultID), 1) = "*" Then  'Master-Release
-				searchURL = ReleaseID
-				searchURL_F = "http://api.discogs.com/masters/"
+				REM searchURL = ReleaseID
+				REM searchURL_F = "http://api.discogs.com/masters/"
+				searchURL = "http://api.discogs.com/masters/" & ReleaseID
 				WriteLog "Show Master-Release"
 			Else
-				searchURL = ReleaseID
-				searchURL_F = "http://api.discogs.com/releases/"
+				REM searchURL = ReleaseID
+				REM searchURL_F = "http://api.discogs.com/releases/"
+				searchURL = "http://api.discogs.com/releases/" & ReleaseID
 			End If
 
 			Set oXMLHTTP = CreateObject("Msxml2.XMLHttp.6.0")   
-			oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
-			oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
-			oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagBatch/2.0 +http://mediamonkey.com"
-			oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=")
-			WriteLog "Post durchgeführt"
+			oXMLHTTP.open "GET", searchURL, false
+			oXMLHTTP.setRequestHeader "Content-Type","application/json"
+			oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/2.0 +http://mediamonkey.com"
+			oXMLHTTP.send()
+	
+			REM oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
+			REM oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
+			REM oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagBatch/2.0 +http://mediamonkey.com"
+			REM oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=")
+			REM WriteLog "Post durchgeführt"
 			
 			' use json api with vbsjson class at start of file now
 
@@ -5662,7 +5673,8 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 		oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
 		oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
 		oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/2.0 +http://mediamonkey.com"
-		oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L)
+		WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L & "%26page=1"
+		oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L & "%26page=1")
 
 		If oXMLHTTP.Status = 200 Then
 			If InStr(oXMLHTTP.responseText, "OAuth client error") <> 0 Then
@@ -5670,6 +5682,7 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 				ErrorMessage = "OAuth client error"
 				Exit Function
 			Else
+				WriteLog oXMLHTTP.responseText
 				Set response = json.Decode(oXMLHTTP.responseText)
 			End If
 
@@ -5860,17 +5873,23 @@ Function ReloadMaster(SavedMasterId)
 
 	WriteLog "Start ReloadMaster"
 	Dim oXMLHTTP, masterURL
-	masterURL = SavedMasterId
+	REM masterURL = SavedMasterId
+	masterURL = "http://api.discogs.com/masters/" & SavedMasterId
 	Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 
 	Dim json
 	Set json = New VbsJson
 	Dim response
 
-	oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
-	oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
+	REM oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
+	REM oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
+	REM oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/2.0 +http://mediamonkey.com"
+	REM oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & masterURL & "&searchURL_F=http://api.discogs.com/masters/&searchURL_L=")
+
+	oXMLHTTP.open "GET", masterURL, false
+	oXMLHTTP.setRequestHeader "Content-Type","application/json"
 	oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/2.0 +http://mediamonkey.com"
-	oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & masterURL & "&searchURL_F=http://api.discogs.com/masters/&searchURL_L=")
+	oXMLHTTP.send()
 
 	If oXMLHTTP.Status = 200 Then
 		Set response = json.Decode(oXMLHTTP.responseText)
