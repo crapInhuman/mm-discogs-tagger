@@ -2,15 +2,21 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.13"
+Const VersionStr = "v5.14"
+
+'Changes from 5.13 to 5.14 by crap_inhuman in 11.2014
+'	The Tagger now detect OAuth authentication error
+
 
 'Changes from 5.12 to 5.13 by crap_inhuman in 11.2014
 '	More than one space between track positions doesn't stop the script anymore ;)
 '	Changed subtrack error detection
 
+
 'Changes from 5.11 to 5.12 by crap_inhuman in 10.2014
 '	Removed a bug with empty keyword fields in the options menu
 '	Now only the search requests use oauth
+
 
 'Changes from 5.10 to 5.11 by crap_inhuman in 10.2014
 '	New option "Save selected 'more images' after closing popup" fixed
@@ -259,7 +265,7 @@ Dim FilterMediaType, FilterCountry, FilterYear, FilterMediaFormat, CurrentLoadTy
 Dim MediaTypeList, MediaFormatList, CountryList, CountryCode, YearList, AlternativeList, LoadList
 Dim ArtistSeparator, ArtistLastSeparator
 
-Dim FirstTrack
+Dim FirstTrack, Errormessage
 Dim AlbumArtURL, AlbumArtThumbNail
 Dim iMaxTracks
 Dim iAutoTrackNumber, iAutoDiscNumber, iAutoDiscFormat
@@ -1398,7 +1404,7 @@ Sub FindResults(SearchTerm, QueryPage)
 	WriteLog "SavedSearchArtist=" & SavedSearchArtist
 	WriteLog "SavedSearchAlbum=" & SavedSearchAlbum
 	
-	Dim ErrorMessage, FilterFound, a, searchURL, searchURL_F, searchURL_L
+	Dim FilterFound, a, searchURL, searchURL_F, searchURL_L
 	Dim TXTBegin, TXTEnd, ResponseHTML, ReleaseDesc, i, tmp
 
 	Set Results = SDB.NewStringList
@@ -1676,7 +1682,7 @@ End Sub
 
 Sub LoadMasterResults(MasterId)
 
-	Dim ErrorMessage, masterURL
+	Dim masterURL
 	WriteLog "MasterResult"
 
 	Set Results = SDB.NewStringList
@@ -1711,7 +1717,6 @@ End Sub
 
 Sub LoadArtistResults(ArtistId)
 
-	Dim ErrorMessage
 	Dim artistURL
 	
 	Set Results = SDB.NewStringList
@@ -1747,7 +1752,7 @@ End Sub
 
 Sub LoadLabelResults(LabelId)
 
-	Dim ErrorMessage, labelURL
+	Dim labelURL
 
 	Set Results = SDB.NewStringList
 	Set ResultsReleaseID = SDB.NewStringList
@@ -5424,7 +5429,7 @@ Sub FormatErrorMessage(ErrorMessage)
 
 	WriteLog "Show ErrorMessage"
 	WriteLog "Errormessage=" & Errormessage
-	Dim templateHTML, listBox, templateHTMLDoc, submitButton
+	Dim templateHTML, listBox, templateHTMLDoc, submitButton, res
 	templateHTML = ""
 	templateHTML = templateHTML &  GetHeader()
 	templateHTML = templateHTML &  "<tr>"
@@ -5465,6 +5470,16 @@ Sub FormatErrorMessage(ErrorMessage)
 	Script.RegisterEvent submitButton, "onclick", "ShowYearFilter"
 
 	SDB.Tools.WebSearch.ClearTracksData
+	
+	If ErrorMessage = "OAuth client error" Then
+		res = SDB.MessageBox("OAuth Client Authentication Error. Do you want to re-authenticate Discogs Tagger ?", mtConfirmation, Array(mbYes, mbNo))
+		If res = 6 Then
+			AccessToken = ""
+			AccessTokenSecret = ""
+			authorize_script()
+			FindResults SavedSearchTerm, QueryPage
+		End If
+	End If
 
 End Sub
 
@@ -5475,7 +5490,7 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 	Dim json
 	Set json = New VbsJson
 
-	Dim response, ErrorMessage
+	Dim response
 	Dim format, title, country, v_year, label, artist, Rtype, catNo, main_release, tmp, ReleaseDesc, FilterFound, SongCount, SongCountMax, isRelease, listCount
 	Dim Page, SongPages, trackCount
 
