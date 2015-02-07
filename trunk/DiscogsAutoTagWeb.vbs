@@ -2,7 +2,13 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.10"
+Const VersionStr = "v5.11"
+
+'Changes from 5.10 to 5.11 by crap_inhuman in 10.2014
+'	New option "Save selected 'more images' after closing popup" fixed
+'	New option "Don't copy empty values to non-empty fields" now works for genres/styles too
+'	More Debug Output to Logfile
+
 
 'Changes from 5.01 to 5.10 by crap_inhuman in 10.2014
 '	Changed unclear text
@@ -3559,7 +3565,7 @@ Sub ReloadResults
 			ElseIf IsNumeric(OriginalDate) Then
 				SDB.Tools.WebSearch.NewTracks.Item(i).OriginalYear = OriginalDate
 			ElseIf OriginalDate = "" Then
-				If CheckDontFillEmptyFields = True Then
+				If CheckDontFillEmptyFields = False Then
 					SDB.Tools.WebSearch.NewTracks.Item(i).OriginalYear = -1
 				End If
 			End If
@@ -3567,24 +3573,34 @@ Sub ReloadResults
 
 		If CheckStyleField = "Default (stored with Genre)" Then
 			If CheckGenre And CheckStyle Then
-				SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Genres & Separator & Styles
-				If Genres = "" Then SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Styles
-				If Styles = "" Then SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Genres
+				If Not(Genres = "" And Styles = "" And CheckDontFillEmptyFields = True) Then
+					SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Genres & Separator & Styles
+					If Genres = "" Then SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Styles
+					If Styles = "" Then SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Genres
+				End If
 			ElseIf CheckGenre Then
-				SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Genres
+				If Not(Genres = "" And CheckDontFillEmptyFields = True) Then
+					SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Genres
+				End If
 			ElseIf CheckStyle Then
-				SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Styles
+				If Not(Styles = "" And CheckDontFillEmptyFields = True) Then
+					SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Styles
+				End If
 			End If
 		Else
 			If CheckGenre Then
-				SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Genres
+				If Not(Genres = "" And CheckDontFillEmptyFields = True) Then
+					SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Genres
+				End If
 			End If
 			If CheckStyle Then
-				If CheckStyleField = "Custom1" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom1 = Styles
-				If CheckStyleField = "Custom2" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom2 = Styles
-				If CheckStyleField = "Custom3" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom3 = Styles
-				If CheckStyleField = "Custom4" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom4 = Styles
-				If CheckStyleField = "Custom5" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom5 = Styles
+				If Not(Styles = "" And CheckDontFillEmptyFields = True) Then
+					If CheckStyleField = "Custom1" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom1 = Styles
+					If CheckStyleField = "Custom2" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom2 = Styles
+					If CheckStyleField = "Custom3" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom3 = Styles
+					If CheckStyleField = "Custom4" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom4 = Styles
+					If CheckStyleField = "Custom5" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom5 = Styles
+				End If
 			End If
 		End If
 		If CheckLabel And ((CheckDontFillEmptyFields = True And theLabels <> "") Or CheckDontFillEmptyFields = False) Then SDB.Tools.WebSearch.NewTracks.Item(i).Publisher = theLabels
@@ -4268,6 +4284,7 @@ Sub ShowResult(ResultID)
 		' use json api with vbsjson class at start of file now
 
 		If oXMLHTTP.Status = 200 Then
+			WriteLog "responseText=" & oXMLHTTP.responseText
 			Set CurrentRelease = json.Decode(oXMLHTTP.responseText)
 			CurrentReleaseId = ReleaseID
 			ReloadResults
@@ -4303,6 +4320,7 @@ Sub ShowResult(ResultID)
 
 
 			If oXMLHTTP.Status = 200 Then
+				WriteLog "responseText=" & oXMLHTTP.responseText
 				Set CurrentRelease = json.Decode(oXMLHTTP.responseText)
 				CurrentReleaseId = ReleaseID
 				ReloadResults
@@ -4572,10 +4590,10 @@ Function GetHeader()
 	templateHTML = templateHTML &  "<select id=""filteryear"" class=tabletext>"
 
 	If FilterYear = "None" Then
-		templateHTML = templateHTML &  "<option value=""None"">No Year Filter</option>"
+		templateHTML = templateHTML &  "<option value=""None"" selected>No Year Filter</option>"
 		templateHTML = templateHTML &  "<option style=""background-color:#F4113F;"" value=""Use Year Filter"">Use Year Filter</option>"
 	ElseIf FilterYear = "Use Year Filter" Then
-		templateHTML = templateHTML &  "<option style=""background-color:#F4113F;"" value=""Use Year Filter"">Use Year Filter</option>"
+		templateHTML = templateHTML &  "<option style=""background-color:#F4113F;"" value=""Use Year Filter"" selected>Use Year Filter</option>"
 		templateHTML = templateHTML &  "<option value=""None"">No Year Filter</option>"
 	End If
 	If FilterYear <> "None" And FilterYear <> "Use Year Filter" Then
@@ -4589,6 +4607,7 @@ Function GetHeader()
 			templateHTML = templateHTML &  "<option value=""" & EncodeHtmlChars(YearList.Item(i)) & """ selected>" & YearList.Item(i) & "</option>"
 		End If
 	Next
+
 	templateHTML = templateHTML &  "</select>"
 	templateHTML = templateHTML &  "</td>"
 
@@ -5455,6 +5474,7 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 
 		If oXMLHTTP.Status = 200 Then
 			WriteLog "Musicbrainz"
+			WriteLog "responseText=" & oXMLHTTP.responseText
 			Set response = json.Decode(oXMLHTTP.responseText)
 			If ArrayName = "Artist" Or ArrayName = "Label" Then
 				ArrayName = "releases"
@@ -5645,7 +5665,14 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 		oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L)
 
 		If oXMLHTTP.Status = 200 Then
-			Set response = json.Decode(oXMLHTTP.responseText)
+			If InStr(oXMLHTTP.responseText, "OAuth client error") <> 0 Then
+				WriteLog "responseText=" & oXMLHTTP.responseText
+				ErrorMessage = "OAuth client error"
+				Exit Function
+			Else
+				Set response = json.Decode(oXMLHTTP.responseText)
+			End If
+
 			'check if any results
 			'and add titles to drop down
 			'msgbox response(ArrayName)(0)("title")
@@ -5665,9 +5692,21 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 						oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
 						oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"  
 						oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagBatch/2.0 +http://mediamonkey.com"
+						WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L & "%26page=" & Page
 						oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L & "%26page=" & Page)
-						WriteLog "Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L & "%26page=" & Page
-						Set response = json.Decode(oXMLHTTP.responseText)
+						If oXMLHTTP.Status = 200 Then
+							If InStr(oXMLHTTP.responseText, "OAuth client error") <> 0 Then
+								WriteLog "responseText=" & oXMLHTTP.responseText
+								ErrorMessage = "OAuth client error"
+								Exit Function
+							Else
+								Set response = json.Decode(oXMLHTTP.responseText)
+							End If
+						Else
+							WriteLog "Error in JSONParser_find_result"
+							ErrorMessage = "Error in JSONParser_find_result"
+							Exit For
+						End If
 					End If
 					For Each r In response(ArrayName)
 						format = ""
@@ -5807,6 +5846,9 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 					End If
 				Next
 			End If
+		Else
+			WriteLog "Error in JSONParser_find_result"
+			ErrorMessage = "Error in JSONParser_find_result"
 		End If
 	End If
 	WriteLog "End JSONParser_find_result"
@@ -5816,6 +5858,7 @@ End Function
 
 Function ReloadMaster(SavedMasterId)
 
+	WriteLog "Start ReloadMaster"
 	Dim oXMLHTTP, masterURL
 	masterURL = SavedMasterId
 	Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
@@ -5839,6 +5882,7 @@ Function ReloadMaster(SavedMasterId)
 	End If
 
 	ReloadMaster = OriginalDate
+	WriteLog "Stop ReloadMaster"
 
 End Function
 
@@ -6585,7 +6629,7 @@ Sub SetSaveImages()
 	Next
 
 	If CheckImmedSaveImage Then
-		SaveMoreImages()
+		SaveMoreImagesSub()
 	End If
 
 End Sub
@@ -6668,6 +6712,23 @@ Sub WriteOptions()
 	WriteLog "QueryPage=" & QueryPage
 	WriteLog "CheckImmedSaveImage=" & CheckImmedSaveImage
 	WriteLog "CheckDontFillEmptyFields=" & CheckDontFillEmptyFields
+	WriteLog "Separator=" & Separator
+	Set ini = SDB.IniFile
+	WriteLog "CurrentCountryFilter=" & ini.StringValue("DiscogsAutoTagWeb","CurrentCountryFilter")
+	WriteLog "CurrentMediaTypeFilter=" & ini.StringValue("DiscogsAutoTagWeb","CurrentMediaTypeFilter")
+	WriteLog "CurrentMediaFormatFilter=" & ini.StringValue("DiscogsAutoTagWeb","CurrentMediaFormatFilter")
+	WriteLog "CurrentYearFilter=" & ini.StringValue("DiscogsAutoTagWeb","CurrentYearFilter")
+	WriteLog "LyricistKeywords=" & LyricistKeywords
+	WriteLog "ConductorKeywords=" & ConductorKeywords
+	WriteLog "ProducerKeywords=" & ProducerKeywords
+	WriteLog "ComposerKeywords=" & ComposerKeywords
+	WriteLog "FeaturingKeywords=" & FeaturingKeywords
+	WriteLog "UnwantedKeywords=" & UnwantedKeywords
+	WriteLog "CheckStyleField=" & CheckStyleField
+	WriteLog "ArtistLastSeparator=" & ArtistLastSeparator
+	WriteLog "AccessToken=" & AccessToken
+	WriteLog "AccessTokenSecret=" & AccessTokenSecret
+	WriteLog "-+-+-+-+--+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-"
 
 End Sub
 
