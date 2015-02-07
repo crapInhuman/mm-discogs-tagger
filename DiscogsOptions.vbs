@@ -1,14 +1,17 @@
 '
 ' MediaMonkey Script
 '
-' NAME: Discogs Tagger Options 2.4
+' NAME: Discogs Tagger Options 2.5
 '
 ' AUTHOR: crap_inhuman
-' DATE : 31/10/2014
+' DATE : 18/01/2015
 '
 '
 ' INSTALL: Automatic installation during Discogs Tagger install
 '
+'Changes from 2.4 to 2.5
+'Adding ISRC to CatalogTag
+
 'Changes from 2.3 to 2.4
 'Removed a bug with empty keyword fields
 
@@ -227,6 +230,7 @@ Sub InitSheet(Sheet)
 	DD2.AddItem (CustomField4)
 	DD2.AddItem (CustomField5)
 	DD2.AddItem ("Don't save")
+	DD2.AddItem (SDB.Localize("ISRC"))
 
 	DD2.Common.ControlName = "CatalogTag"
 	If CatalogTag = "Custom1" Then
@@ -246,6 +250,9 @@ Sub InitSheet(Sheet)
 	End If
 	If CatalogTag = "Don't save" Then
 		DD2.ItemIndex = 5
+	End If
+	If CatalogTag = "ISRC" Then
+		DD2.ItemIndex = 6
 	End If
 	Set Label2 = UI.NewLabel(GroupBox0)
 	Label2.Common.SetRect 20, 75, 150, 25
