@@ -2,11 +2,17 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.16"
+Const VersionStr = "v5.17"
+
+'Changes from 5.16 to 5.17 by crap_inhuman in 01.2015
+'	Choosing "Master-Release" shows the Master-Release. Yes, really. ;)
+'	Choosing "Versions of Master" shows all Versions (Releases) of the selected Master-Release.
+'	If you selected a Release, the corresponding Master of this Release will choosen.
+'	Added ISRC to CatalogTag
+
 
 'Changes from 5.15 to 5.16 by crap_inhuman in 01.2015
 '	Removed bug with Extra-Artists
-'	Removed bug when searching with release-number
 
 
 'Changes from 5.14 to 5.15 by crap_inhuman in 01.2015
@@ -271,7 +277,7 @@ Dim LyricistKeywords, ConductorKeywords, ProducerKeywords, ComposerKeywords, Fea
 Dim SavedReleaseId
 Dim SavedSearchTerm, NewSearchTerm
 Dim SavedSearchArtist, SavedSearchAlbum
-Dim SavedMasterId, SavedArtistId, SavedLabelId
+Dim SavedMasterID, SavedArtistID, SavedLabelID
 
 Dim FilterMediaType, FilterCountry, FilterYear, FilterMediaFormat, CurrentLoadType
 Dim MediaTypeList, MediaFormatList, CountryList, CountryCode, YearList, AlternativeList, LoadList
@@ -655,6 +661,7 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 
 	LoadList.Add "Search Results"
 	LoadList.Add "Master Release"
+	LoadList.Add "Versions of Master"
 	LoadList.Add "Releases of Artist"
 	LoadList.Add "Releases of Label"
 
@@ -1448,13 +1455,13 @@ Sub FindResults(SearchTerm, QueryPage)
 
 	' Handle direct urls
 
-	If (InStr(SearchTerm,"/master/") > 0) Then
+	If (InStr(SearchTerm,"/masters/") > 0) Then
 		CurrentLoadType = "Master Release"
 		LoadMasterResults Mid(SearchTerm,InStrRev(SearchTerm,"/")+1)
 		Exit Sub
 	End If
 
-	If (InStr(SearchTerm,"/artist/") > 0) Then
+	If (InStr(SearchTerm,"/artists/") > 0) Then
 		CurrentLoadType = "Releases of Artist"
 		tmp = Mid(SearchTerm,InStrRev(SearchTerm,"/")+1)
 		tmp = Left(tmp, InStr(tmp,"-")-1)
@@ -1462,7 +1469,7 @@ Sub FindResults(SearchTerm, QueryPage)
 		Exit Sub
 	End If
 
-	If (InStr(SearchTerm,"/label/") > 0) Then
+	If (InStr(SearchTerm,"/labels/") > 0) Then
 		CurrentLoadType = "Releases of Label"
 		tmp = Mid(SearchTerm,InStrRev(SearchTerm,"/")+1)
 		tmp = Left(tmp, InStr(tmp,"-")-1)
@@ -1587,7 +1594,7 @@ Sub FindResults(SearchTerm, QueryPage)
 
 			If ErrorMessage = "" Then
 				WriteLog "Complete searchURL=" & searchURL_F & searchURL & searchURL_L
-				JSONParser_find_result searchURL, "results", searchURL_F, searchURL_L, "Discogs"
+				JSONParser_find_result searchURL, "results", searchURL_F, searchURL_L, "Discogs", True
 			End If
 		End If
 
@@ -1611,7 +1618,7 @@ Sub FindResults(SearchTerm, QueryPage)
 
 			WriteLog "searchURL=" & searchURL
 
-			JSONParser_find_result searchURL, "releases", "", "", "MusicBrainz"
+			JSONParser_find_result searchURL, "releases", "", "", "MusicBrainz", False
 		End If
 
 		If ResultsReleaseID.Count = 0 Then
@@ -1699,16 +1706,126 @@ Sub FindResults(SearchTerm, QueryPage)
 
 End Sub
 
-Sub LoadMasterResults(MasterId)
+Sub LoadMasterResults(MasterID)
+
+	Dim searchURL
+	Dim oXMLHTTP
+	Dim json
+	Set json = New VbsJson
+
+	Dim title, v_year, artist, artistName, main_release, ReleaseDesc, currentArtist, AlbumArtistTitle, tmp
+
+	WriteLog " "
+	WriteLog "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
+
+	Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
+
+	WriteLog "Load MasterResult"
+	ErrorMessage = ""
+
+	If MasterID = "" Then
+		ErrorMessage = "Cannot load empty master release"
+	Else
+		If QueryPage = "MusicBrainz" Then
+			ErrorMessage = "Cannot load master release from MusicBrainz"
+
+		ElseIf QueryPage = "Discogs" Then
+			searchURL = "http://api.discogs.com/masters/" & MasterID
+			WriteLog "searchURL=" & searchURL
+
+			Set oXMLHTTP = CreateObject("Msxml2.XMLHttp.6.0")   
+			oXMLHTTP.open "GET", searchURL, false
+			oXMLHTTP.setRequestHeader "Content-Type","application/json"
+			oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/2.0 +http://mediamonkey.com"
+			oXMLHTTP.send()
+
+			If oXMLHTTP.Status = 200 Then
+				WriteLog "responseText=" & oXMLHTTP.responseText
+				Set currentRelease = json.Decode(oXMLHTTP.responseText)
+
+				Set Results = SDB.NewStringList
+				Set ResultsReleaseID = SDB.NewStringList
+
+				title = ""
+				v_year = ""
+				artist = ""
+				main_release = ""
+
+				SDB.ProcessMessages
+
+				title = CurrentRelease("title")
+				For Each artist in CurrentRelease("artists")
+					Set currentArtist = CurrentRelease("artists")(artist)
+					If Not CheckUseAnv And currentArtist("anv") <> "" Then
+						artistName = CleanArtistName(currentArtist("anv"))
+					Else
+						artistName = CleanArtistName(currentArtist("name"))
+					End If
+					If SavedArtistID = "" Then SavedArtistID = currentArtist("id")
+
+					Writelog "SavedArtistID=" & SavedArtistID
+					AlbumArtistTitle = AlbumArtistTitle & artistName
+
+					If currentArtist("join") <> "" Then
+						tmp = currentArtist("join")
+						If tmp = "," Then
+							AlbumArtistTitle = AlbumArtistTitle & ArtistSeparator
+						ElseIf LookForFeaturing(tmp) And CheckFeaturingName Then
+							If TxtFeaturingName = "," or TxtFeaturingName = ";" Then
+								AlbumArtistTitle = AlbumArtistTitle & TxtFeaturingName & " "
+							Else
+								AlbumArtistTitle = AlbumArtistTitle & " " & TxtFeaturingName & " "
+							End If
+						Else
+							AlbumArtistTitle = AlbumArtistTitle & " " & currentArtist("join") & " "
+						End If
+					End If
+				Next
+				
+				If CurrentRelease.Exists("main_release") Then
+					main_release = CurrentRelease("main_release")
+				End If
+				If CurrentRelease.Exists("year") Then
+					v_year = CurrentRelease("year")
+				End If
+
+				If AlbumArtistTitle <> "" Then ReleaseDesc = AlbumArtistTitle End If
+				If AlbumArtistTitle <> "" and title <> "" Then ReleaseDesc = ReleaseDesc & " -" End If
+				If title <> "" Then ReleaseDesc = ReleaseDesc & " " & title End If
+				If v_year <> "" Then ReleaseDesc = ReleaseDesc & " (" & v_year & ")" End If
+				ReleaseDesc = ReleaseDesc & " (Master)"
+
+				Results.Add ReleaseDesc
+				ResultsReleaseID.Add CurrentRelease("id")
+
+				SDB.Tools.WebSearch.SetSearchResults Results
+				SDB.Tools.WebSearch.ResultIndex = 0
+
+				ReloadResults
+			Else
+				ErrorMessage = "Try loading Master returns ErrorCode: " & oXMLHTTP.Status
+				WriteLog "Try loading Master returns ErrorCode: " & oXMLHTTP.Status
+			End If
+		End If
+	End If
+
+	If ErrorMessage <> "" Then
+		FormatErrorMessage ErrorMessage
+	End If
+
+End Sub
+
+
+Sub LoadVersionResults(MasterID)
 
 	Dim masterURL
-	WriteLog "MasterResult"
+	WriteLog "VersionResult"
 
 	Set Results = SDB.NewStringList
 	Set ResultsReleaseID = SDB.NewStringList
 	ErrorMessage = ""
 
-	If MasterId = "" Then
+	If MasterID = "" Then
 		ErrorMessage = "Cannot load empty master release"
 	Else
 		If IsNumeric(SavedReleaseId) Then
@@ -1717,8 +1834,8 @@ Sub LoadMasterResults(MasterId)
 			ResultsReleaseID.Add SavedReleaseId
 		End If
 		If QueryPage = "Discogs" Then
-			masterURL = MasterId
-			JSONParser_find_result masterURL, "versions", "http://api.discogs.com/masters/", "/versions", "Discogs"
+			masterURL = MasterID
+			JSONParser_find_result masterURL, "versions", "http://api.discogs.com/masters/", "/versions?per_page=100", "Discogs", False
 		Else
 			ErrorMessage = "Cannot load master release from MusicBrainz"
 		End If
@@ -1753,9 +1870,9 @@ Sub LoadArtistResults(ArtistId)
 
 		If QueryPage = "Discogs" Then
 			artistURL = ArtistId
-			JSONParser_find_result artistURL, "releases", "http://api.discogs.com/artists/", "/releases?per_page=100", "Discogs"
+			JSONParser_find_result artistURL, "releases", "http://api.discogs.com/artists/", "/releases?per_page=100", "Discogs", False
 		ElseIf QueryPage = "MusicBrainz" Then
-			JSONParser_find_result "http://musicbrainz.org/ws/2/release?artist=" & ArtistId & "&inc=artist-credits+release-groups+media&fmt=json&limit=100", "Artist", "", "", "MusicBrainz"
+			JSONParser_find_result "http://musicbrainz.org/ws/2/release?artist=" & ArtistId & "&inc=artist-credits+release-groups+media&fmt=json&limit=100", "Artist", "", "", "MusicBrainz", False
 		End If
 	End If
 
@@ -1788,9 +1905,9 @@ Sub LoadLabelResults(LabelId)
 
 		If QueryPage = "Discogs" Then
 			labelURL = LabelId
-			JSONParser_find_result labelURL, "releases", "http://api.discogs.com/labels/", "/releases?per_page=100", "Discogs"
+			JSONParser_find_result labelURL, "releases", "http://api.discogs.com/labels/", "/releases?per_page=100", "Discogs", False
 		ElseIf QueryPage = "MusicBrainz" Then
-			JSONParser_find_result "http://musicbrainz.org/ws/2/release?label=" & LabelId & "&inc=artist-credits+media&fmt=json&limit=100", "Label", "", "", "MusicBrainz"
+			JSONParser_find_result "http://musicbrainz.org/ws/2/release?label=" & LabelId & "&inc=artist-credits+media&fmt=json&limit=100", "Label", "", "", "MusicBrainz", False
 		End If
 	End If
 
@@ -1873,8 +1990,8 @@ Sub ReloadResults
 		ReDim TrackArtist2(0)
 		ReDim TrackPos(0)
 		ReDim Title_Position(0)
-		SavedArtistId = ""
-		SavedLabelId = ""
+		SavedArtistID = ""
+		SavedLabelID = ""
 		LeadingZeroTrackPosition = False
 		Dim involvedArtist, involvedTemp, involvedRole, subTrack
 		Dim TrackInvolvedPeople, TrackComposers, TrackConductors, TrackProducers, TrackLyricists, TrackFeaturing
@@ -1925,13 +2042,13 @@ Sub ReloadResults
 					artistName = CleanArtistName(currentArtist("name"))
 					' !!!!!artistName <- currentArtist
 				End If
-				If SavedArtistId = "" Then SavedArtistId = currentArtist("id")
+				If SavedArtistID = "" Then SavedArtistID = currentArtist("id")
 
 				If (AlbumArtist = "") Then
 					AlbumArtist = artistName
 				End If
 
-				Writelog "SavedArtistId=" & SavedArtistId
+				Writelog "SavedArtistID=" & SavedArtistID
 				AlbumArtistTitle = AlbumArtistTitle & artistName
 
 				If currentArtist("join") <> "" Then
@@ -2153,15 +2270,16 @@ Sub ReloadResults
 			'Workaround for using "." as separator at discogs -----------------------------------------------------------------------------------------------------------
 
 			WriteLog "Track count from Title_position=" & UBound(Title_Position)
+			WriteLog " "
+			WriteLog " "
+			REM WriteLog "Position=" & position
 			Dim NewSubTrackFound, cNewSubTrack
 			NewSubTrackFound = False
 			For t = 0 To UBound(Title_Position)-1
 				If rSubPosition.Item(t) <> "" Then
-					REM set aSubTrack = CurrentRelease("tracklist")(track)
-					REM Set currentTrack = aSubTrack("sub_tracks")(subtrack)
 					Set currentTrack = CurrentRelease("tracklist")(CInt(rTrackPosition.Item(t)))("sub_tracks")(cInt(rSubPosition.Item(t)))
 				Else
-					WriteLog rTrackPosition.Item(t)
+					REM WriteLog rTrackPosition.Item(t)
 					Set currentTrack = CurrentRelease("tracklist")(CInt(rTrackPosition.Item(t)))
 				End If
 
@@ -2171,9 +2289,6 @@ Sub ReloadResults
 				trackName = PackSpaces(DecodeHtmlChars(currentTrack("title")))
 				Durations.Add currentTrack("duration")
 				position = exchange_roman_numbers(position)
-				WriteLog " "
-				WriteLog " "
-				WriteLog "Position=" & position
 
 				If rSubPosition.Item(t) <> "" Then
 					If NewSubTrackFound = False Then
@@ -2328,7 +2443,6 @@ Sub ReloadResults
 				For tmp = 1 To UBound(TrackPos)
 					If TrackPos(tmp) = position Then
 						WriteLog "trackpos(" & tmp & ")=" & trackpos(tmp)
-						Rem msgbox tmp
 						involvedRole = TrackRoles(tmp)
 						involvedArtist = TrackArtist2(tmp)
 
@@ -2680,13 +2794,18 @@ Sub ReloadResults
 			' Get Master ID
 			If CurrentRelease.Exists("master_id") Then
 				theMaster = currentRelease("master_id")
-				If SavedMasterId <> theMaster Then
+				If SavedMasterID <> theMaster Then
 					OriginalDate = ReloadMaster(theMaster)
-					SavedMasterId = theMaster
+					SavedMasterID = theMaster
 				End If
+			ElseIf CurrentRelease.Exists("main_release") Then	'Master
+				If CurrentRelease.Exists("year") Then
+					OriginalDate = CurrentRelease("year")
+				End If
+				SavedMasterID = currentRelease("id")
 			Else
 				theMaster = ""
-				SavedMasterId = theMaster
+				SavedMasterID = theMaster
 				OriginalDate = ""
 			End If
 
@@ -2740,9 +2859,9 @@ Sub ReloadResults
 			If CurrentRelease.Exists("labels") Then
 				For Each l in CurrentRelease("labels")
 					Set currentLabel = CurrentRelease("labels")(l)
-					If SavedLabelId = "" Then
+					If SavedLabelID = "" Then
 						If currentLabel.Exists("id") Then
-							SavedLabelId = currentLabel("id")
+							SavedLabelID = currentLabel("id")
 						End If
 					End If
 					AddToField theLabels, CleanArtistName(currentLabel("name"))
@@ -2822,13 +2941,13 @@ Sub ReloadResults
 				WriteLog "currentArtist=" & currentArtist("name")
 				artistName = CleanArtistName(currentArtist("name"))
 				' !!!!!artistName <- currentArtist
-				If SavedArtistId = "" Then SavedArtistId = currentArtist("artist")("id")
+				If SavedArtistID = "" Then SavedArtistID = currentArtist("artist")("id")
 
 				If (AlbumArtist = "") Then
 					AlbumArtist = artistName
 				End If
 
-				Writelog "SavedArtistId=" & SavedArtistId
+				Writelog "SavedArtistID=" & SavedArtistID
 				AlbumArtistTitle = AlbumArtistTitle & artistName
 
 				If currentArtist("joinphrase") <> "" Then
@@ -3378,10 +3497,10 @@ Sub ReloadResults
 			If CurrentRelease.Exists("label-info") Then
 				For Each l In CurrentRelease("label-info")
 					Set currentLabel = CurrentRelease("label-info")(l)
-					If SavedLabelId = "" Then
+					If SavedLabelID = "" Then
 						set tmp = currentLabel("label")
 						If tmp.Exists("id") Then
-							SavedLabelId = tmp("id")
+							SavedLabelID = tmp("id")
 						End If
 					End If
 					AddToField theLabels, CleanArtistName(currentLabel("label")("name"))
@@ -3571,6 +3690,7 @@ Sub ReloadResults
 			If CatalogTag = "Custom3" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom3 = theCatalogs
 			If CatalogTag = "Custom4" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom4 = theCatalogs
 			If CatalogTag = "Custom5" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom5 = theCatalogs
+			If CatalogTag = "ISRC" Then SDB.Tools.WebSearch.NewTracks.Item(i).ISRC = theCatalogs
 		End If
 
 		If CheckCountry And ((CheckDontFillEmptyFields = True And theCountry <> "") Or CheckDontFillEmptyFields = False) Then
@@ -4315,7 +4435,7 @@ Sub ShowResult(ResultID)
 		ReleaseID = ResultsReleaseID.Item(ResultID)
 		WriteLog "ReleaseID=" & ReleaseID
 		If InStr(Results.Item(ResultID), "search returned no results") = 0 Then
-			If Right(Results.Item(ResultID), 1) = "*" Then  'Master-Release
+			If Right(Results.Item(ResultID), 1) = "*" Or Right(Results.Item(ResultID), 8) = "(Master)" Then  'Master-Release
 				searchURL = "http://api.discogs.com/masters/" & ReleaseID
 				WriteLog "Show Master-Release"
 			Else
@@ -4784,8 +4904,8 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = templateHTML &  "<tr>"
 	templateHTML = templateHTML &  "<td><input type=checkbox id=""releaseid"" ></td>"
 	templateHTML = templateHTML &  "<td>Release:</td>"
-	If Right(Results.Item(CurrentResultId), 1) = "*" Then
-		templateHTML = templateHTML &  "<td><!RELEASEID!>N/A</a> (Master: <a href=""http://www.discogs.com/master/<!RELEASEID!>"" target=""_blank""><!RELEASEID!></a>)</td>"
+	If Right(Results.Item(CurrentResultId), 1) = "*" Or Right(Results.Item(CurrentResultID), 8) = "(Master)" Then
+		templateHTML = templateHTML &  "<td>N/A</a> (Master: <a href=""http://www.discogs.com/master/<!RELEASEID!>"" target=""_blank""><!RELEASEID!></a>)</td>"
 	ElseIf (theMaster <> "") Then
 		templateHTML = templateHTML &  "<td><a href=""http://www.discogs.com/release/<!RELEASEID!>"" target=""_blank""><!RELEASEID!></a> (Master: <a href=""http://www.discogs.com/master/<!MASTERID!>"" target=""_blank""><!MASTERID!></a>)</td>"
 	Else
@@ -4802,7 +4922,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	If QueryPage = "Discogs" Then
 		templateHTML = templateHTML &  "<td><a href=""http://www.discogs.com/artist/<!ARTIST!>"" target=""_blank""><!ARTIST!></a></td>"
 	ElseIf QueryPage = "MusicBrainz" Then
-		templateHTML = templateHTML &  "<td><a href=""http://www.musicbrainz.org/artist/" & SavedArtistId & """ target=""_blank""><!ARTIST!></a></td>"
+		templateHTML = templateHTML &  "<td><a href=""http://www.musicbrainz.org/artist/" & SavedArtistID & """ target=""_blank""><!ARTIST!></a></td>"
 	End If
 	templateHTML = templateHTML &  "</tr>"
 	templateHTML = templateHTML &  "<tr>"
@@ -4820,7 +4940,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	If QueryPage = "Discogs" Then
 		templateHTML = templateHTML &  "<td><a href=""http://www.discogs.com/artist/<!ALBUMARTIST!>"" target=""_blank""><!ALBUMARTIST!></a></td>"
 	ElseIf QueryPage = "MusicBrainz" Then
-		templateHTML = templateHTML &  "<td><a href=""http://www.musicbrainz.org/artist/" & SavedArtistId & """ target=""_blank""><!ALBUMARTIST!></a></td>"
+		templateHTML = templateHTML &  "<td><a href=""http://www.musicbrainz.org/artist/" & SavedArtistID & """ target=""_blank""><!ALBUMARTIST!></a></td>"
 	End If
 	templateHTML = templateHTML &  "</tr>"
 	templateHTML = templateHTML &  "<tr>"
@@ -4829,7 +4949,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	If QueryPage = "Discogs" Then
 		templateHTML = templateHTML &  "<td><a href=""http://www.discogs.com/label/<!LABEL!>"" target=""_blank""><!LABEL!></a></td>"
 	ElseIf QueryPage = "MusicBrainz" Then
-		templateHTML = templateHTML &  "<td><a href=""http://www.discogs.com/label/" & SavedLabelId & """ target=""_blank""><!LABEL!></a></td>"
+		templateHTML = templateHTML &  "<td><a href=""http://www.discogs.com/label/" & SavedLabelID & """ target=""_blank""><!LABEL!></a></td>"
 	End If
 	templateHTML = templateHTML &  "</tr>"
 	templateHTML = templateHTML &  "<tr>"
@@ -5332,11 +5452,13 @@ Sub Filter()
 	CurrentLoadType = listBox.Value
 
 	If(CurrentLoadType = "Master Release") Then
-		LoadMasterResults(SavedMasterId)
+		LoadMasterResults(SavedMasterID)
+	ElseIf(CurrentLoadType = "Versions of Master") Then
+		LoadVersionResults(SavedMasterID)
 	ElseIf(CurrentLoadType = "Releases of Artist") Then
-		LoadArtistResults(SavedArtistId)
+		LoadArtistResults(SavedArtistID)
 	ElseIf(CurrentLoadType = "Releases of Label") Then
-		LoadLabelResults(SavedLabelId)
+		LoadLabelResults(SavedLabelID)
 	Else
 		SDB.ProcessMessages
 		FindResults NewSearchTerm, QueryPage
@@ -5491,8 +5613,9 @@ Sub FormatErrorMessage(ErrorMessage)
 End Sub
 
 
-Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, QueryPage)
+Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, QueryPage, useOAuth)
 
+	'useOAuth = True -> OAuth needed
 	Dim oXMLHTTP, r, f, a, currentArtist, media
 	Dim json
 	Set json = New VbsJson
@@ -5719,29 +5842,50 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 		WriteLog "Complete searchURL=" & searchURL_F & searchURL & searchURL_L
 		' use json api with vbsjson class at start of file now
 
-		oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
-		oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
-		oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/2.0 +http://mediamonkey.com"
-		WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L & "%26page=1"
-		oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L & "%26page=1")
+		If useOAuth = True Then
+			oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
+			oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
+			oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/2.0 +http://mediamonkey.com"
+			WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L & "%26page=1"
+			oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L & "%26page=1")
 
-		If oXMLHTTP.Status = 200 Then
-			If InStr(oXMLHTTP.responseText, "OAuth client error") <> 0 Then
-				WriteLog "responseText=" & oXMLHTTP.responseText
-				ErrorMessage = "OAuth client error"
-				Exit Function
+			If oXMLHTTP.Status = 200 Then
+				If InStr(oXMLHTTP.responseText, "OAuth client error") <> 0 Then
+					WriteLog "responseText=" & oXMLHTTP.responseText
+					ErrorMessage = "OAuth client error"
+					Exit Function
+				Else
+					WriteLog "responseText=" & oXMLHTTP.responseText
+					Set response = json.Decode(oXMLHTTP.responseText)
+				End If
 			Else
-				WriteLog oXMLHTTP.responseText
-				Set response = json.Decode(oXMLHTTP.responseText)
+				WriteLog "Error in JSONParser_find_result"
+				WriteLog "Returned StatusCode=" & oXMLHTTP.Status
+				ErrorMessage = "Problem with fetching data from Discogs  -  StatusCode=" & oXMLHTTP.Status
 			End If
+		Else
 
-			'check if any results
-			'and add titles to drop down
-			'msgbox response(ArrayName)(0)("title")
+			oXMLHTTP.Open "GET", searchURL_F & searchURL & searchURL_L, False
+			oXMLHTTP.setRequestHeader "Content-Type","application/json"
+			oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/2.0 +http://mediamonkey.com"
+			oXMLHTTP.send()
 
+			If oXMLHTTP.Status = 200 Then
+				WriteLog "responseText=" & oXMLHTTP.responseText
+				Set response = json.Decode(oXMLHTTP.responseText)
+			Else
+				WriteLog "Error in JSONParser_find_result"
+				WriteLog "Returned StatusCode=" & oXMLHTTP.Status
+				ErrorMessage = "Problem with fetching data from Discogs  -  StatusCode=" & oXMLHTTP.Status
+			End If
+		End If
+
+		If ErrorMessage = "" Then
 			SongCount = 0
 			SongCountMax = response("pagination")("items")
+
 			WriteLog "SongCountMax=" & SongCountMax
+
 			If Int(SongCountMax) = 0 Then
 				ErrorMessage = "No Release found at Discogs !!"
 			Else
@@ -5753,7 +5897,7 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 					If Page <> 1 Then
 						oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
 						oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"  
-						oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagBatch/2.0 +http://mediamonkey.com"
+						oXMLHTTP.setRequestHeader "User-Agent", "MediaMonkeyDiscogsAutoTagBatch/2.0 +http://mediamonkey.com"
 						WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L & "%26page=" & Page
 						oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L & "%26page=" & Page)
 						If oXMLHTTP.Status = 200 Then
@@ -5770,6 +5914,7 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 							Exit For
 						End If
 					End If
+
 					For Each r In response(ArrayName)
 						format = ""
 						title = ""
@@ -5908,9 +6053,6 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 					End If
 				Next
 			End If
-		Else
-			WriteLog "Error in JSONParser_find_result"
-			ErrorMessage = "Error in JSONParser_find_result"
 		End If
 	End If
 	WriteLog "End JSONParser_find_result"
@@ -5918,12 +6060,12 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 End Function
 
 
-Function ReloadMaster(SavedMasterId)
+Function ReloadMaster(SavedMasterID)
 
 	WriteLog "Start ReloadMaster"
 	Dim oXMLHTTP, masterURL
 	REM masterURL = SavedMasterId
-	masterURL = "http://api.discogs.com/masters/" & SavedMasterId
+	masterURL = "http://api.discogs.com/masters/" & SavedMasterID
 	Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 
 	Dim json
