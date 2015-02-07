@@ -2,7 +2,12 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.17"
+Const VersionStr = "v5.18"
+
+'Changes from 5.17 to 5.18 by crap_inhuman in 02.2015
+'	Removed bug with Catalog/Release tag
+'	Removed bug with featuring artist
+
 
 'Changes from 5.16 to 5.17 by crap_inhuman in 01.2015
 '	Choosing "Master-Release" shows the Master-Release. Yes, really. ;)
@@ -2194,6 +2199,9 @@ Sub ReloadResults
 						WriteLog "ArtistName=" & artistName
 						role = currentArtist("role")
 						rTrack = currentArtist("tracks")
+						If Left(rTrack, 7) = "tracks:" Then
+							rTrack = Trim(Mid(rTrack, 8))
+						End If
 						WriteLog "Track(s)=" & rTrack
 						WriteLog "Role(s)=" & role
 						NoSplit = False
@@ -2550,6 +2558,7 @@ Sub ReloadResults
 						'TitleFeaturing
 						If currentArtist("join") <> "" Then
 							If LookForFeaturing(currentArtist("join")) Then
+							writelog "looktrue"
 								FoundFeaturing = True
 								tmpJoin = currentArtist("join")
 							Else
@@ -3266,19 +3275,24 @@ Sub ReloadResults
 						End If
 						'TitleFeaturing
 						If currentArtist("joinphrase") <> "" Then
-							If LookForFeaturing(currentArtist("joinphrase")) Then
+							If LookForFeaturing(Trim(currentArtist("joinphrase"))) Then
 								FoundFeaturing = True
-								tmpJoin = currentArtist("joinphrase")
+								tmpJoin = Trim(currentArtist("joinphrase"))
 							Else
-								artistList = artistList & " " & currentArtist("joinphrase") & " "
-								FoundFeaturing = False
+								If FoundFeaturing = True Then
+									tmpJoin = Trim(currentArtist("joinphrase"))
+								Else
+									artistList = artistList & " " & Trim(currentArtist("joinphrase")) & " "
+								End If
 							End If
+						Else
+							FoundFeaturing = False
 						End If
-
+						WriteLog "artistlist=" & artistlist
 					Next
 					If artistList = "" Then artistList = AlbumArtistTitle
 					If Right(artistList, 3) = " , " Then artistList = Left(artistList, Len(artistList)-3)
-					WriteLog "artistlist=" & artistlist
+					
 
 
 					Set tmp = currentTrack("recording")
@@ -3680,7 +3694,7 @@ Sub ReloadResults
 			If ReleaseTag = "Custom5" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom5 = CurrentReleaseId
 			If ReleaseTag = "Grouping" Then SDB.Tools.WebSearch.NewTracks.Item(i).Grouping = CurrentReleaseId
 			If ReleaseTag = "ISRC" Then SDB.Tools.WebSearch.NewTracks.Item(i).ISRC = CurrentReleaseId
-			If ReleaseTag = "Encoding" Then SDB.Tools.WebSearch.NewTracks.Item(i).Encodiung = CurrentReleaseId
+			If ReleaseTag = "Encoder" Then SDB.Tools.WebSearch.NewTracks.Item(i).Encoder = CurrentReleaseId
 			If ReleaseTag = "Copyright" Then SDB.Tools.WebSearch.NewTracks.Item(i).Copyright = CurrentReleaseId
 		End If
 
@@ -6103,7 +6117,7 @@ Function get_release_ID(FirstTrack)
 	If ReleaseTag = "Custom5" Then CurrentReleaseId = FirstTrack.Custom5
 	If ReleaseTag = "Grouping" Then CurrentReleaseId = FirstTrack.Grouping
 	If ReleaseTag = "ISRC" Then CurrentReleaseId = FirstTrack.ISRC
-	If ReleaseTag = "Encoding" Then CurrentReleaseId = FirstTrack.Encoding
+	If ReleaseTag = "Encoder" Then CurrentReleaseId = FirstTrack.Encoder
 	If ReleaseTag = "Copyright" Then CurrentReleaseId = FirstTrack.Copyright
 
 	get_release_ID = CurrentReleaseId

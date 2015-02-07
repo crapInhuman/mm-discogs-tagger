@@ -1,14 +1,17 @@
 '
 ' MediaMonkey Script
 '
-' NAME: Discogs Tagger Options 2.5
+' NAME: Discogs Tagger Options 2.51
 '
 ' AUTHOR: crap_inhuman
-' DATE : 18/01/2015
+' DATE : 05/02/2015
 '
 '
 ' INSTALL: Automatic installation during Discogs Tagger install
 '
+'Changes from 2.5 to 2.51
+'Removed bug with Catalog/Release tag
+
 'Changes from 2.4 to 2.5
 'Adding ISRC to CatalogTag
 
@@ -179,8 +182,8 @@ Sub InitSheet(Sheet)
 	DD1.AddItem (CustomField4)
 	DD1.AddItem (CustomField5)
 	DD1.AddItem ("Don't save")
-	DD1.AddItem (SDB.Localize("Grouping"))
 	DD1.AddItem (SDB.Localize("ISRC"))
+	DD1.AddItem (SDB.Localize("Grouping"))
 	DD1.AddItem (SDB.Localize("Encoder"))
 	DD1.AddItem (SDB.Localize("Copyright"))
 
@@ -203,13 +206,13 @@ Sub InitSheet(Sheet)
 	If ReleaseTag = "Don't save" Then
 		DD1.ItemIndex = 5
 	End If
-	If ReleaseTag = "Grouping" Then
+		If ReleaseTag = "ISRC" Then
 		DD1.ItemIndex = 6
 	End If
-	If ReleaseTag = "ISRC" Then
+	If ReleaseTag = "Grouping" Then
 		DD1.ItemIndex = 7
 	End If
-	If ReleaseTag = "Encoding" Then
+	If ReleaseTag = "Encoder" Then
 		DD1.ItemIndex = 8
 	End If
 	If ReleaseTag = "Copyright" Then
@@ -779,8 +782,8 @@ Function GetCustom(Index)
 	If Index = 4 Then GetCustom = "Custom5"
 	If Index = 5 Then GetCustom = "Don't save"
 	If Index = -1 Then GetCustom = "Default (stored with Genre)"
-	If Index = 6 Then GetCustom = "Grouping"
-	If Index = 7 Then GetCustom = "ISRC"
+	If Index = 6 Then GetCustom = "ISRC"
+	If Index = 7 Then GetCustom = "Grouping"
 	If Index = 8 Then GetCustom = "Encoder"
 	If Index = 9 Then GetCustom = "Copyright"
 
