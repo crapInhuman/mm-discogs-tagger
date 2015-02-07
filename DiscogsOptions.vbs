@@ -1,14 +1,17 @@
 '
 ' MediaMonkey Script
 '
-' NAME: Discogs Tagger Options 2.2
+' NAME: Discogs Tagger Options 2.3
 '
 ' AUTHOR: crap_inhuman
-' DATE : 15/10/2014
+' DATE : 18/10/2014
 '
 '
 ' INSTALL: Automatic installation during Discogs Tagger install
 '
+'Changes from 2.2 to 2.3
+'Wrong option-name fixed
+
 'Changes from 2.1 to 2.2
 'Added option to enter unwanted tags in involved people
 'Added option to save selected "More images" after closing the popup
@@ -117,8 +120,11 @@ Sub InitSheet(Sheet)
 		If ini.StringValue("DiscogsAutoTagWeb","AccessTokenSecret") = "" Then
 			ini.StringValue("DiscogsAutoTagWeb","AccessTokenSecret") = ""
 		End If
-		If ini.StringValue("DiscogsAutoTagWeb","ImmedSaveImage") = "" Then
-			ini.BoolValue("DiscogsAutoTagWeb","ImmedSaveImage") = False
+		If ini.StringValue("DiscogsAutoTagWeb","CheckImmedSaveImage") = "" Then
+			ini.BoolValue("DiscogsAutoTagWeb","CheckImmedSaveImage") = False
+		End If
+		If ini.ValueExists("DiscogsAutoTagWeb","ImmedSaveImage") Then
+			ini.DeleteKey "DiscogsAutoTagWeb","ImmedSaveImage"
 		End If
 		If ini.StringValue("DiscogsAutoTagWeb","CheckDontFillEmptyFields") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","CheckDontFillEmptyFields") = True
@@ -138,7 +144,7 @@ Sub InitSheet(Sheet)
 	CheckSmallCover = ini.BoolValue("DiscogsAutoTagWeb","CheckSmallCover")
 	AccessToken = ini.StringValue("DiscogsAutoTagWeb","AccessToken")
 	AccessTokenSecret = ini.StringValue("DiscogsAutoTagWeb","AccessTokenSecret")
-	ImmedSaveImage = ini.BoolValue("DiscogsAutoTagWeb","ImmedSaveImage")
+	CheckImmedSaveImage = ini.BoolValue("DiscogsAutoTagWeb","CheckImmedSaveImage")
 	CheckDontFillEmptyFields = ini.BoolValue("DiscogsAutoTagWeb","CheckDontFillEmptyFields")
 
 	CustomField1 = "Custom1 (" & ini.StringValue("CustomFields","Fld1Name") & ")"
@@ -411,8 +417,8 @@ Sub InitSheet(Sheet)
 	Checkbox14.Caption = "Save selected 'More images' after closing the popup"
 	Checkbox14.Common.Hint = "If option not set the script store the selected images after closing the script."
 	
-	Set SDB.Objects("ImmedSaveImage") = Checkbox14
-	If ImmedSaveImage = True Then
+	Set SDB.Objects("CheckImmedSaveImage") = Checkbox14
+	If CheckImmedSaveImage = True Then
 		Checkbox14.checked = True
 	Else
 		Checkbox14.checked = False
@@ -545,9 +551,9 @@ Sub SaveSheet(Sheet)
 	End If
 
 	If Sheet.Common.ChildControl("ControlSaveImage14").Checked = True Then
-		ini.BoolValue("DiscogsAutoTagWeb", "ImmedSaveImage") = true
+		ini.BoolValue("DiscogsAutoTagWeb", "CheckImmedSaveImage") = true
 	Else
-		ini.BoolValue("DiscogsAutoTagWeb", "ImmedSaveImage") = false
+		ini.BoolValue("DiscogsAutoTagWeb", "CheckImmedSaveImage") = false
 	End If
 
 	Set checkbox = Sheet.Common.ChildControl("CheckOriginalDiscogsTrack")
