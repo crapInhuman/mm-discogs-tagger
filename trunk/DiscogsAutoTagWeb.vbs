@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.12"
+Const VersionStr = "v5.13"
+
+'Changes from 5.12 to 5.13 by crap_inhuman in 11.2014
+'	More than one space between track positions doesn't stop the script anymore ;)
+'	Changed subtrack error detection
 
 'Changes from 5.11 to 5.12 by crap_inhuman in 10.2014
 '	Removed a bug with empty keyword fields in the options menu
@@ -2166,14 +2170,14 @@ Sub ReloadResults
 				End If
 
 				pos = 0
-				If InStr(LCase(position), "-") > 0 Then
+				If InStr(LCase(position), "-") > 0 And position <> "-" Then
 					pos = InStr(LCase(position), "-")
 				End If
 				' Here comes the new track/disc numbering methods
 
 				If position <> "" And rSubPosition.Item(t) = "" Then
 					If CheckTurnOffSubTrack = False Then
-						If (cSubTrack <> -1 And InStr(LCase(position), ".") = 0 And CharSeparatorSubTrack = 1) Or (cSubTrack <> -1 And IsNumeric(Right(position, 1)) And CharSeparatorSubTrack = 2) Then
+						If (cSubTrack <> -1 And InStr(LCase(position), ".") = 0 And CharSeparatorSubTrack = 1) Or (cSubTrack <> -1 And IsNumeric(Right(position, 1)) And CharSeparatorSubTrack = 2) Or position = "-" Then
 							WriteLog "End of Subtrack found"
 							If SubTrackNameSelection = False Then
 								Tracks.Item(cSubTrack) = Tracks.Item(cSubTrack) & " (" & subTrackTitle & ")"
@@ -2187,6 +2191,7 @@ Sub ReloadResults
 
 						If NoSubTrackUsing = False Then
 							WriteLog "Calling Subtrack Function"
+							CharSeparatorSubTrack = 0
 							'SubTrack Function ---------------------------------------------------------
 							If InStr(LCase(position), ".") > 0 Then
 								CharSeparatorSubTrack = 1
@@ -4080,6 +4085,13 @@ Sub Track_from_to (currentTrack, currentArtist, involvedRole, Title_Position, Tr
 	WriteLog "Start Track_from_to"
 	Dim tmp3, tmp4, tmpSide1, tmpSide2, tmpSideD, Vinyl_Pos1, Vinyl_Pos2, zahltemp3, ret
 	WriteLog "currentTrack=" & currentTrack
+	If InStr(currentTrack, "  ") <> 0 Then
+		WriteLog "Warning: More than one space between the track positions !!!"
+		Do
+			If InStr(currentTrack, "  ") = 0 Then Exit Do
+			currentTrack = Replace(currentTrack, "  ", " ")
+		Loop While True
+	End If
 	tmp3 = Split(currentTrack, " ")
 	tmpSide1 = ""
 	tmpSide2 = ""
