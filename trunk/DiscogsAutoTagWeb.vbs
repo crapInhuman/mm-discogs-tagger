@@ -2,7 +2,12 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.15"
+Const VersionStr = "v5.16"
+
+'Changes from 5.15 to 5.16 by crap_inhuman in 01.2015
+'	Removed bug with Extra-Artists
+'	Removed bug when searching with release-number
+
 
 'Changes from 5.14 to 5.15 by crap_inhuman in 01.2015
 '	MusicBrainz: Tags with no value will no longer crash the script
@@ -1473,13 +1478,16 @@ Sub FindResults(SearchTerm, QueryPage)
 	ElseIf IsNumeric(SearchTerm) Then
 		Results.Add SearchTerm & " - [search by release id]"
 		ResultsReleaseID.Add SearchTerm
+		QueryPage = "Discogs"
 	ElseIf Len(SearchTerm) = 36 And Mid(SearchTerm, 9, 1) = "-" And Mid(SearchTerm, 14, 1) = "-" Then
 		Results.Add SearchTerm & " - [search by release id]"
 		ResultsReleaseID.Add SearchTerm
+		QueryPage = "MusicBrainz"
 		'6c3d0635-4fac-4085-b85b-79b6a7b13c21
 	ElseIf (InStr(SearchTerm,"/release/") > 0) Then
 		Results.Add SearchTerm & " - [search by release url]"
 		ResultsReleaseID.Add Mid(SearchTerm,InStrRev(SearchTerm,"/")+1)
+		QueryPage = "Discogs"
 	Else
 
 		If SearchTerm = SavedSearchTerm And (SavedSearchArtist <> "" Or SavedSearchAlbum <> "") Then SearchTerm = ""
@@ -1870,7 +1878,7 @@ Sub ReloadResults
 		LeadingZeroTrackPosition = False
 		Dim involvedArtist, involvedTemp, involvedRole, subTrack
 		Dim TrackInvolvedPeople, TrackComposers, TrackConductors, TrackProducers, TrackLyricists, TrackFeaturing
-		Dim trackArtist, artistList, FoundFeaturing, tmpJoin, tmpTrackArtist, min, sec, length
+		Dim TrackArtist, artistList, FoundFeaturing, tmpJoin, min, sec, length
 
 		WriteLog "Start ReloadResults"
 		WriteLog "QueryPage=" & QueryPage
@@ -2407,21 +2415,21 @@ Sub ReloadResults
 						WriteLog " "
 						Set currentArtist = currentTrack("artists")(artist)
 						If (currentArtist("anv") <> "") And Not CheckUseAnv Then
-							tmpTrackArtist = CleanArtistName(currentArtist("anv"))
+							TrackArtist = CleanArtistName(currentArtist("anv"))
 						Else
-							tmpTrackArtist = CleanArtistName(currentArtist("name"))
+							TrackArtist = CleanArtistName(currentArtist("name"))
 						End If
 						If FoundFeaturing = False Then
-							artistList = artistList & tmpTrackArtist
+							artistList = artistList & TrackArtist
 						Else
 							If TrackFeaturing = "" Then
 								If CheckFeaturingName Then
-									TrackFeaturing = TxtFeaturingName & " " & tmpTrackArtist
+									TrackFeaturing = TxtFeaturingName & " " & TrackArtist
 								Else
-									TrackFeaturing = tmpJoin & " " & tmpTrackArtist
+									TrackFeaturing = tmpJoin & " " & TrackArtist
 								End If
 							Else
-								TrackFeaturing = TrackFeaturing & ", " & tmpTrackArtist
+								TrackFeaturing = TrackFeaturing & ", " & TrackArtist
 							End If
 							WriteLog "TrackFeaturing=" & TrackFeaturing
 						End If
@@ -3122,18 +3130,18 @@ Sub ReloadResults
 					For Each artist in CurrentTrack("artist-credit")
 						Set currentArtist = CurrentTrack("artist-credit")(artist)
 						WriteLog "currentArtist=" & currentArtist("name")
-						tmpTrackArtist = CleanArtistName(currentArtist("name"))
+						TrackArtist = CleanArtistName(currentArtist("name"))
 						If FoundFeaturing = False Then
-							artistList = artistList & tmpTrackArtist
+							artistList = artistList & TrackArtist
 						Else
 							If TrackFeaturing = "" Then
 								If CheckFeaturingName Then
-									TrackFeaturing = TxtFeaturingName & " " & tmpTrackArtist
+									TrackFeaturing = TxtFeaturingName & " " & TrackArtist
 								Else
-									TrackFeaturing = tmpJoin & " " & tmpTrackArtist
+									TrackFeaturing = tmpJoin & " " & TrackArtist
 								End If
 							Else
-								TrackFeaturing = TrackFeaturing & ", " & tmpTrackArtist
+								TrackFeaturing = TrackFeaturing & ", " & TrackArtist
 							End If
 							WriteLog "TrackFeaturing=" & TrackFeaturing
 						End If
@@ -4075,7 +4083,8 @@ End Function
 Sub Track_from_to (currentTrack, currentArtist, involvedRole, Title_Position, TrackRoles, TrackArtist2, TrackPos, LeadingZeroTrackPosition)
 
 	WriteLog "Start Track_from_to"
-	Dim tmp3, tmp4, tmpSide1, tmpSide2, tmpSideD, Vinyl_Pos1, Vinyl_Pos2, zahltemp3, ret
+	Dim tmp, tmp4, TrackSeparator, Vinyl_Pos1, Vinyl_Pos2, cnt, ret
+	Dim StartTrack, EndTrack, StartSide, EndSide
 	WriteLog "currentTrack=" & currentTrack
 	If InStr(currentTrack, "  ") <> 0 Then
 		WriteLog "Warning: More than one space between the track positions !!!"
@@ -4084,92 +4093,92 @@ Sub Track_from_to (currentTrack, currentArtist, involvedRole, Title_Position, Tr
 			currentTrack = Replace(currentTrack, "  ", " ")
 		Loop While True
 	End If
-	tmp3 = Split(currentTrack, " ")
-	tmpSide1 = ""
-	tmpSide2 = ""
-	tmpSideD = ""
+	tmp = Split(currentTrack, " ")
+	StartSide = ""
+	EndSide = ""
+	TrackSeparator = ""
 
-	tmp3(0) = exchange_roman_numbers(tmp3(0))
-	tmp3(2) = exchange_roman_numbers(tmp3(2))
+	StartTrack = exchange_roman_numbers(tmp(0))
+	EndTrack = exchange_roman_numbers(tmp(2))
 
-	If InStr(tmp3(0), "-") <> 0 Then
-		tmp4 = Split(tmp3(0), "-")
-		tmpSide1 = Trim(tmp4(0))
-		tmp3(0) = Trim(tmp4(1))
-		tmp3(0) = exchange_roman_numbers(tmp3(0))
-		tmpSideD = "-"
+	If InStr(StartTrack, "-") <> 0 Then
+		tmp4 = Split(StartTrack, "-")
+		StartSide = Trim(tmp4(0))
+		StartTrack = Trim(tmp4(1))
+		StartTrack = exchange_roman_numbers(StartTrack)
+		TrackSeparator = "-"
 	End If
-	If InStr(tmp3(2), "-") <> 0 Then
-		tmp4 = Split(tmp3(2), "-")
-		tmpSide2 = Trim(tmp4(0))
-		tmp3(2) = Trim(tmp4(1))
-		tmp3(2) = exchange_roman_numbers(tmp3(2))
-		tmpSideD = "-"
+	If InStr(EndTrack, "-") <> 0 Then
+		tmp4 = Split(EndTrack, "-")
+		EndSide = Trim(tmp4(0))
+		EndTrack = Trim(tmp4(1))
+		EndTrack = exchange_roman_numbers(EndTrack)
+		TrackSeparator = "-"
 	End If
-	If InStr(tmp3(0), ".") <> 0 Then
-		tmp4 = Split(tmp3(0), ".")
-		tmpSide1 = Trim(tmp4(0))
-		tmp3(0) = Trim(tmp4(1))
-		tmp3(0) = exchange_roman_numbers(tmp3(0))
-		tmpSideD = "."
+	If InStr(StartTrack, ".") <> 0 Then
+		tmp4 = Split(StartTrack, ".")
+		StartSide = Trim(tmp4(0))
+		StartTrack = Trim(tmp4(1))
+		StartTrack = exchange_roman_numbers(StartTrack)
+		TrackSeparator = "."
 	End If
-	If InStr(tmp3(2), ".") <> 0 Then
-		tmp4 = Split(tmp3(2), ".")
-		tmpSide2 = Trim(tmp4(0))
-		tmp3(2) = Trim(tmp4(1))
-		tmp3(2) = exchange_roman_numbers(tmp3(2))
-		tmpSideD = "."
+	If InStr(EndTrack, ".") <> 0 Then
+		tmp4 = Split(EndTrack, ".")
+		EndSide = Trim(tmp4(0))
+		EndTrack = Trim(tmp4(1))
+		EndTrack = exchange_roman_numbers(EndTrack)
+		TrackSeparator = "."
 	End If
-	If Left(tmp3(0), 2) = "CD" Then
-		tmpSide1 = "CD"
-		tmp3(0) = Mid(tmp3(0), 3)
+	If Left(StartTrack, 2) = "CD" Then
+		StartSide = "CD"
+		StartTrack = Mid(StartTrack, 3)
 	End If
-	If Left(tmp3(2), 2) = "CD" Then
-		tmpSide2 = "CD"
-		tmp3(2) = Mid(tmp3(2), 3)
+	If Left(EndTrack, 2) = "CD" Then
+		EndSide = "CD"
+		EndTrack = Mid(EndTrack, 3)
 	End If
-	If Left(tmp3(0), 3) = "DVD" Then
-		tmpSide1 = "DVD"
-		tmp3(0) = Mid(tmp3(0), 4)
+	If Left(StartTrack, 3) = "DVD" Then
+		StartSide = "DVD"
+		StartTrack = Mid(StartTrack, 4)
 	End If
-	If Left(tmp3(2), 3) = "DVD" Then
-		tmpSide2 = "DVD"
-		tmp3(2) = Mid(tmp3(2), 4)
+	If Left(EndTrack, 3) = "DVD" Then
+		EndSide = "DVD"
+		EndTrack = Mid(EndTrack, 4)
 	End If
-	If IsNumeric(Right(tmp3(0),1)) = False And Len(tmp3(0)) > 1 Then
-		tmp3(0) = Left(tmp3(0), Len(tmp3(0))-1)
+	If IsNumeric(Right(StartTrack,1)) = False And Len(StartTrack) > 1 Then
+		StartTrack = Left(StartTrack, Len(StartTrack)-1)
 	End If
-	If IsNumeric(Right(tmp3(2),1)) = False And Len(tmp3(2)) > 1 Then
-		tmp3(2) = Left(tmp3(2), Len(tmp3(2))-1)
+	If IsNumeric(Right(EndTrack,1)) = False And Len(EndTrack) > 1 Then
+		EndTrack = Left(EndTrack, Len(EndTrack)-1)
 	End If
-	If IsNumeric(tmp3(0)) = False Then
-		If Len(tmp3(0)) > 1 Then
-			tmpSide1 = Left(tmp3(0), 1)
-			tmp3(0) = Mid(tmp3(0), 2)
+	If IsNumeric(StartTrack) = False Then
+		If Len(StartTrack) > 1 Then
+			StartSide = Left(StartTrack, 1)
+			StartTrack = Mid(StartTrack, 2)
 		Else
-			tmpSide1 = tmp3(0)
-			tmp3(0) = 1
+			StartSide = StartTrack
+			StartTrack = 1
 		End If
 	End If
-	If IsNumeric(tmp3(2)) = False Then
-		If Len(tmp3(2)) > 1 Then
-			tmpSide2 = Left(tmp3(2), 1)
-			tmp3(2) = Mid(tmp3(2), 2)
+	If IsNumeric(EndTrack) = False Then
+		If Len(EndTrack) > 1 Then
+			EndSide = Left(EndTrack, 1)
+			EndTrack = Mid(EndTrack, 2)
 		Else
-			tmpSide2 = tmp3(2)
-			tmp3(2) = 1
+			EndSide = EndTrack
+			EndTrack = 1
 		End If
 	End If
 
-	If tmpSide1 <> tmpSide2 Then
-		Vinyl_Pos1 = tmpSide1
-		Vinyl_Pos2 = tmp3(0)
+	If StartSide <> EndSide Then
+		Vinyl_Pos1 = StartSide
+		Vinyl_Pos2 = StartTrack
 		Do
 			If LeadingZeroTrackPosition = True And Vinyl_Pos2 < 10 Then
 				Vinyl_Pos2 = "0" & Vinyl_Pos2
 			End If
-			tmp4 = Vinyl_Pos1 & tmpSideD & Vinyl_Pos2
-			ret = search_involved(Title_Position, tmp4)
+			tmp4 = Vinyl_Pos1 & TrackSeparator & Vinyl_Pos2
+			ret = search_involved_track(Title_Position, tmp4)
 			If ret = -1 Then
 				If IsNumeric(Vinyl_Pos1) = True Then
 					If Vinyl_Pos1 > 101 Then Exit Do
@@ -4185,24 +4194,24 @@ Sub Track_from_to (currentTrack, currentArtist, involvedRole, Title_Position, Tr
 				ReDim Preserve TrackPos(UBound(TrackPos)+1)
 				TrackArtist2(UBound(TrackArtist2)) = currentArtist
 				TrackRoles(UBound(TrackRoles)) = involvedRole
-				TrackPos(UBound(TrackPos)) = Vinyl_Pos1 & tmpSideD & Vinyl_Pos2
-				WriteLog "  currentTrack=" & Vinyl_Pos1 & tmpSideD & Vinyl_Pos2
-				If cStr(Vinyl_Pos1) = cStr(tmpSide2) And cStr(Vinyl_Pos2) = cStr(tmp3(2)) Then Exit Do
+				TrackPos(UBound(TrackPos)) = Vinyl_Pos1 & TrackSeparator & Vinyl_Pos2
+				WriteLog "  currentTrack=" & Vinyl_Pos1 & TrackSeparator & Vinyl_Pos2
+				If cStr(Vinyl_Pos1) = cStr(EndSide) And cStr(Vinyl_Pos2) = cStr(EndTrack) Then Exit Do
 				Vinyl_Pos2 = Vinyl_Pos2 + 1
 			End If
 		Loop While True
 	Else
-		For zahltemp3 = tmp3(0) To tmp3(2)
-			If LeadingZeroTrackPosition = True And zahltemp3 < 10 Then
-				zahltemp3 = "0" & zahltemp3
+		For cnt = StartTrack To EndTrack
+			If LeadingZeroTrackPosition = True And cnt < 10 Then
+				cnt = "0" & cnt
 			End If
 			ReDim Preserve TrackRoles(UBound(TrackRoles)+1)
 			ReDim Preserve TrackArtist2(UBound(TrackArtist2)+1)
 			ReDim Preserve TrackPos(UBound(TrackPos)+1)
 			TrackArtist2(UBound(TrackArtist2)) = currentArtist
 			TrackRoles(UBound(TrackRoles)) = involvedRole
-			TrackPos(UBound(TrackPos)) = tmpSide1 & tmpSideD & zahltemp3
-			WriteLog "  currentTrack=" & tmpSide1 & tmpSideD & zahltemp3
+			TrackPos(UBound(TrackPos)) = StartSide & TrackSeparator & cnt
+			WriteLog "  currentTrack=" & StartSide & TrackSeparator & cnt
 		Next
 	End If
 	WriteLog "Stop Track_from_to"
@@ -4665,7 +4674,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Dim templateHTML, checkBox, text, listBox, submitButton, tmp
 	Dim SelectedTracksCount, UnSelectedTracksCount
 	Dim SubTrackFlag
-	Dim i, theTracks, currentCD, theGenres
+	Dim i, theGenres
 	templateHTML = ""
 	templateHTML = templateHTML &  GetHeader()
 
@@ -4884,9 +4893,6 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = templateHTML & "<td align=left><b>Title</b></td>"
 	templateHTML = templateHTML & "<td align=right><b>Duration</b></td>"
 	templateHTML = templateHTML & "</tr>"
-
-	theTracks = ""
-	currentCD = 0
 
 	For i=0 To iMaxTracks - 1
 		templateHTML = templateHTML &  "<tr>"
@@ -5319,6 +5325,7 @@ Sub Filter()
 		QueryPage = Mid(listBox.Value, 11)
 		Set listBox = templateHTMLDoc.getElementById("load")
 		listBox.Item(0).Selected = True
+		ini.StringValue("DiscogsAutoTagWeb","QueryPage") = QueryPage
 	End If
 
 	Set listBox = templateHTMLDoc.getElementById("load")
@@ -5531,6 +5538,8 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 				WriteLog "No Release found at MusicBrainz"
 			Else
 
+				isRelease = False
+				If Results.Count = 1 Then isRelease = True
 				For Each r In response(ArrayName) 'releases
 					format = ""
 					title = ""
@@ -5686,6 +5695,19 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 					Loop While False
 
 					SongCount = SongCount + 1
+				Next
+				ListCount = 1
+				For r = 1 to Results.Count
+					If r= 1 and isRelease = True Then
+						Results.Item(0) = "(" & SongCountMax & ") " & Results.Item(0)
+					Else
+						If SongCount <> SongCountMax Then
+							Results.Item(r-1) = "(" & ListCount & "/" & SongCount & "/" & SongCountMax & ") " & Results.Item(r-1)
+						Else
+							Results.Item(r-1) = "(" & ListCount & "/" & SongCountMax & ") " & Results.Item(r-1)
+						End IF
+						ListCount = ListCount + 1
+					End If
 				Next
 			End If
 		End If
@@ -7401,6 +7423,7 @@ End Function
 
 Function search_involved(Text, SearchText)
 
+	WriteLog "Start Search_involved"
 	Dim tmp, x, RE, searchPattern
 	Dim i
 	tmp = Split(UnwantedKeywords, ",")
@@ -7423,6 +7446,7 @@ Function search_involved(Text, SearchText)
 	Next
 
 	For i = 1 To UBound(Text)
+		WriteLog "Text=" & Text(i)
 		If Left(Text(i), InStr(Text(i), ":")-1) = SearchText Then
 			search_involved = i
 			Exit Function
@@ -7432,6 +7456,19 @@ Function search_involved(Text, SearchText)
 
 End Function
 
+
+Function search_involved_track(Text, SearchText)
+
+	Dim i
+	For i = 1 To UBound(Text)
+		If Left(Text(i), Len(SearchText)) = SearchText Then
+			search_involved_track = i
+			Exit Function
+		End If
+	Next
+	search_involved_track = -1
+
+End Function
 
 
 Function URLEncodeUTF8(ByRef input)
