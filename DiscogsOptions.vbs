@@ -1,14 +1,17 @@
 '
 ' MediaMonkey Script
 '
-' NAME: Discogs Tagger Options 2.3
+' NAME: Discogs Tagger Options 2.4
 '
 ' AUTHOR: crap_inhuman
-' DATE : 18/10/2014
+' DATE : 31/10/2014
 '
 '
 ' INSTALL: Automatic installation during Discogs Tagger install
 '
+'Changes from 2.3 to 2.4
+'Removed a bug with empty keyword fields
+
 'Changes from 2.2 to 2.3
 'Wrong option-name fixed
 
@@ -686,52 +689,76 @@ Sub SaveSheet2(Sheet)
 	Dim tmp, x, editText
 
 	Set edt = Sheet.Common.ChildControl("LyricistKeywords")
-	tmp = Split(edt.Text, ",")
-	editText = ""
-	For each x in tmp
-		editText = editText & Trim(x) & ","
-	Next
-	ini.StringValue("DiscogsAutoTagWeb", "LyricistKeywords") = Left(editText, Len(editText)-1)
+	If edt.Text <> "" Then
+		tmp = Split(edt.Text, ",")
+		editText = ""
+		For each x in tmp
+			editText = editText & Trim(x) & ","
+		Next
+		ini.StringValue("DiscogsAutoTagWeb", "LyricistKeywords") = Left(editText, Len(editText)-1)
+	Else
+		ini.StringValue("DiscogsAutoTagWeb", "LyricistKeywords") = ""
+	End If
 
 	Set edt = Sheet.Common.ChildControl("ConductorKeywords")
-	tmp = Split(edt.Text, ",")
-	editText = ""
-	For each x in tmp
-		editText = editText & Trim(x) & ","
-	Next
-	ini.StringValue("DiscogsAutoTagWeb", "ConductorKeywords") = Left(editText, Len(editText)-1)
+	If edt.Text <> "" Then
+		tmp = Split(edt.Text, ",")
+		editText = ""
+		For each x in tmp
+			editText = editText & Trim(x) & ","
+		Next
+		ini.StringValue("DiscogsAutoTagWeb", "ConductorKeywords") = Left(editText, Len(editText)-1)
+	Else
+		ini.StringValue("DiscogsAutoTagWeb", "ConductorKeywords") = ""
+	End If
 
 	Set edt = Sheet.Common.ChildControl("ProducerKeywords")
-	tmp = Split(edt.Text, ",")
-	editText = ""
-	For each x in tmp
-		editText = editText & Trim(x) & ","
-	Next
-	ini.StringValue("DiscogsAutoTagWeb", "ProducerKeywords") = Left(editText, Len(editText)-1)
+	If edt.Text <> "" Then
+		tmp = Split(edt.Text, ",")
+		editText = ""
+		For each x in tmp
+			editText = editText & Trim(x) & ","
+		Next
+		ini.StringValue("DiscogsAutoTagWeb", "ProducerKeywords") = Left(editText, Len(editText)-1)
+	Else
+		ini.StringValue("DiscogsAutoTagWeb", "ProducerKeywords") = ""
+	End If
 
 	Set edt = Sheet.Common.ChildControl("ComposerKeywords")
-	tmp = Split(edt.Text, ",")
-	editText = ""
-	For each x in tmp
-		editText = editText & Trim(x) & ","
-	Next
-	ini.StringValue("DiscogsAutoTagWeb", "ComposerKeywords") = Left(editText, Len(editText)-1)
+	If edt.Text <> "" Then
+		tmp = Split(edt.Text, ",")
+		editText = ""
+		For each x in tmp
+			editText = editText & Trim(x) & ","
+		Next
+		ini.StringValue("DiscogsAutoTagWeb", "ComposerKeywords") = Left(editText, Len(editText)-1)
+	Else
+		ini.StringValue("DiscogsAutoTagWeb", "ComposerKeywords") = ""
+	End If
 
 	Set edt = Sheet.Common.ChildControl("FeaturingKeywords")
-	tmp = Split(edt.Text, ",")
-	editText = ""
-	For each x in tmp
-		editText = editText & Trim(x) & ","
-	Next
-	ini.StringValue("DiscogsAutoTagWeb", "FeaturingKeywords") = Left(editText, Len(editText)-1)
+	If edt.Text <> "" Then
+		tmp = Split(edt.Text, ",")
+		editText = ""
+		For each x in tmp
+			editText = editText & Trim(x) & ","
+		Next
+		ini.StringValue("DiscogsAutoTagWeb", "FeaturingKeywords") = Left(editText, Len(editText)-1)
+	Else
+		ini.StringValue("DiscogsAutoTagWeb", "FeaturingKeywords") = ""
+	End If
 
 	Set edt = Sheet.Common.ChildControl("UnwantedKeywords")
-	tmp = Split(edt.Text, ",")
-	editText = ""
-	For each x in tmp
-		editText = editText & Trim(x) & ","
-	Next
-	ini.StringValue("DiscogsAutoTagWeb", "UnwantedKeywords") = Left(editText, Len(editText)-1)
+	If edt.Text <> "" Then
+		tmp = Split(edt.Text, ",")
+		editText = ""
+		For each x in tmp
+			editText = editText & Trim(x) & ","
+		Next
+		ini.StringValue("DiscogsAutoTagWeb", "UnwantedKeywords") = Left(editText, Len(editText)-1)
+	Else
+		ini.StringValue("DiscogsAutoTagWeb", "UnwantedKeywords") = ""
+	End If
 
 End Sub
 
