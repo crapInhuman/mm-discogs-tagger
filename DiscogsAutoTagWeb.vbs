@@ -2,7 +2,14 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.14"
+Const VersionStr = "v5.15"
+
+'Changes from 5.14 to 5.15 by crap_inhuman in 01.2015
+'	MusicBrainz: Tags with no value will no longer crash the script
+'	MusicBrainz: The manual search now works
+'	MusicBrainz: Some options which are not necessary are now hidden
+'	Some small bugfixes
+
 
 'Changes from 5.13 to 5.14 by crap_inhuman in 11.2014
 '	The Tagger now detect OAuth authentication error
@@ -1466,6 +1473,10 @@ Sub FindResults(SearchTerm, QueryPage)
 	ElseIf IsNumeric(SearchTerm) Then
 		Results.Add SearchTerm & " - [search by release id]"
 		ResultsReleaseID.Add SearchTerm
+	ElseIf Len(SearchTerm) = 36 And Mid(SearchTerm, 9, 1) = "-" And Mid(SearchTerm, 14, 1) = "-" Then
+		Results.Add SearchTerm & " - [search by release id]"
+		ResultsReleaseID.Add SearchTerm
+		'6c3d0635-4fac-4085-b85b-79b6a7b13c21
 	ElseIf (InStr(SearchTerm,"/release/") > 0) Then
 		Results.Add SearchTerm & " - [search by release url]"
 		ResultsReleaseID.Add Mid(SearchTerm,InStrRev(SearchTerm,"/")+1)
@@ -1580,14 +1591,14 @@ Sub FindResults(SearchTerm, QueryPage)
 			WriteLog "searchTerm=" & searchTerm
 			WriteLog "newsearchTerm=" & NewSearchTerm
 			WriteLog "SavedSearchTerm=" & SavedSearchTerm
-			If SearchTerm <> "" Then
-				searchURL = "http://musicbrainz.org/ws/2/release?query=" & Chr(34) & CleanSearchString(SearchTerm) & Chr(34) & "&limit=50&offset=0&fmt=json"
+			If SearchTerm <> "" And SearchTerm <> SavedSearchArtist Then
+				searchURL = "http://musicbrainz.org/ws/2/release?query=" & CleanSearchString(SearchTerm) & "&limit=50&offset=0&fmt=json"
+			ElseIf (SavedSearchArtist <> "" And SavedSearchAlbum = "") Or (SearchTerm <> "" And SearchTerm = SavedSearchArtist) Then
+				searchURL = "http://musicbrainz.org/ws/2/release?query=artist:" & Chr(34) & CleanSearchString(SavedSearchArtist) & Chr(34) & "&limit=50&offset=0&fmt=json"
 			ElseIf SavedSearchArtist <> "" And SavedSearchAlbum <> "" Then
 				searchURL = "http://musicbrainz.org/ws/2/release?query=artist:" & Chr(34) & CleanSearchString(SavedSearchArtist) & Chr(34) & " AND release:" & Chr(34) & CleanSearchString(SavedSearchAlbum) & Chr(34) & "&limit=50&offset=0&fmt=json"
 			ElseIf SavedSearchArtist = "" And SavedSearchAlbum <> "" Then
-				searchURL = "http://musicbrainz.org/ws/2/release?query=release:" & Chr(34) & CleanSearchString(SavedSearchAlbum) & Chr(34) & "&limit=50&offset=0&fmt=json"
-			ElseIf SavedSearchArtist <> "" And SavedSearchAlbum = "" Then
-				searchURL = "http://musicbrainz.org/ws/2/release?query=artist:" & Chr(34) & CleanSearchString(SavedSearchArtist) & Chr(34) & "&limit=50&offset=0&fmt=json"
+				searchURL = "http://musicbrainz.org/ws/2/release?query=release:" & Chr(34) & CleanSearchString(SavedSearchAlbum) & Chr(34) & "&limit=50&offset=0&fmt=json"			
 			End If
 
 			WriteLog "searchURL=" & searchURL
@@ -1791,7 +1802,7 @@ Sub ReloadResults
 	Dim Tracks, TracksNum, DiscogsTracksNum, TracksCD, ArtistTitles, InvolvedArtists, Lyricists, Composers, Conductors, Producers, Durations
 	Dim AlbumArtist, AlbumArtistTitle, AlbumLyricist, AlbumComposer, AlbumConductor, AlbumProducer, AlbumInvolved, AlbumFeaturing, AlbumTitle
 	Dim track, currentTrack, position, artist, currentArtist, artistName, extraArtist, extra
-	Dim currentImage, currentLabel, currentFormat, theMaster, i, g, l, s, f, d, currentMedia, m
+	Dim currentImage, currentLabel, currentFormat, theMaster, i, g, l, s, f, d, currentMedia, m, t
 	Dim ReleaseDate, ReleaseSplit, theLabels, theCatalogs, theCountry, theFormat
 	Dim rTrackPosition, rSubPosition
 	Dim cSubTrackNew
@@ -1842,8 +1853,8 @@ Sub ReloadResults
 		LastDisc = ""
 
 		Dim iTrackNum, iSubTrack, cSubTrack, subTrackTitle, aSubtrack
-		Dim trackName, t, pos
-		Dim role, role2, rolea, currentRole, NoSplit, zahl, zahltemp, zahl2, zahltemp2
+		Dim trackName, pos
+		Dim role, role2, rolea, currentRole, NoSplit, zahl, zahltemp, zahl2, zahltemp2, type1
 		Dim CharSeparatorSubTrack
 		ReDim Involved_R(0)
 		Dim tmp, tmp2, tmp3, tmp4, tmp5, tmp6
@@ -1964,7 +1975,7 @@ Sub ReloadResults
 						role = currentArtist("role")
 						NoSplit = False
 						If InStr(role, ",") = 0 Then
-							currentRole = role
+							currentRole = Trim(role)
 							zahl = 1
 							NoSplit = True
 						Else
@@ -2445,7 +2456,7 @@ Sub ReloadResults
 							role = currentArtist("role")
 							NoSplit = False
 							If InStr(role, ",") = 0 Then
-								involvedRole = role
+								involvedRole = Trim(role)
 								zahl = 1
 								NoSplit = True
 							Else
@@ -2455,7 +2466,7 @@ Sub ReloadResults
 							End If
 							For zahltemp = 1 To zahl
 								If NoSplit = False Then
-									involvedRole = rolea(zahltemp)
+									involvedRole = Trim(rolea(zahltemp))
 								End If
 
 								If LookForFeaturing(involvedRole) Then
@@ -2733,6 +2744,8 @@ Sub ReloadResults
 				theLabels = ""
 				theCatalogs = ""
 			End If
+			WriteLog "theLabels=" & theLabels
+			WriteLog "theCatalogs=" & theCatalogs
 
 			' Get Country
 			If CurrentRelease.Exists("country") Then
@@ -2740,6 +2753,7 @@ Sub ReloadResults
 			Else
 				theCountry = ""
 			End If
+			WriteLog "country=" & theCountry
 
 			' Get Format
 			If CurrentRelease.Exists("formats") Then
@@ -2755,6 +2769,7 @@ Sub ReloadResults
 			Else
 				theFormat = ""
 			End If
+			WriteLog "theformat=" & theFormat
 
 			' Get Comment
 			If CurrentRelease.Exists("notes") Then
@@ -2762,6 +2777,7 @@ Sub ReloadResults
 			Else
 				Comment = ""
 			End If
+			WriteLog "Comment=" & Comment
 
 			' Get data_quality
 			If CurrentRelease.Exists("data_quality") Then
@@ -2769,6 +2785,7 @@ Sub ReloadResults
 			Else
 				DataQuality = ""
 			End If
+			WriteLog "DataQuality=" & DataQuality
 		End If
 
 '-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
@@ -2847,84 +2864,68 @@ Sub ReloadResults
 						Set currentArtist = CurrentRelease("relations")(extraArtist)
 						artistName = CleanArtistName(currentArtist("artist")("name"))
 						WriteLog "ArtistName=" & artistName
-						role = currentArtist("type")
-						role2 = ""
-						tmp3 = 0
-						If currentArtist("attributes").Count > 0 Then
-							Set tmp5 = SDB.NewStringList
-							For Each tmp In currentArtist("attributes")
-								tmp5.add currentArtist("attributes")(tmp)
-							Next
-							tmp3 = currentArtist("attributes").Count -1
-						End If
-						For tmp4 = 0 to tmp3
-							If currentArtist("attributes").Count > 0 Then
-								role2 = tmp5.item(tmp4)
+						REM If currentArtist("attributes").Count > 0 Then
+							ret = RelationshipTypes(currentArtist)
+							If ret(0) > 0 Then
+								For i = 1 to ret(0)
+									currentRole = ret(i)
+									Do
+										tmp = searchKeyword(LyricistKeywords, currentRole, AlbumLyricist, artistName)
+										If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
+											AlbumLyricist = tmp
+											WriteLog "AlbumLyricist=" & AlbumLyricist
+											Exit Do
+										ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
+											WriteLog "ALREADY_INSIDE_ROLE"
+											Exit Do
+										End If
+										tmp = searchKeyword(ConductorKeywords, currentRole, AlbumConductor, artistName)
+										If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
+											AlbumConductor = tmp
+											WriteLog "AlbumConductor=" & AlbumConductor
+											Exit Do
+										ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
+											WriteLog "ALREADY_INSIDE_ROLE"
+											Exit Do
+										End If
+										tmp = searchKeyword(ProducerKeywords, currentRole, AlbumProducer, artistName)
+										If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
+											AlbumProducer = tmp
+											WriteLog "AlbumProducer=" & AlbumProducer
+											Exit Do
+										ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
+											WriteLog "ALREADY_INSIDE_ROLE"
+											Exit Do
+										End If
+										tmp = searchKeyword(ComposerKeywords, currentRole, AlbumComposer, artistName)
+										If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
+											AlbumComposer = tmp
+											WriteLog "AlbumComposer=" & AlbumComposer
+											Exit Do
+										ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
+											WriteLog "ALREADY_INSIDE_ROLE"
+											Exit Do
+										End If
+										tmp2 = search_involved(Involved_R, currentRole)
+										If tmp2 = -2 Then
+											WriteLog "Ignore Role: '" & currentRole & "' (Unwanted tag)"
+										ElseIf tmp2 = -1 Then
+											ReDim Preserve Involved_R(UBound(Involved_R)+1)
+											Involved_R(UBound(Involved_R)) = currentRole & ": " & artistName
+											WriteLog "New Role: " & currentRole & ": " & artistName
+										Else
+											If InStr(Involved_R(tmp2), artistName) = 0 Then
+												Involved_R(tmp2) = Involved_R(tmp2) & ", " & artistName
+												WriteLog "Role updated: " & Involved_R(tmp2)
+											Else
+												WriteLog "artist already inside role"
+											End If
+										End If
+										Exit Do
+									Loop While True
+								Next
 							End If
-
-							If role = "instrument" Then
-								currentRole = UCase(Left(role2, 1)) & Mid(role2, 2)
-							ElseIf role2 <> "" Then
-								currentRole = UCase(Left(role, 1)) & Mid(role, 2) & " [" & UCase(Left(role2, 1)) & Mid(role2, 2) & "]"
-							Else
-								currentRole = UCase(Left(role, 1)) & Mid(role, 2)
-							End If
-							WriteLog "currentRole=" & currentRole
-							Do
-								tmp = searchKeyword(LyricistKeywords, currentRole, AlbumLyricist, artistName)
-								If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
-									AlbumLyricist = tmp
-									WriteLog "AlbumLyricist=" & AlbumLyricist
-									Exit Do
-								ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
-									WriteLog "ALREADY_INSIDE_ROLE"
-									Exit Do
-								End If
-								tmp = searchKeyword(ConductorKeywords, currentRole, AlbumConductor, artistName)
-								If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
-									AlbumConductor = tmp
-									WriteLog "AlbumConductor=" & AlbumConductor
-									Exit Do
-								ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
-									WriteLog "ALREADY_INSIDE_ROLE"
-									Exit Do
-								End If
-								tmp = searchKeyword(ProducerKeywords, currentRole, AlbumProducer, artistName)
-								If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
-									AlbumProducer = tmp
-									WriteLog "AlbumProducer=" & AlbumProducer
-									Exit Do
-								ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
-									WriteLog "ALREADY_INSIDE_ROLE"
-									Exit Do
-								End If
-								tmp = searchKeyword(ComposerKeywords, currentRole, AlbumComposer, artistName)
-								If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
-									AlbumComposer = tmp
-									WriteLog "AlbumComposer=" & AlbumComposer
-									Exit Do
-								ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
-									WriteLog "ALREADY_INSIDE_ROLE"
-									Exit Do
-								End If
-								tmp2 = search_involved(Involved_R, currentRole)
-								If tmp2 = -2 Then
-									WriteLog "Ignore Role: '" & currentRole & "' (Unwanted tag)"
-								ElseIf tmp2 = -1 Then
-									ReDim Preserve Involved_R(UBound(Involved_R)+1)
-									Involved_R(UBound(Involved_R)) = currentRole & ": " & artistName
-									WriteLog "New Role: " & currentRole & ": " & artistName
-								Else
-									If InStr(Involved_R(tmp2), artistName) = 0 Then
-										Involved_R(tmp2) = Involved_R(tmp2) & ", " & artistName
-										WriteLog "Role updated: " & Involved_R(tmp2)
-									Else
-										WriteLog "artist already inside role"
-									End If
-								End If
-								Exit Do
-							Loop While True
-						Next
+						REM End If
 						'If IsObject(tmp5) Then Set tmp5 = nothing
 					Next
 				End If
@@ -2938,9 +2939,11 @@ Sub ReloadResults
 
 			For Each m In CurrentRelease("media")
 				Set currentMedia = CurrentRelease("media")(m)
+				If CheckNoDisc = False Then
+					iAutoTrackNumber = 1
+				End If
 				For Each t In CurrentMedia("tracks")
 					Set currentTrack = currentMedia("tracks")(t)
-
 					position = currentTrack("number")
 					trackName = PackSpaces(DecodeHtmlChars(currentTrack("title")))
 					length = currentTrack("length")
@@ -2950,16 +2953,21 @@ Sub ReloadResults
 						If tmp <> 0 Then
 							sec = Round(tmp * 60, 0)
 						End If
-						If sec < 6 Then
-							length = CStr(min & ":" & sec & "0")
+						If sec < 10 Then
+							length = CStr(min & ":" & "0" & sec)
 						Else
 							length = CStr(min & ":" & sec)
 						End If
+						Durations.Add length
+					Else
+						Durations.Add ""
 					End If
-					Durations.Add length
+					
 					WriteLog " "
 					WriteLog " "
 					WriteLog "Position=" & position
+					WriteLog "TrackName=" & trackname
+					WriteLog "Duration=" & length
 
 					' Here comes the new track/disc numbering methods
 					If position <> "" Then
@@ -2967,24 +2975,32 @@ Sub ReloadResults
 							If CheckNoDisc = True Then 
 								TracksCD.Add ""
 							Else
-								TracksCD.Add CurrentMedia("tracks")("position")
+								TracksCD.Add CurrentMedia("position")
 							End If
 						Else
 							If CheckForceDisc = True Then
-								TracksCD.Add 1
+								TracksCD.Add "1"
 							Else
 								TracksCD.Add ""
 							End If
 						End If
-
-						trackNumbering pos, position, TracksNum, TracksCD, iTrackNum
+						If UnselectedTracks(iTrackNum) <> "x" Then
+							If CheckLeadingZero = True And iAutoTrackNumber < 10 Then
+								tracksNum.Add "0" & iAutoTrackNumber
+							Else
+								tracksNum.Add iAutoTrackNumber
+							End If
+							iAutoTrackNumber = iAutoTrackNumber + 1
+						Else
+							tracksNum.Add ""
+						End If
 
 					ElseIf currentTrack("length") = "" And currentTrack("title") = "-" Then
 						tracksNum.Add ""
 						tracksCD.Add ""
 						UnselectedTracks(iTrackNum) = "x"
 					Else ' Nothing specified
-						If CheckForceNumeric and UnselectedTracks(iTrackNum) <> "x" Then
+						If CheckForceNumeric And UnselectedTracks(iTrackNum) <> "x" Then
 							If CheckLeadingZero = True And iAutoTrackNumber < 10 Then
 								tracksNum.Add "0" & iAutoTrackNumber
 							Else
@@ -3095,7 +3111,7 @@ Sub ReloadResults
 							End If
 						End If
 					Next
-		
+
 					artistList = ""
 					tmpJoin = ""
 		
@@ -3151,42 +3167,15 @@ Sub ReloadResults
 										If tmp3("relations")(tmp4).Exists("artist") Then
 											involvedArtist = CleanArtistName(tmp3("relations")(tmp4)("artist")("name"))
 										End If
-										role = tmp3("relations")(tmp4)("type")
-										role2 = ""
+										REM type1 = tmp3("relations")(tmp4)("type")
+										involvedRole = ""
 										Set tmp5 = tmp3("relations")(tmp4)
 										If tmp5.Exists("attributes") Then
-											If tmp5("attributes").Count > 0 Then
-												If tmp5("attributes").Count > 1 Then
-													'SDB.MessageBox "Found more than one attribute in track role !!", mtInformation, Array(mbOk)
-													WriteLog "Found more than one attribute in track role 1!!"
-												End If
-												For Each tmp6 In tmp5("attributes")
-													role2 = tmp5("attributes")(tmp6)
-													WriteLog role2
-													involvedRole = ""
-													If role <> "other version" Then
-														If role = "instrument" Then
-															involvedRole = UCase(Left(role2, 1)) & Mid(role2, 2)
-														ElseIf role2 <> "" Then
-															involvedRole = UCase(Left(role, 1)) & Mid(role, 2) & " [" & UCase(Left(role2, 1)) & Mid(role2, 2) & "]"
-														Else
-															involvedRole = UCase(Left(role, 1)) & Mid(role, 2)
-														End If
-														getinvolvedRole involvedArtist, involvedRole, artistList, TrackFeaturing, Involved_R_T, TrackComposers, TrackConductors, TrackProducers, TrackLyricists
-													End If
+											ret = RelationshipTypes(tmp5)
+											If ret(0) > 0 Then
+												For i = 1 to ret(0)
+													getinvolvedRole involvedArtist, ret(i), artistList, TrackFeaturing, Involved_R_T, TrackComposers, TrackConductors, TrackProducers, TrackLyricists
 												Next
-											Else
-												involvedRole = ""
-												If role <> "other version" Then
-													If role = "instrument" Then
-														involvedRole = UCase(Left(role2, 1)) & Mid(role2, 2)
-													ElseIf role2 <> "" Then
-														involvedRole = UCase(Left(role, 1)) & Mid(role, 2) & " [" & UCase(Left(role2, 1)) & Mid(role2, 2) & "]"
-													Else
-														involvedRole = UCase(Left(role, 1)) & Mid(role, 2)
-													End If
-													getinvolvedRole involvedArtist, involvedRole, artistList, TrackFeaturing, Involved_R_T, TrackComposers, TrackConductors, TrackProducers, TrackLyricists
-												End If
 											End If
 										End If
 									Next
@@ -3194,40 +3183,11 @@ Sub ReloadResults
 									If tmp3.Exists("artist") Then
 										involvedArtist = CleanArtistName(tmp3("artist")("name"))
 									End If
-									role = tmp3("type")
-									role2 = ""
-									If tmp3("attributes").Count > 0 Then
-										If tmp3("attributes").Count > 1 Then
-											'SDB.MessageBox "Found more than one attribute in track role !!", mtInformation, Array(mbOk)
-											WriteLog "Found more than one attribute in track role 2!!"
-										End If
-										For Each tmp6 In tmp3("attributes")
-											role2 = tmp3("attributes")(tmp6)
-											WriteLog role2
-											involvedRole = ""
-											If role <> "other version" Then
-												If role = "instrument" Then
-													involvedRole = UCase(Left(role2, 1)) & Mid(role2, 2)
-												ElseIf role2 <> "" Then
-													involvedRole = UCase(Left(role, 1)) & Mid(role, 2) & " [" & UCase(Left(role2, 1)) & Mid(role2, 2) & "]"
-												Else
-													involvedRole = UCase(Left(role, 1)) & Mid(role, 2)
-												End If
-												getinvolvedRole involvedArtist, involvedRole, artistList, TrackFeaturing, Involved_R_T, TrackComposers, TrackConductors, TrackProducers, TrackLyricists
-											End If
+									ret = RelationshipTypes(tmp3)
+									If ret(0) > 0 Then
+										For i = 1 to ret(0)
+											getinvolvedRole involvedArtist, ret(i), artistList, TrackFeaturing, Involved_R_T, TrackComposers, TrackConductors, TrackProducers, TrackLyricists
 										Next
-									Else
-										involvedRole = ""
-										If role <> "other version" Then
-											If role = "instrument" Then
-												involvedRole = UCase(Left(role2, 1)) & Mid(role2, 2)
-											ElseIf role2 <> "" Then
-												involvedRole = UCase(Left(role, 1)) & Mid(role, 2) & " [" & UCase(Left(role2, 1)) & Mid(role2, 2) & "]"
-											Else
-												involvedRole = UCase(Left(role, 1)) & Mid(role, 2)
-											End If
-											getinvolvedRole involvedArtist, involvedRole, artistList, TrackFeaturing, Involved_R_T, TrackComposers, TrackConductors, TrackProducers, TrackLyricists
-										End If
 									End If
 								End If
 							Next
@@ -3343,9 +3303,10 @@ Sub ReloadResults
 			Set SaveImage = SDB.NewStringList
 			ImagesCount = 0
 
-			If CurrentRelease.Exists("cover-art-archive") Then
+			If CurrentRelease.Exists("cover-art-archive") And CurrentRelease("cover-art-archive")("count") <> "" Then
 				If CurrentRelease("cover-art-archive")("count") > 1 Then
 					searchURL = "http://coverartarchive.org/release/" & CurrentRelease("id")
+					WriteLog searchURL
 					Set oXMLHTTP = CreateObject("Msxml2.XMLHttp.6.0") 
 					ImagesCount = CurrentRelease("cover-art-archive")("count")
 					oXMLHTTP.Open "GET", searchURL, False
@@ -3367,22 +3328,9 @@ Sub ReloadResults
 				End If
 			End If
 			'----------------------------------CoverArtArchive Images----------------------------------------
-	
-			' Get Master ID
-			REM If CurrentRelease.Exists("master_id") Then
-				REM theMaster = currentRelease("master_id")
-				REM If SavedMasterId <> theMaster Then
-					REM OriginalDate = ReloadMaster(theMaster)
-					REM SavedMasterId = theMaster
-				REM End If
-			REM Else
-				REM theMaster = ""
-				REM SavedMasterId = theMaster
-				REM OriginalDate = ""
-			REM End If
 
 			' Get release year/date
-			If CurrentRelease.Exists("date") Then
+			If CurrentRelease.Exists("date") And CurrentRelease("date") <> "" Then
 				ReleaseDate = CurrentRelease("date")
 				If Len(ReleaseDate) = 10 Then
 					ReleaseSplit = Split(ReleaseDate,"-")
@@ -3401,7 +3349,7 @@ Sub ReloadResults
 
 			'Set OriginalDate
 			set tmp = CurrentRelease("release-group")
-			If tmp.Exists("first-release-date") Then
+			If tmp.Exists("first-release-date") And CurrentRelease("release-group")("first-release-date") <> "" Then
 				OriginalDate = CurrentRelease("release-group")("first-release-date")
 				If Len(OriginalDate) = 10 Then
 					ReleaseSplit = Split(OriginalDate,"-")
@@ -3417,18 +3365,6 @@ Sub ReloadResults
 				OriginalDate = ""
 			End If
 			WriteLog "OriginalDate=" & OriginalDate
-
-			' Get genres
-			REM For Each g In CurrentRelease("genres")
-				REM AddToField Genres, CurrentRelease("genres")(g)
-			REM Next
-
-			' Get styles/moods/themes
-			REM If CurrentRelease.Exists("styles") Then
-				REM For Each s In CurrentRelease("styles")
-					REM AddToField Styles, CurrentRelease("styles")(s)
-				REM Next
-			REM End If
 
 			' Get Label
 			If CurrentRelease.Exists("label-info") Then
@@ -3451,9 +3387,11 @@ Sub ReloadResults
 				theLabels = ""
 				theCatalogs = ""
 			End If
+			WriteLog "theLabels=" & theLabels
+			WriteLog "theCatalogs=" & theCatalogs
 
 			' Get Country
-			If CurrentRelease.Exists("country") Then
+			If CurrentRelease.Exists("country") And CurrentRelease("country") <> "" Then
 				theCountry = CurrentRelease("country")
 				For f = 1 To CountryCode.Count
 					If theCountry = CountryCode.Item(f) Then
@@ -3461,16 +3399,16 @@ Sub ReloadResults
 						Exit For
 					End If
 				Next
-				WriteLog "country=" & theCountry
 			Else
 				theCountry = ""
 			End If
+			WriteLog "country=" & theCountry
 
 			' Get Format
 			If CurrentRelease.Exists("media") Then
 				For Each f In CurrentRelease("media")
 					Set currentFormat = CurrentRelease("media")(f)
-					If currentFormat("format") <> "" Then
+					If currentFormat("format") <> "" And theFormat <> currentFormat("format") Then
 						AddToField theFormat, currentFormat("format")
 					End If
 				Next
@@ -3491,23 +3429,9 @@ Sub ReloadResults
 							theFormat = theFormat & ", " & CurrentRelease("release-group")("secondary-types")(f)
 						End If
 					Next
-					WriteLog "theformat=" & theFormat
 				End If
 			End If
-
-			' Get Comment
-			REM If CurrentRelease.Exists("notes") Then
-				REM Comment = CurrentRelease("notes")
-			REM Else
-				REM Comment = ""
-			REM End If
-
-			' Get data_quality
-			REM If CurrentRelease.Exists("data_quality") Then
-				REM DataQuality = CurrentRelease("data_quality")
-			REM Else
-				REM DataQuality = ""
-			REM End If
+			WriteLog "theformat=" & theFormat
 		End If
 	End If
 
@@ -3659,6 +3583,69 @@ Sub ReloadResults
 	Next
 	SDB.Tools.WebSearch.RefreshViews   ' Tell MM that we have made some changes
 End Sub
+
+
+Function RelationshipTypes(JSONArray)
+
+	Dim rType, i
+	ReDim role(0)
+	WriteLog "Start RelTypes"
+	rType = JSONArray("type")
+	If rType <> "other version" Then
+		If JSONArray("attributes").Count > 1 Then
+			If JSONArray("attributes").Count > 2 Then
+				SDB.MessageBox "Found more than 2 attribute in track role !!", mtInformation, Array(mbOk)
+				WriteLog "Found more than 2 attribute in track role 2!!"
+			End If
+			If JSONArray("attributes")(0) = "additional" Then
+				ReDim role(2)
+				role(0) = 1
+				role(1) = "Additional " & UCase(Left(JSONArray("attributes")(1), 1)) & Mid(JSONArray("attributes")(1), 2)
+			ElseIf JSONArray("attributes")(1) = "guest" Then
+				ReDim role(2)
+				role(0) = 1
+				role(1) = "Guest " & UCase(Left(JSONArray("attributes")(0), 1)) & Mid(JSONArray("attributes")(0), 2)
+			Else
+				ReDim role(JSONArray("attributes").Count + 1)
+				role(0) = JSONArray("attributes").Count
+				For i = 0 to Role(0)-1
+					role(i+1) = UCase(Left(JSONArray("attributes")(i), 1)) & Mid(JSONArray("attributes")(i), 2)
+					WriteLog i & ". " & JSONArray("attributes")(i)
+				Next
+				SDB.MessageBox "New Attr found : 1=" & JSONArray("attributes")(0) & " -- 2=" & JSONArray("attributes")(1), mtInformation, Array(mbOk)
+			End If
+		ElseIf JSONArray("attributes").Count = 1 Then
+			ReDim role(2)
+			role(0) = 1
+			If JSONArray("attributes")(0) = "additional" Then
+				role(1) = "Additional " & UCase(Left(rType, 1)) & Mid(rType, 2)
+			ElseIf JSONArray("attributes")(0) = "guest" Then
+				role(1) = "Guest " & UCase(Left(rType, 1)) & Mid(rType, 2)
+			Else
+				role(1) = UCase(Left(JSONArray("attributes")(0), 1)) & Mid(JSONArray("attributes")(0), 2)
+			End If
+		Else
+			If rType = "vocal" Then rType = "vocals"
+			ReDim role(2)
+			role(0) = 1
+			role(1) = UCase(Left(rType, 1)) & Mid(rType, 2)
+		End If
+		For i = 1 to Role(0)
+			WriteLog "Found Role=" & role(i)
+		Next
+		
+	Else
+		WriteLog "other Version found!!"
+		REM SDB.MessageBox "other Version found!!", mtInformation, Array(mbOk)
+		ReDim role(1)
+		role(0) = 0
+	End If
+	RelationshipTypes = role
+	WriteLog "Stop RelTypes"
+
+End Function
+
+
 
 Function trackNumbering(byRef pos, byRef position, byRef TracksNum, byRef TracksCD, byRef iTrackNum)
 
@@ -4302,8 +4289,6 @@ Sub ShowResult(ResultID)
 		oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
 		oXMLHTTP.send ()
 
-		' use json api with vbsjson class at start of file now
-
 		If oXMLHTTP.Status = 200 Then
 			WriteLog "responseText=" & oXMLHTTP.responseText
 			Set CurrentRelease = json.Decode(oXMLHTTP.responseText)
@@ -4322,13 +4307,9 @@ Sub ShowResult(ResultID)
 		WriteLog "ReleaseID=" & ReleaseID
 		If InStr(Results.Item(ResultID), "search returned no results") = 0 Then
 			If Right(Results.Item(ResultID), 1) = "*" Then  'Master-Release
-				REM searchURL = ReleaseID
-				REM searchURL_F = "http://api.discogs.com/masters/"
 				searchURL = "http://api.discogs.com/masters/" & ReleaseID
 				WriteLog "Show Master-Release"
 			Else
-				REM searchURL = ReleaseID
-				REM searchURL_F = "http://api.discogs.com/releases/"
 				searchURL = "http://api.discogs.com/releases/" & ReleaseID
 			End If
 
@@ -4337,15 +4318,6 @@ Sub ShowResult(ResultID)
 			oXMLHTTP.setRequestHeader "Content-Type","application/json"
 			oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/2.0 +http://mediamonkey.com"
 			oXMLHTTP.send()
-	
-			REM oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
-			REM oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
-			REM oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagBatch/2.0 +http://mediamonkey.com"
-			REM oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=")
-			REM WriteLog "Post durchgeführt"
-			
-			' use json api with vbsjson class at start of file now
-
 
 			If oXMLHTTP.Status = 200 Then
 				WriteLog "responseText=" & oXMLHTTP.responseText
@@ -4733,8 +4705,10 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""conductor"" >Save Conductor</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""producer"" >Save Producer</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""involved"" >Save Involved People</td></tr>"
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""comments"" >Save Comment</td></tr>"
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""useanv"" title=""Artist Name Variation - Using no name variation (e.g. nickname)"" >Don't Use ANV's</td></tr>"
+	If QueryPage = "Discogs" Then
+		templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""comments"" >Save Comment</td></tr>"
+		templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""useanv"" title=""Artist Name Variation - Using no name variation (e.g. nickname)"" >Don't Use ANV's</td></tr>"
+	End If
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""yearonlydate"" title=""If checked only the Year will be saved (e.g. 14.01.1982 -> 1982)"" >Only Year Of Date</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""titlefeaturing"" title=""If checked the feat. Artist appears in the title tag (e.g. Aaliyah (ft. Timbaland) - We Need a Resolution  ->  Aaliyah - We Need a Resolution (ft. Timbaland) )"" >feat. Artist behind Title</td></tr>"
 
@@ -4752,8 +4726,10 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""TurnOffSubTrack"" title=""If checked the Sub-Track detection is turned off"" >No Sub-Track detection</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""SubTrackNameSelection"" title=""If checked the Sub-Track will be named like 'Sub-Track 1, Sub-Track 2, Sub Track 3'  if not checked the Sub-Tracks will be named like 'Track Name (Sub-Track 1, Sub-Track 2, Sub Track 3)'"" >Other Sub-Track Naming</td></tr>"
 
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""forcenumeric"" title=""Always use numbers instead of letters (Vinyl-releases use A1, A2,..., B1, B2 as track numbering)"" >Force To Numeric</td></tr>"
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""sidestodisc"" title=""Save the Vinyl sides to the disc tag"" >Sides To Disc</td></tr>"
+	If QueryPage = "Discogs" Then
+		templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""forcenumeric"" title=""Always use numbers instead of letters (Vinyl-releases use A1, A2,..., B1, B2 as track numbering)"" >Force To Numeric</td></tr>"
+		templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""sidestodisc"" title=""Save the Vinyl sides to the disc tag"" >Sides To Disc</td></tr>"
+	End If
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""forcedisc"" title=""Always add a disc-number"" >Force Disc Usage</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""nodisc"" title=""Prevent the script from interpret sub tracks as disc-numbers"" >Force NO Disc Usage</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""leadingzero"" title=""Track Position: 1 -> 01   2 -> 02 ..."" >Add Leading Zero</td></tr>"
@@ -4872,15 +4848,17 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = templateHTML &  "<td>Original Date:</td>"
 	templateHTML = templateHTML &  "<td><!ORIGDATE!></td>"
 	templateHTML = templateHTML &  "</tr>"
-	templateHTML = templateHTML &  "<tr>"
-	templateHTML = templateHTML &  "<td><input type=checkbox id=""genre"" ><input type=checkbox id=""style"" ></td>"
-	templateHTML = templateHTML &  "<td>Genre:</td>"
-	templateHTML = templateHTML &  "<td><!GENRE!></td>"
-	templateHTML = templateHTML &  "</tr>"
-	templateHTML = templateHTML &  "<tr>"
-	templateHTML = templateHTML &  "<td colspan=2>Release Data Quality:</td>"
-	templateHTML = templateHTML &  "<td><!DATAQUALITY!></td>"
-	templateHTML = templateHTML &  "</tr>"
+	If QueryPage = "Discogs" Then
+		templateHTML = templateHTML &  "<tr>"
+		templateHTML = templateHTML &  "<td><input type=checkbox id=""genre"" ><input type=checkbox id=""style"" ></td>"
+		templateHTML = templateHTML &  "<td>Genre:</td>"
+		templateHTML = templateHTML &  "<td><!GENRE!></td>"
+		templateHTML = templateHTML &  "</tr>"
+		templateHTML = templateHTML &  "<tr>"
+		templateHTML = templateHTML &  "<td colspan=2>Release Data Quality:</td>"
+		templateHTML = templateHTML &  "<td><!DATAQUALITY!></td>"
+		templateHTML = templateHTML &  "</tr>"
+	End If
 	templateHTML = templateHTML &  "</table>"
 	templateHTML = templateHTML &  "</td>"
 	' Release Information End
@@ -4890,7 +4868,11 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = templateHTML & "<tr>"
 
 	If CheckOriginalDiscogsTrack Then
-		templateHTML = templateHTML & "<td align=left><b>Discogs</b></td>"
+		If QueryPage = "Discogs" Then
+			templateHTML = templateHTML & "<td align=left><b>Discogs</b></td>"
+		ElseIf QueryPage = "MusicBrainz" Then
+			templateHTML = templateHTML & "<td align=left><b>MusicBrainz</b></td>"
+		End If
 	Else
 		templateHTML = templateHTML & "<td> </td>"
 	End If
@@ -4966,31 +4948,33 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = Replace(templateHTML, "<!FORMAT!>", theFormat)
 	templateHTML = Replace(templateHTML, "<!DATAQUALITY!>", DataQuality)
 
-	theGenres = ""
+	If QueryPage = "Discogs" Then
+		theGenres = ""
 
-	If Genres <> "" Then
-		If CheckGenre Then
-			theGenres = Genres
-		Else
-			theGenres = "<s>" + Genres + "</s>"
-		End If
-	End If
-
-	If Styles <> "" Then
-		If theGenres <> "" Then
+		If Genres <> "" Then
 			If CheckGenre Then
-				theGenres = theGenres & Separator
+				theGenres = Genres
 			Else
-				theGenres = theGenres & "<s>" & Separator & "</s>"
+				theGenres = "<s>" + Genres + "</s>"
 			End If
 		End If
-		If CheckStyle Then
-			theGenres = theGenres & Styles
-		Else
-			theGenres = theGenres & "<s>" & Styles & "</s>"
+
+		If Styles <> "" Then
+			If theGenres <> "" Then
+				If CheckGenre Then
+					theGenres = theGenres & Separator
+				Else
+					theGenres = theGenres & "<s>" & Separator & "</s>"
+				End If
+			End If
+			If CheckStyle Then
+				theGenres = theGenres & Styles
+			Else
+				theGenres = theGenres & "<s>" & Styles & "</s>"
+			End If
 		End If
+		templateHTML = Replace(templateHTML, "<!GENRE!>", theGenres)
 	End If
-	templateHTML = Replace(templateHTML, "<!GENRE!>", theGenres)
 
 	
 	Rem Dim filesys, filetxt, logdatei
@@ -5030,12 +5014,14 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Set checkBox = templateHTMLDoc.getElementById("country")
 	checkBox.Checked = CheckCountry
 	Script.RegisterEvent checkBox, "onclick", "Update"
-	Set checkBox = templateHTMLDoc.getElementById("genre")
-	checkBox.Checked = CheckGenre
-	Script.RegisterEvent checkBox, "onclick", "Update"
-	Set checkBox = templateHTMLDoc.getElementById("style")
-	checkBox.Checked = CheckStyle
-	Script.RegisterEvent checkBox, "onclick", "Update"
+	If QueryPage = "Discogs" Then
+		Set checkBox = templateHTMLDoc.getElementById("genre")
+		checkBox.Checked = CheckGenre
+		Script.RegisterEvent checkBox, "onclick", "Update"
+		Set checkBox = templateHTMLDoc.getElementById("style")
+		checkBox.Checked = CheckStyle
+		Script.RegisterEvent checkBox, "onclick", "Update"
+	End If
 	Set checkBox = templateHTMLDoc.getElementById("checkcover")
 	checkBox.Checked = CheckCover
 	Script.RegisterEvent checkBox, "onclick", "Update"
@@ -5069,18 +5055,22 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Set checkBox = templateHTMLDoc.getElementById("format")
 	checkBox.Checked = CheckFormat
 	Script.RegisterEvent checkBox, "onclick", "Update"
-	Set checkBox = templateHTMLDoc.getElementById("useanv")
-	checkBox.Checked = CheckUseAnv
-	Script.RegisterEvent checkBox, "onclick", "Update"
+	If QueryPage = "Discogs" Then
+		Set checkBox = templateHTMLDoc.getElementById("useanv")
+		checkBox.Checked = CheckUseAnv
+		Script.RegisterEvent checkBox, "onclick", "Update"
+	End If
 	Set checkBox = templateHTMLDoc.getElementById("yearonlydate")
 	checkBox.Checked = CheckYearOnlyDate
 	Script.RegisterEvent checkBox, "onclick", "Update"
-	Set checkBox = templateHTMLDoc.getElementById("forcenumeric")
-	checkBox.Checked = CheckForceNumeric
-	Script.RegisterEvent checkBox, "onclick", "Update"
-	Set checkBox = templateHTMLDoc.getElementById("sidestodisc")
-	checkBox.Checked = CheckSidesToDisc
-	Script.RegisterEvent checkBox, "onclick", "Update"
+	If QueryPage = "Discogs" Then
+		Set checkBox = templateHTMLDoc.getElementById("forcenumeric")
+		checkBox.Checked = CheckForceNumeric
+		Script.RegisterEvent checkBox, "onclick", "Update"
+		Set checkBox = templateHTMLDoc.getElementById("sidestodisc")
+		checkBox.Checked = CheckSidesToDisc
+		Script.RegisterEvent checkBox, "onclick", "Update"
+	End If
 	Set checkBox = templateHTMLDoc.getElementById("forcedisc")
 	checkBox.Checked = CheckForceDisc
 	Script.RegisterEvent checkBox, "onclick", "Update"
@@ -5099,9 +5089,11 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Set checkbox = templateHTMLDoc.getElementById("FeaturingName")
 	checkBox.Checked = CheckFeaturingName
 	Script.RegisterEvent checkBox, "onclick", "Update"
-	Set checkBox = templateHTMLDoc.getElementById("comments")
-	checkBox.Checked = CheckComment
-	Script.RegisterEvent checkBox, "onclick", "Update"
+	If QueryPage = "Discogs" Then
+		Set checkBox = templateHTMLDoc.getElementById("comments")
+		checkBox.Checked = CheckComment
+		Script.RegisterEvent checkBox, "onclick", "Update"
+	End If
 	Set text = templateHTMLDoc.getElementById("txtvarious")
 	text.value = TxtVarious
 	Script.RegisterEvent text, "onchange", "Update"
@@ -5186,10 +5178,12 @@ Sub Update()
 	CheckOrigDate = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("label")
 	CheckLabel = checkBox.Checked
-	Set checkBox = templateHTMLDoc.getElementById("genre")
-	CheckGenre = checkBox.Checked
-	Set checkBox = templateHTMLDoc.getElementById("style")
-	CheckStyle = checkBox.Checked
+	If QueryPage = "Discogs" Then
+		Set checkBox = templateHTMLDoc.getElementById("genre")
+		CheckGenre = checkBox.Checked
+		Set checkBox = templateHTMLDoc.getElementById("style")
+		CheckStyle = checkBox.Checked
+	End If
 	Set checkBox = templateHTMLDoc.getElementById("country")
 	CheckCountry = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("checkcover")
@@ -5214,14 +5208,18 @@ Sub Update()
 	CheckTrackNum = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("format")
 	CheckFormat = checkBox.Checked
-	Set checkBox = templateHTMLDoc.getElementById("useanv")
-	CheckUseAnv = checkBox.Checked
+	If QueryPage = "Discogs" Then
+		Set checkBox = templateHTMLDoc.getElementById("useanv")
+		CheckUseAnv = checkBox.Checked
+	End If
 	Set checkBox = templateHTMLDoc.getElementById("yearonlydate")
 	CheckYearOnlyDate = checkBox.Checked
-	Set checkBox = templateHTMLDoc.getElementById("forcenumeric")
-	CheckForceNumeric = checkBox.Checked
-	Set checkBox = templateHTMLDoc.getElementById("sidestodisc")
-	CheckSidesToDisc = checkBox.Checked
+	If QueryPage = "Discogs" Then
+		Set checkBox = templateHTMLDoc.getElementById("forcenumeric")
+		CheckForceNumeric = checkBox.Checked
+		Set checkBox = templateHTMLDoc.getElementById("sidestodisc")
+		CheckSidesToDisc = checkBox.Checked
+	End If
 	Set checkBox = templateHTMLDoc.getElementById("forcedisc")
 	If Not CheckForceDisc And checkBox.Checked Then
 		CheckNoDisc = False
@@ -5242,8 +5240,10 @@ Sub Update()
 	CheckFeaturingName = checkBox.Checked
 	Set text = templateHTMLDoc.getElementById("TxtFeaturingName")
 	TxtFeaturingName = text.Value
-	Set checkBox = templateHTMLDoc.getElementById("comments")
-	CheckComment = checkBox.Checked
+	If QueryPage = "Discogs" Then
+		Set checkBox = templateHTMLDoc.getElementById("comments")
+		CheckComment = checkBox.Checked
+	End If
 	Set checkBox = templateHTMLDoc.getElementById("various")
 	CheckVarious = checkBox.Checked
 	Set text = templateHTMLDoc.getElementById("txtvarious")
@@ -5907,11 +5907,6 @@ Function ReloadMaster(SavedMasterId)
 	Dim json
 	Set json = New VbsJson
 	Dim response
-
-	REM oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
-	REM oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
-	REM oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/2.0 +http://mediamonkey.com"
-	REM oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & masterURL & "&searchURL_F=http://api.discogs.com/masters/&searchURL_L=")
 
 	oXMLHTTP.open "GET", masterURL, false
 	oXMLHTTP.setRequestHeader "Content-Type","application/json"
@@ -7428,7 +7423,7 @@ Function search_involved(Text, SearchText)
 	Next
 
 	For i = 1 To UBound(Text)
-		If Left(Text(i), Len(SearchText)) = SearchText Then
+		If Left(Text(i), InStr(Text(i), ":")-1) = SearchText Then
 			search_involved = i
 			Exit Function
 		End If
