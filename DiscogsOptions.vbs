@@ -1,14 +1,19 @@
 '
 ' MediaMonkey Script
 '
-' NAME: Discogs Tagger Options 2.1
+' NAME: Discogs Tagger Options 2.2
 '
 ' AUTHOR: crap_inhuman
-' DATE : 09/09/2014
+' DATE : 15/10/2014
 '
 '
 ' INSTALL: Automatic installation during Discogs Tagger install
 '
+'Changes from 2.1 to 2.2
+'Added option to enter unwanted tags in involved people
+'Added option to save selected "More images" after closing the popup
+'Added option "Don't copy empty values to non-empty fields"
+
 'Changes from 2.0 to 2.1
 'Removed metal-archives.com for release search
 
@@ -112,6 +117,12 @@ Sub InitSheet(Sheet)
 		If ini.StringValue("DiscogsAutoTagWeb","AccessTokenSecret") = "" Then
 			ini.StringValue("DiscogsAutoTagWeb","AccessTokenSecret") = ""
 		End If
+		If ini.StringValue("DiscogsAutoTagWeb","ImmedSaveImage") = "" Then
+			ini.BoolValue("DiscogsAutoTagWeb","ImmedSaveImage") = False
+		End If
+		If ini.StringValue("DiscogsAutoTagWeb","CheckDontFillEmptyFields") = "" Then
+			ini.BoolValue("DiscogsAutoTagWeb","CheckDontFillEmptyFields") = True
+		End If
 	End If
 
 
@@ -127,6 +138,8 @@ Sub InitSheet(Sheet)
 	CheckSmallCover = ini.BoolValue("DiscogsAutoTagWeb","CheckSmallCover")
 	AccessToken = ini.StringValue("DiscogsAutoTagWeb","AccessToken")
 	AccessTokenSecret = ini.StringValue("DiscogsAutoTagWeb","AccessTokenSecret")
+	ImmedSaveImage = ini.BoolValue("DiscogsAutoTagWeb","ImmedSaveImage")
+	CheckDontFillEmptyFields = ini.BoolValue("DiscogsAutoTagWeb","CheckDontFillEmptyFields")
 
 	CustomField1 = "Custom1 (" & ini.StringValue("CustomFields","Fld1Name") & ")"
 	CustomField2 = "Custom2 (" & ini.StringValue("CustomFields","Fld2Name") & ")"
@@ -340,7 +353,7 @@ Sub InitSheet(Sheet)
 	Dim GroupBox1
 	Set GroupBox1 = UI.NewGroupBox(Sheet)
 	GroupBox1.Caption = "Cover-Images"
-	GroupBox1.Common.SetRect 10, 210, 500, 80
+	GroupBox1.Common.SetRect 10, 210, 500, 100
 
 	Dim Checkbox1
 	Set Checkbox1 = UI.NewCheckBox(GroupBox1)
@@ -390,14 +403,27 @@ Sub InitSheet(Sheet)
 	Else
 		Checkbox13.Common.Enabled = False
 	End If
+
+	Dim Checkbox14
+	Set Checkbox14 = UI.NewCheckBox(GroupBox1)
+	Checkbox14.Common.SetRect 20, 80, 270, 15
+	Checkbox14.Common.ControlName = "ControlSaveImage14"
+	Checkbox14.Caption = "Save selected 'More images' after closing the popup"
+	Checkbox14.Common.Hint = "If option not set the script store the selected images after closing the script."
 	
+	Set SDB.Objects("ImmedSaveImage") = Checkbox14
+	If ImmedSaveImage = True Then
+		Checkbox14.checked = True
+	Else
+		Checkbox14.checked = False
+	End If
 
 	Script.RegisterEvent Checkbox1.Common, "OnClick", "ChBClick"
 
 	Dim GroupBox2
 	Set GroupBox2 = UI.NewGroupBox(Sheet)
 	GroupBox2.Caption = "Misc"
-	GroupBox2.Common.SetRect 10, 300, 500, 100
+	GroupBox2.Common.SetRect 10, 320, 500, 120
 
 
 	Set Label2 = UI.NewLabel(GroupBox2)
@@ -411,24 +437,34 @@ Sub InitSheet(Sheet)
 	If CheckOriginalDiscogsTrack = true Then Checkbox2.Checked = true
 
 	Set Label2 = UI.NewLabel(GroupBox2)
-	Label2.Common.SetRect 20, 50, 50, 25
+	Label2.Common.SetRect 40, 40, 50, 25
+	Label2.Caption = "Don't copy empty values to non-empty fields"
+
+	Set Checkbox2 = UI.NewCheckBox(GroupBox2)
+	Checkbox2.Common.SetRect 20, 40, 15, 15
+	Checkbox2.Common.ControlName = "CheckDontFillEmptyFields"
+	Checkbox2.Common.Hint = "If checked, the script write blank value if the release at discogs have blank value too"
+	If CheckDontFillEmptyFields = true Then Checkbox2.Checked = true
+
+	Set Label2 = UI.NewLabel(GroupBox2)
+	Label2.Common.SetRect 20, 70, 50, 25
 	Label2.Caption = SDB.Localize("Artist Separator")
 	Label2.Common.Hint = "Standard is ', ' without apostrophe"
 
 	Set EditArtistSep = UI.NewEdit(GroupBox2)
-	EditArtistSep.Common.SetRect 20, 65, 50, 35
+	EditArtistSep.Common.SetRect 20, 85, 50, 35
 	EditArtistSep.Common.ControlName = "ArtistSeparator"
 	EditArtistSep.Text = ArtistSeparator
 	EditArtistSep.Common.Hint = "Standard is ', ' without apostrophe"
 
 	Set Label2 = UI.NewLabel(GroupBox2)
-	Label2.Common.SetRect 165, 67, 125, 25
+	Label2.Common.SetRect 165, 87, 125, 25
 	Label2.Caption = "Artist Last Separator = &&"
 	Label2.Common.Hint = "If checked artist list will be Artist1" & ArtistSeparator & "Artist2 & Artist3" & vbCrLf & "If not checked it will be Artist1" & ArtistSeparator & "Artist2" & ArtistSeparator & "Artist3"
 
 	Dim Checkbox3
 	Set Checkbox3 = UI.NewCheckBox(GroupBox2)
-	Checkbox3.Common.SetRect 145, 67, 15, 15
+	Checkbox3.Common.SetRect 145, 87, 15, 15
 	Checkbox3.Common.ControlName = "EditArtistLastSep"
 	Checkbox3.Common.Hint = "If checked artist list will be Artist1" & ArtistSeparator & "Artist2 & Artist3" & vbCrLf & "If not checked it will be Artist1" & ArtistSeparator & "Artist2" & ArtistSeparator & "Artist3"
 	If ArtistLastSeparator = true Then Checkbox3.Checked = true
@@ -436,7 +472,7 @@ Sub InitSheet(Sheet)
 	Dim GroupBox4
 	Set GroupBox4 = UI.NewGroupBox(Sheet)
 	GroupBox4.Caption = "Discogs Access Token"
-	GroupBox4.Common.SetRect 10, 410, 500, 90
+	GroupBox4.Common.SetRect 10, 450, 500, 90
 
 	Set Label2 = UI.NewLabel(GroupBox4)
 	Label2.Common.SetRect 300, 25, 100, 25
@@ -502,6 +538,18 @@ Sub SaveSheet(Sheet)
 		ini.BoolValue("DiscogsAutoTagWeb", "CheckSmallCover") = false
 	End If
 
+	If Sheet.Common.ChildControl("CheckDontFillEmptyFields").Checked = True Then
+		ini.BoolValue("DiscogsAutoTagWeb", "CheckDontFillEmptyFields") = true
+	Else
+		ini.BoolValue("DiscogsAutoTagWeb", "CheckDontFillEmptyFields") = false
+	End If
+
+	If Sheet.Common.ChildControl("ControlSaveImage14").Checked = True Then
+		ini.BoolValue("DiscogsAutoTagWeb", "ImmedSaveImage") = true
+	Else
+		ini.BoolValue("DiscogsAutoTagWeb", "ImmedSaveImage") = false
+	End If
+
 	Set checkbox = Sheet.Common.ChildControl("CheckOriginalDiscogsTrack")
 	If checkbox.checked Then
 		ini.BoolValue("DiscogsAutoTagWeb", "CheckOriginalDiscogsTrack") = true
@@ -562,12 +610,13 @@ Sub InitSheet2(Sheet)
 	ProducerKeywords = ini.StringValue("DiscogsAutoTagWeb","ProducerKeywords")
 	ComposerKeywords = ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords")
 	FeaturingKeywords = ini.StringValue("DiscogsAutoTagWeb","FeaturingKeywords")
+	UnwantedKeywords = ini.StringValue("DiscogsAutoTagWeb","UnwantedKeywords")
 
 	Dim GroupBox0
 	Set GroupBox0 = UI.NewGroupBox(Sheet)
 	GroupBox0.Caption = "Enter the keywords for linking with discogs"
 	GroupBox0.Common.Hint = "If you don't know what to enter here, let the keywords as is !!"
-	GroupBox0.Common.SetRect 10, 10, 500, 235
+	GroupBox0.Common.SetRect 10, 10, 500, 275
 
 	Set Label2 = UI.NewLabel(GroupBox0)
 	Label2.Common.SetRect 20, 20, 50, 25
@@ -611,6 +660,15 @@ Sub InitSheet2(Sheet)
 	EditFeaturing.Common.SetRect 20, 195, 450, 35
 	EditFeaturing.Common.ControlName = "FeaturingKeywords"
 	EditFeaturing.Text = FeaturingKeywords
+
+	Set Label2 = UI.NewLabel(GroupBox0)
+	Label2.Common.SetRect 20, 220, 50, 25
+	Label2.Caption = SDB.Localize("Ignore this tags")
+	Set EditUnwanted = UI.NewEdit(GroupBox0)
+	EditUnwanted.Common.SetRect 20, 235, 450, 35
+	EditUnwanted.Common.ControlName = "UnwantedKeywords"
+	EditUnwanted.Common.Hint = "Enter the keywords you don't like to store in involved people"
+	EditUnwanted.Text = UnwantedKeywords
 
 End Sub
 
@@ -660,6 +718,14 @@ Sub SaveSheet2(Sheet)
 		editText = editText & Trim(x) & ","
 	Next
 	ini.StringValue("DiscogsAutoTagWeb", "FeaturingKeywords") = Left(editText, Len(editText)-1)
+
+	Set edt = Sheet.Common.ChildControl("UnwantedKeywords")
+	tmp = Split(edt.Text, ",")
+	editText = ""
+	For each x in tmp
+		editText = editText & Trim(x) & ","
+	Next
+	ini.StringValue("DiscogsAutoTagWeb", "UnwantedKeywords") = Left(editText, Len(editText)-1)
 
 End Sub
 
