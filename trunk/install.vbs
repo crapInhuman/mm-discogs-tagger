@@ -7,7 +7,7 @@ If Not (inif Is Nothing) Then
 	inif.StringValue(scriptName,"Procname") = "DiscogsAutoTagWeb"
 	inif.StringValue(scriptName,"Order") = "10"
 	inif.StringValue(scriptName,"DisplayName") = "Discogs Tagger"
-	inif.StringValue(scriptName,"Description") = "Gets track/album information from discogs.com"
+	inif.StringValue(scriptName,"Description") = "Gets track/album information from discogs.com and musicbrainz.org"
 	inif.StringValue(scriptName,"Language") = "VBScript"
 	inif.StringValue(scriptName,"ScriptType") = "3"
 	SDB.RefreshScriptItems
@@ -66,8 +66,8 @@ DD1.AddItem (CustomField3)
 DD1.AddItem (CustomField4)
 DD1.AddItem (CustomField5)
 DD1.AddItem ("Don't save")
-DD1.AddItem (SDB.Localize("Grouping"))
 DD1.AddItem (SDB.Localize("ISRC"))
+DD1.AddItem (SDB.Localize("Grouping"))
 DD1.AddItem (SDB.Localize("Encoder"))
 DD1.AddItem (SDB.Localize("Copyright"))
 
@@ -90,10 +90,10 @@ End If
 If ReleaseTag = "Don't save" Then
 	DD1.ItemIndex = 5
 End If
-If ReleaseTag = "Grouping" Then
+If ReleaseTag = "ISRC" Then
 	DD1.ItemIndex = 6
 End If
-If ReleaseTag = "ISRC" Then
+If ReleaseTag = "Grouping" Then
 	DD1.ItemIndex = 7
 End If
 If ReleaseTag = "Encoding" Then
@@ -115,6 +115,7 @@ DD1.AddItem (CustomField3)
 DD1.AddItem (CustomField4)
 DD1.AddItem (CustomField5)
 DD1.AddItem ("Don't save")
+DD1.AddItem (SDB.Localize("ISRC"))
 
 
 DD1.Common.ControlName = "CatalogTag"
@@ -135,6 +136,9 @@ If CatalogTag = "Custom5" Then
 End If
 If CatalogTag = "Don't save" Then
 	DD1.ItemIndex = 5
+End If
+If CatalogTag = "ISRC" Then
+	DD1.ItemIndex = 6
 End If
 
 Set Label1 = UI.NewLabel(Form)
@@ -237,8 +241,8 @@ Function GetCustom(Index)
 	If Index = 3 Then GetCustom = "Custom4"
 	If Index = 4 Then GetCustom = "Custom5"
 	If Index = 5 Then GetCustom = "Don't save"
-	If Index = 6 Then GetCustom = "Grouping"
-	If Index = 7 Then GetCustom = "ISRC"
+	If Index = 6 Then GetCustom = "ISRC"
+	If Index = 7 Then GetCustom = "Grouping"
 	If Index = 8 Then GetCustom = "Encoder"
 	If Index = 9 Then GetCustom = "Copyright"
 
