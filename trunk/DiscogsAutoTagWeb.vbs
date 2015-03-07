@@ -6856,25 +6856,24 @@ End Sub
 
 function getimages(DownloadDest, LocalFile)
 
-	dim xmlhttp
-	set xmlhttp=createobject("MSXML2.XMLHTTP.3.0")
-
-	xmlhttp.Open "GET", DownloadDest, False
-
-	xmlhttp.Send
-	If xmlhttp.Status = 200 Then
-		Dim objStream
-		set objStream = CreateObject("ADODB.Stream")
-		objStream.Type = 1 'adTypeBinary
+	Dim oXMLHTTP, objStream
+	Set oXMLHTTP = CreateObject("Msxml2.XMLHttp.6.0")   
+	oXMLHTTP.open "POST", "http://www.germanc64.de/coxy/coxy.php", False
+	oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
+	oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
+	oXMLHTTP.send("url=" & DownloadDest)
+	If oXMLHTTP.Status = 200 Then
+		Set objStream = CreateObject("ADODB.Stream")
+		objStream.Type = 1
 		objStream.Open
-		objStream.Write xmlhttp.responseBody
-		objStream.SaveToFile LocalFile
+		objStream.Write oXMLHTTP.ResponseBody
+		objStream.SavetoFile LocalFile, 2
 		objStream.Close
-		set objStream = Nothing
-		set xmlhttp=Nothing
+		Set objStream = Nothing
+		Set oXMLHTTP = Nothing
 		getimages = LocalFile
 	Else
-		set xmlhttp=Nothing
+		Set oXMLHTTP = Nothing
 		getimages = ""
 	End If
 
@@ -6895,7 +6894,7 @@ Sub WriteOptions()
 	WriteLog "CheckGenre=" & CheckGenre
 	WriteLog "CheckStyle=" & CheckStyle
 	WriteLog "CheckCountry=" & CheckCountry
-	REM WriteLog "CheckCover=" & CheckCover
+	Rem WriteLog "CheckCover=" & CheckCover
 	WriteLog "CheckSmallCover=" & CheckSmallCover
 	WriteLog "CheckCatalog=" & CheckCatalog
 	WriteLog "CheckRelease=" & CheckRelease
