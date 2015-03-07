@@ -1,16 +1,16 @@
 '
 ' MediaMonkey Script
 '
-' NAME: Discogs Tagger Options 2.51
+' NAME: Discogs Tagger Options 2.6
 '
 ' AUTHOR: crap_inhuman
-' DATE : 05/02/2015
+' DATE : 18/01/2015
 '
 '
 ' INSTALL: Automatic installation during Discogs Tagger install
 '
-'Changes from 2.5 to 2.51
-'Removed bug with Catalog/Release tag
+'Changes from 2.5 to 2.6
+'Added check for new version once a day
 
 'Changes from 2.4 to 2.5
 'Adding ISRC to CatalogTag
@@ -138,6 +138,9 @@ Sub InitSheet(Sheet)
 		If ini.StringValue("DiscogsAutoTagWeb","CheckDontFillEmptyFields") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","CheckDontFillEmptyFields") = True
 		End If
+		If ini.StringValue("DiscogsAutoTagWeb","CheckNewVersion") = "" Then
+			ini.BoolValue("DiscogsAutoTagWeb","CheckNewVersion") = True
+		End If
 	End If
 
 
@@ -155,6 +158,7 @@ Sub InitSheet(Sheet)
 	AccessTokenSecret = ini.StringValue("DiscogsAutoTagWeb","AccessTokenSecret")
 	CheckImmedSaveImage = ini.BoolValue("DiscogsAutoTagWeb","CheckImmedSaveImage")
 	CheckDontFillEmptyFields = ini.BoolValue("DiscogsAutoTagWeb","CheckDontFillEmptyFields")
+	CheckNewVersion = ini.BoolValue("DiscogsAutoTagWeb","CheckNewVersion")
 
 	CustomField1 = "Custom1 (" & ini.StringValue("CustomFields","Fld1Name") & ")"
 	CustomField2 = "Custom2 (" & ini.StringValue("CustomFields","Fld2Name") & ")"
@@ -442,7 +446,7 @@ Sub InitSheet(Sheet)
 	Dim GroupBox2
 	Set GroupBox2 = UI.NewGroupBox(Sheet)
 	GroupBox2.Caption = "Misc"
-	GroupBox2.Common.SetRect 10, 320, 500, 120
+	GroupBox2.Common.SetRect 10, 320, 500, 140
 
 
 	Set Label2 = UI.NewLabel(GroupBox2)
@@ -466,24 +470,34 @@ Sub InitSheet(Sheet)
 	If CheckDontFillEmptyFields = true Then Checkbox2.Checked = true
 
 	Set Label2 = UI.NewLabel(GroupBox2)
-	Label2.Common.SetRect 20, 70, 50, 25
+	Label2.Common.SetRect 40, 60, 50, 25
+	Label2.Caption = "Check for new version"
+
+	Set Checkbox2 = UI.NewCheckBox(GroupBox2)
+	Checkbox2.Common.SetRect 20, 60, 15, 15
+	Checkbox2.Common.ControlName = "CheckNewVersion"
+	Checkbox2.Common.Hint = "If checked, the script check for new version"
+	If CheckNewVersion = true Then Checkbox2.Checked = true
+
+	Set Label2 = UI.NewLabel(GroupBox2)
+	Label2.Common.SetRect 20, 90, 50, 25
 	Label2.Caption = SDB.Localize("Artist Separator")
 	Label2.Common.Hint = "Standard is ', ' without apostrophe"
 
 	Set EditArtistSep = UI.NewEdit(GroupBox2)
-	EditArtistSep.Common.SetRect 20, 85, 50, 35
+	EditArtistSep.Common.SetRect 20, 105, 50, 35
 	EditArtistSep.Common.ControlName = "ArtistSeparator"
 	EditArtistSep.Text = ArtistSeparator
 	EditArtistSep.Common.Hint = "Standard is ', ' without apostrophe"
 
 	Set Label2 = UI.NewLabel(GroupBox2)
-	Label2.Common.SetRect 165, 87, 125, 25
+	Label2.Common.SetRect 165, 107, 125, 25
 	Label2.Caption = "Artist Last Separator = &&"
 	Label2.Common.Hint = "If checked artist list will be Artist1" & ArtistSeparator & "Artist2 & Artist3" & vbCrLf & "If not checked it will be Artist1" & ArtistSeparator & "Artist2" & ArtistSeparator & "Artist3"
 
 	Dim Checkbox3
 	Set Checkbox3 = UI.NewCheckBox(GroupBox2)
-	Checkbox3.Common.SetRect 145, 87, 15, 15
+	Checkbox3.Common.SetRect 145, 107, 15, 15
 	Checkbox3.Common.ControlName = "EditArtistLastSep"
 	Checkbox3.Common.Hint = "If checked artist list will be Artist1" & ArtistSeparator & "Artist2 & Artist3" & vbCrLf & "If not checked it will be Artist1" & ArtistSeparator & "Artist2" & ArtistSeparator & "Artist3"
 	If ArtistLastSeparator = true Then Checkbox3.Checked = true
@@ -491,7 +505,7 @@ Sub InitSheet(Sheet)
 	Dim GroupBox4
 	Set GroupBox4 = UI.NewGroupBox(Sheet)
 	GroupBox4.Caption = "Discogs Access Token"
-	GroupBox4.Common.SetRect 10, 450, 500, 90
+	GroupBox4.Common.SetRect 10, 470, 500, 90
 
 	Set Label2 = UI.NewLabel(GroupBox4)
 	Label2.Common.SetRect 300, 25, 100, 25
@@ -574,6 +588,13 @@ Sub SaveSheet(Sheet)
 		ini.BoolValue("DiscogsAutoTagWeb", "CheckOriginalDiscogsTrack") = true
 	Else
 		ini.BoolValue("DiscogsAutoTagWeb", "CheckOriginalDiscogsTrack") = false
+	End If
+
+	Set checkbox = Sheet.Common.ChildControl("CheckNewVersion")
+	If checkbox.checked Then
+		ini.BoolValue("DiscogsAutoTagWeb", "CheckNewVersion") = true
+	Else
+		ini.BoolValue("DiscogsAutoTagWeb", "CheckNewVersion") = false
 	End If
 
 	Set edt = Sheet.Common.ChildControl("ArtistSeparator")

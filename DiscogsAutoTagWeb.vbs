@@ -2,7 +2,12 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.18"
+Const VersionStr = "v5.19"
+
+'Changes from 5.18 to 5.19 by crap_inhuman in 03.2015
+'	Changed Image download due to recent changes on accessing images at discogs
+'	Added check for new version once a day
+
 
 'Changes from 5.17 to 5.18 by crap_inhuman in 02.2015
 '	Removed bug with Catalog/Release tag
@@ -294,6 +299,7 @@ Dim iMaxTracks
 Dim iAutoTrackNumber, iAutoDiscNumber, iAutoDiscFormat
 Dim LastDisc
 Dim SelectAll, UnselectedTracks(1000)
+Dim CheckNewVersion, LastCheck
 
 Dim ReleaseTag, CountryTag, CatalogTag, FormatTag
 Dim OriginalDate, Separator
@@ -549,6 +555,12 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		If ini.StringValue("DiscogsAutoTagWeb","CheckDontFillEmptyFields") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","CheckDontFillEmptyFields") = True
 		End If
+		If ini.StringValue("DiscogsAutoTagWeb","CheckNewVersion") = "" Then
+			ini.BoolValue("DiscogsAutoTagWeb","CheckNewVersion") = True
+		End If
+		If ini.StringValue("DiscogsAutoTagWeb","LastCheck") = "" Then
+			ini.StringValue("DiscogsAutoTagWeb","LastCheck") = "1"
+		End If
 
 		'----------------------------------DiscogsImages----------------------------------------
 		CoverStorage = ini.StringValue("PreviewSettings","DefaultCoverStorage")
@@ -640,6 +652,8 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	CheckInvolvedPeopleSingleLine = ini.BoolValue("DiscogsAutoTagWeb","CheckInvolvedPeopleSingleLine")
 	CheckImmedSaveImage = ini.BoolValue("DiscogsAutoTagWeb","CheckImmedSaveImage")
 	CheckDontFillEmptyFields = ini.BoolValue("DiscogsAutoTagWeb","CheckDontFillEmptyFields")
+	CheckNewVersion = ini.BoolValue("DiscogsAutoTagWeb","CheckNewVersion")
+	LastCheck = ini.StringValue("DiscogsAutoTagWeb","LastCheck")
 
 	Separator = Left(Separator, Len(Separator)-1)
 	Separator = Right(Separator, Len(Separator)-1)
@@ -1368,6 +1382,35 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		SavedSearchAlbum = SearchAlbum
 	End If
 
+	If CheckNewVersion = True Then
+		Dim iDate, Version, colNodes, objNode
+		iDate = CDate(Now())
+		If Int(LastCheck) <> Int(DatePart("d",iDate)) Then
+			Dim xmlDoc
+			Set xmlDoc = CreateObject("Microsoft.XMLDOM")
+
+			xmlDoc.Async = "False"
+			xmlDoc.Load("http://www.germanc64.de/mm/DiscogsAutoTagWeb.xml")
+
+			Set colNodes = xmlDoc.selectNodes("//SoftwareVersion/VersionMajor")
+			For Each objNode in colNodes
+				Version = "v" & objNode.Text
+			Next
+			Set colNodes = xmlDoc.selectNodes("//SoftwareVersion/VersionMinor")
+			For Each objNode in colNodes
+				Version = Version & "." & objNode.Text 
+			Next
+			Set colNodes = xmlDoc.selectNodes("//SoftwareVersion/VersionRelease")
+			For Each objNode in colNodes
+				Version = Version & objNode.Text
+			Next
+			ini.StringValue("DiscogsAutoTagWeb","LastCheck") = DatePart("d",iDate)
+
+			If Version <> VersionStr Then
+				SDB.MessageBox "A new version " & Version & " is released. Please download it via Tools->Extensions", mtInformation, Array(mbOk)
+			End If
+		End If
+	End If
 
 	Dim AlbumArt
 	CheckCover = False
@@ -1413,13 +1456,7 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 End Sub
 
 
-
-
-
-
 Sub FindResults(SearchTerm, QueryPage)
-
-
 
 	SearchTerm = LTrim(SearchTerm)
 	WriteLog "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-"
@@ -1741,7 +1778,7 @@ Sub LoadMasterResults(MasterID)
 			Set oXMLHTTP = CreateObject("Msxml2.XMLHttp.6.0")   
 			oXMLHTTP.open "GET", searchURL, false
 			oXMLHTTP.setRequestHeader "Content-Type","application/json"
-			oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/2.0 +http://mediamonkey.com"
+			oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
 			oXMLHTTP.send()
 
 			If oXMLHTTP.Status = 200 Then
@@ -2019,6 +2056,7 @@ Sub ReloadResults
 				If currentTrack.Exists("sub_tracks") Then
 					WriteLog "SubTrack(s) found"
 					For Each subtrack in currentTrack("sub_tracks")
+						WriteLog "subTrack=" & subTrack
 						Set aSubtrack = currentTrack("sub_tracks")(subtrack)
 						position = aSubtrack("position")
 						DiscogsTracksNum.Add position
@@ -3421,7 +3459,7 @@ Sub ReloadResults
 					Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 					oXMLHTTP.Open "GET", searchURL, False
 					oXMLHTTP.setRequestHeader "Content-Type", "application/json"
-					oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagBatch/2.0 +http://mediamonkey.com"
+					oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
 					oXMLHTTP.send ()
 
 					If oXMLHTTP.Status = 200 Then
@@ -3452,7 +3490,7 @@ Sub ReloadResults
 					ImagesCount = CurrentRelease("cover-art-archive")("count")
 					oXMLHTTP.Open "GET", searchURL, False
 					oXMLHTTP.setRequestHeader "Content-Type", "application/json"
-					oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagBatch/2.0 +http://mediamonkey.com"
+					oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
 					oXMLHTTP.send ()
 
 					If oXMLHTTP.Status = 200 Then
@@ -4371,7 +4409,7 @@ End Sub
 ' down at the top of the window
 Sub ShowResult(ResultID)
 
-	Dim ReleaseID, searchURL, oXMLHTTP, ResponseHTML, TXTBegin, TXTEnd, Title, SelectedTracks, searchURL_F
+	Dim ReleaseID, searchURL, oXMLHTTP, ResponseHTML, TXTBegin, TXTEnd, Title, SelectedTracks, searchURL_F, searchURL_L
 
 	WebBrowser.SetHTMLDocument ""                 ' Deletes visible search result
 	If ResultsReleaseID.Item(ResultID) = "" Then Exit Sub
@@ -4450,17 +4488,21 @@ Sub ShowResult(ResultID)
 		WriteLog "ReleaseID=" & ReleaseID
 		If InStr(Results.Item(ResultID), "search returned no results") = 0 Then
 			If Right(Results.Item(ResultID), 1) = "*" Or Right(Results.Item(ResultID), 8) = "(Master)" Then  'Master-Release
-				searchURL = "http://api.discogs.com/masters/" & ReleaseID
+				searchURL_F = "http://api.discogs.com/masters/"
 				WriteLog "Show Master-Release"
 			Else
-				searchURL = "http://api.discogs.com/releases/" & ReleaseID
+				searchURL_F = "http://api.discogs.com/releases/"
 			End If
+			searchURL = ReleaseID
+			searchURL_L = ""
 
 			Set oXMLHTTP = CreateObject("Msxml2.XMLHttp.6.0")   
-			oXMLHTTP.open "GET", searchURL, false
-			oXMLHTTP.setRequestHeader "Content-Type","application/json"
-			oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/2.0 +http://mediamonkey.com"
-			oXMLHTTP.send()
+			oXMLHTTP.open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
+
+			oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
+			oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
+			WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L
+			oXMLHTTP.send("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L)
 
 			If oXMLHTTP.Status = 200 Then
 				WriteLog "responseText=" & oXMLHTTP.responseText
@@ -5859,7 +5901,7 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 		If useOAuth = True Then
 			oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
 			oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
-			oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/2.0 +http://mediamonkey.com"
+			oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
 			WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L & "%26page=1"
 			oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L & "%26page=1")
 
@@ -5881,7 +5923,7 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 
 			oXMLHTTP.Open "GET", searchURL_F & searchURL & searchURL_L, False
 			oXMLHTTP.setRequestHeader "Content-Type","application/json"
-			oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/2.0 +http://mediamonkey.com"
+			oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
 			oXMLHTTP.send()
 
 			If oXMLHTTP.Status = 200 Then
@@ -5911,7 +5953,7 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 					If Page <> 1 Then
 						oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
 						oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"  
-						oXMLHTTP.setRequestHeader "User-Agent", "MediaMonkeyDiscogsAutoTagBatch/2.0 +http://mediamonkey.com"
+						oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
 						WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L & "%26page=" & Page
 						oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L & "%26page=" & Page)
 						If oXMLHTTP.Status = 200 Then
@@ -6049,9 +6091,9 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 							ResultsReleaseID.Add response(ArrayName)(r)("id")
 						Loop While False
 						SongCount = SongCount + 1
-						If SongCount = 150 Then Exit For
+						If SongCount = 99 Then Exit For
 					Next
-					If SongCount = 150 Then Exit For
+					If SongCount = 99 Then Exit For
 				Next
 				ListCount = 1
 				For r = 1 to Results.Count
@@ -6088,7 +6130,7 @@ Function ReloadMaster(SavedMasterID)
 
 	oXMLHTTP.open "GET", masterURL, false
 	oXMLHTTP.setRequestHeader "Content-Type","application/json"
-	oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/2.0 +http://mediamonkey.com"
+	oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
 	oXMLHTTP.send()
 
 	If oXMLHTTP.Status = 200 Then
@@ -6894,7 +6936,7 @@ Sub WriteOptions()
 	WriteLog "CheckGenre=" & CheckGenre
 	WriteLog "CheckStyle=" & CheckStyle
 	WriteLog "CheckCountry=" & CheckCountry
-	Rem WriteLog "CheckCover=" & CheckCover
+	REM WriteLog "CheckCover=" & CheckCover
 	WriteLog "CheckSmallCover=" & CheckSmallCover
 	WriteLog "CheckCatalog=" & CheckCatalog
 	WriteLog "CheckRelease=" & CheckRelease
