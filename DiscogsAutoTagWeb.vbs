@@ -2,7 +2,12 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.19"
+Const VersionStr = "v5.20"
+
+'Changes from 5.19 to 5.20 by crap_inhuman in 03.2015
+'	Removed CheckImmedSaveImage, the image(s) will now saved immediately
+'	Changed Cover-Image saving-routine to store the images in the cache
+
 
 'Changes from 5.18 to 5.19 by crap_inhuman in 03.2015
 '	Changed Image download due to recent changes on accessing images at discogs
@@ -279,7 +284,7 @@ Dim CheckCountry, CheckCover, CheckSmallCover, SmallCover, CheckStyle, CheckCata
 Dim CheckComposer, CheckConductor, CheckProducer, CheckDiscNum, CheckTrackNum, CheckFormat, CheckUseAnv, CheckYearOnlyDate
 Dim CheckForceNumeric, CheckSidesToDisc, CheckForceDisc, CheckNoDisc, CheckLeadingZero, CheckVarious, TxtVarious
 Dim CheckTitleFeaturing, CheckComment, CheckFeaturingName, TxtFeaturingName, CheckOriginalDiscogsTrack, CheckSaveImage
-Dim CheckStyleField, CheckTurnOffSubTrack, CheckInvolvedPeopleSingleLine, CheckImmedSaveImage, CheckDontFillEmptyFields
+Dim CheckStyleField, CheckTurnOffSubTrack, CheckInvolvedPeopleSingleLine, CheckDontFillEmptyFields
 Dim SubTrackNameSelection
 Dim CountryFilterList, MediaTypeFilterList, MediaFormatFilterList, YearFilterList
 Dim LyricistKeywords, ConductorKeywords, ProducerKeywords, ComposerKeywords, FeaturingKeywords, UnwantedKeywords
@@ -313,18 +318,39 @@ REM QueryPage = "MusicBrainz"
 REM QueryPage = "MetalArchives"
 
 '----------------------------------DiscogsImages----------------------------------------
-Dim SaveImageType, SaveImage, CoverStorage, FileNameList
-Dim ImageTypeList, ImageList
+Dim SaveImageType, SaveImage, CoverStorage, CoverStorageName
+Dim FileNameList, ImageTypeList, ImageList, ImageLocal
 Dim list
 Dim ImagesCount
 Dim SaveMoreImages
 Dim WebBrowser3
 Dim SelectedSongsGlobal
+
+Set ImageTypeList = SDB.NewStringList
+
+ImageTypeList.Add SDB.Localize("Not specified")		'0
+ImageTypeList.Add SDB.Localize("Cover (front)")		'3
+ImageTypeList.Add SDB.Localize("Cover (back)")		'4
+ImageTypeList.Add SDB.Localize("Leaflet Page")
+ImageTypeList.Add SDB.Localize("Media Label")
+ImageTypeList.Add SDB.Localize("Lead Artist")
+ImageTypeList.Add SDB.Localize("Artist")
+ImageTypeList.Add SDB.Localize("Conductor")
+ImageTypeList.Add SDB.Localize("Band")
+ImageTypeList.Add SDB.Localize("Composer")
+ImageTypeList.Add SDB.Localize("Lyricist")
+ImageTypeList.Add SDB.Localize("Recording Location")
+ImageTypeList.Add SDB.Localize("During Recording")
+ImageTypeList.Add SDB.Localize("During Performance")
+ImageTypeList.Add SDB.Localize("Video Screen Capture")
+ImageTypeList.Add SDB.Localize("Illustration")
+ImageTypeList.Add SDB.Localize("Band Logotype")
+ImageTypeList.Add SDB.Localize("Publisher Logotype")		'20
 '----------------------------------DiscogsImages----------------------------------------
 
 ' Easier access of SDB.UI
 Set UI = SDB.UI
-
+Dim sTemp : sTemp = SDB.TemporaryFolder
 
 ' MediaMonkey calls this method whenever a search is started using this script
 Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
@@ -549,9 +575,6 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		If ini.StringValue("DiscogsAutoTagWeb","CheckInvolvedPeopleSingleLine") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","CheckInvolvedPeopleSingleLine") = False
 		End If
-		If ini.StringValue("DiscogsAutoTagWeb","CheckImmedSaveImage") = "" Then
-			ini.BoolValue("DiscogsAutoTagWeb","CheckImmedSaveImage") = False
-		End If
 		If ini.StringValue("DiscogsAutoTagWeb","CheckDontFillEmptyFields") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","CheckDontFillEmptyFields") = True
 		End If
@@ -572,6 +595,8 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 			Call SDB.MessageBox("Discogs Images: Your Cover Storage is not supported by DiscogsImages !",mtError,Array(mbOk))
 			Exit Sub
 		End If
+		CoverStorageName = ini.StringValue("AAMasks","Mask1")
+		
 		'----------------------------------DiscogsImages----------------------------------------
 
 	End If
@@ -650,7 +675,6 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	AccessTokenSecret = ini.StringValue("DiscogsAutoTagWeb","AccessTokenSecret")
 	QueryPage = ini.StringValue("DiscogsAutoTagWeb","QueryPage")
 	CheckInvolvedPeopleSingleLine = ini.BoolValue("DiscogsAutoTagWeb","CheckInvolvedPeopleSingleLine")
-	CheckImmedSaveImage = ini.BoolValue("DiscogsAutoTagWeb","CheckImmedSaveImage")
 	CheckDontFillEmptyFields = ini.BoolValue("DiscogsAutoTagWeb","CheckDontFillEmptyFields")
 	CheckNewVersion = ini.BoolValue("DiscogsAutoTagWeb","CheckNewVersion")
 	LastCheck = ini.StringValue("DiscogsAutoTagWeb","LastCheck")
@@ -2380,7 +2404,7 @@ Sub ReloadResults
 							'SubTrack Function ---------------------------------------------------------
 							If InStr(LCase(position), ".") > 0 Then
 								CharSeparatorSubTrack = 1
-							ElseIf Not IsNumeric(Right(position, 1)) And Len(position) > 1 Then
+							ElseIf Not IsNumeric(Right(position, 1)) And Len(position) > 1 And position <> "Video" Then
 								CharSeparatorSubTrack = 2
 							End If
 							If CharSeparatorSubTrack <> 0 Then
@@ -2805,15 +2829,16 @@ Sub ReloadResults
 
 					If currentImage("type") = "primary" Or AlbumArtURL = "" Then
 						AlbumArtURL = currentImage("resource_url")
-						AlbumArtURL = Replace(AlbumArtURL, "http://api.discogs.com/images", "http://s.pixogs.com/image")
 						WriteLog "AlbumArtURL2=" & AlbumArtURL
 						AlbumArtThumbNail = currentImage("uri150")
-						AlbumArtThumbNail = Replace(AlbumArtThumbnail, "http://api.discogs.com/images", "http://s.pixogs.com/image")
 						WriteLog "AlbumArtThumbNail2=" & AlbumArtThumbNail
 					End If
 				Next
 			End If
 
+			getimages AlbumArtThumbNail, sTemp & "cover.jpg"
+			AlbumArtThumbNail = sTemp & "cover.jpg"
+			
 			'----------------------------------DiscogsImages----------------------------------------
 			Set ImageList = SDB.NewStringList
 			Set SaveImageType = SDB.NewStringList
@@ -2826,7 +2851,6 @@ Sub ReloadResults
 					For Each i In CurrentRelease("images")
 						Set currentImage = CurrentRelease("images")(i)
 						tmpArt = currentImage("resource_url")
-						tmpArt = Replace(tmpArt, "http://api.discogs.com/images", "http://s.pixogs.com/image")
 						WriteLog tmpArt
 						If AlbumArtURL <> tmpArt Then
 							ImageList.add tmpArt
@@ -3632,14 +3656,6 @@ Sub ReloadResults
 	Next
 
 	SDB.Tools.WebSearch.SmartUpdateTracks SelectedTracks
-
-	If CheckCover Then
-		SDB.Tools.WebSearch.AlbumArtURL = AlbumArtURL
-	ElseIf SmallCover Then
-		SDB.Tools.WebSearch.AlbumArtURL = AlbumArtThumbNail
-	Else
-		SDB.Tools.WebSearch.AlbumArtURL = ""
-	End If
 
 	For i = 0 To SDB.Tools.WebSearch.NewTracks.Count - 1
 
@@ -4519,14 +4535,14 @@ End Sub
 ' This does the final clean up, so that our script doesn't leave any unwanted traces
 Sub FinishSearch(Panel)
 
-	If IsObject(ImageList) And CheckImmedSaveImage = False Then
-		SaveMoreImagesSub()
-	End If
-
 	If isObject(WebBrowser) Then
 		WebBrowser.Common.DestroyControl      ' Destroy the external control
 		Set WebBrowser = Nothing              ' Release global variable
 		SDB.Objects("WebBrowser") = Nothing
+	End If
+
+	If CheckCover Or SmallCover Then
+		SaveCoverImage()
 	End If
 
 	Set ini = Nothing
@@ -4538,6 +4554,189 @@ Sub FinishSearch(Panel)
 End Sub
 
 
+Sub SaveCoverImage()
+
+	Dim i
+	Dim Form
+	Set Form = UI.NewForm 
+	Form.Common.ClientWidth = 450
+	Form.Common.ClientHeight = 350
+	Form.FormPosition = 4
+	Form.Caption = SDB.Localize("Add Artwork")
+	Form.BorderStyle = 3
+	Form.StayOnTop = True
+
+	Dim Btn : Set Btn = SDB.UI.NewButton(Form)
+	Btn.Caption = SDB.Localize("Cancel")
+	Btn.Common.Width = 85
+	Btn.Common.Height = 25
+	Btn.Common.Left = 450 - Btn.Common.Width - 30
+	Btn.Common.Top = 350 - 35
+	Btn.UseScript = Script.ScriptPath
+	Btn.ModalResult = 2
+	Btn.Cancel = True  
+
+	Dim Btn2 : Set Btn2 = SDB.UI.NewButton(Form)
+	Btn2.Caption = SDB.Localize("Ok")
+	Btn2.Common.Width = 85
+	Btn2.Common.Height = 25
+	Btn2.Common.Left = 450 - Btn2.Common.Width - Btn.Common.Width -30 - 15
+	Btn2.Common.Top = 350 - 35
+	Btn2.UseScript = Script.ScriptPath
+	Btn2.ModalResult = 1 
+	Btn2.Default = True
+
+	Dim dd : Set dd = SDB.UI.NewDropDown(Form)
+	dd.Common.Width = 250
+	dd.Common.Left = 150
+	dd.Common.Top = 35
+	For i = 0 To ImageTypeList.Count -1
+		dd.AddItem ImageTypeList.Item(i)
+	Next
+	dd.Style = 2
+	dd.ItemIndex = 1
+
+	Dim la : Set la = SDB.UI.NewLabel(Form)
+	la.Common.Left = 15
+	la.Common.Top = 35
+	la.Caption = SDB.Localize("Image type:")
+
+	Set la = SDB.UI.NewLabel(Form)
+	la.Common.Left = 15
+	la.Common.Top = 70
+	la.Caption = SDB.Localize("Description:")
+
+	Dim ml : Set ml = SDB.UI.NewMultiLineEdit(Form)
+	ml.Common.Left = 150
+	ml.Common.Width = 250
+	ml.Common.Top = 70
+	ml.Common.Height = 140
+
+	Dim dd2 : Set dd2 = SDB.UI.NewDropDown(Form)
+	dd2.Common.Width = 250
+	dd2.Common.Left = 150
+	dd2.Common.Top = 225
+	dd2.AddItem SDB.Localize("Save image to tag (if possible) otherwise save to file folder")
+	dd2.AddItem SDB.Localize("Save image to file folder")
+	dd2.AddItem SDB.Localize("Save image to tag (if possible) and to file folder")
+	dd2.Style = 2
+	If CoverStorage = 0 Then
+		dd2.ItemIndex = 0
+	ElseIf CoverStorage = 1 Then
+		dd2.ItemIndex = 1
+	Else
+		dd2.ItemIndex = 2
+	End If
+
+	Set la = SDB.UI.NewLabel(Form)
+	la.Common.Left = 15
+	la.Common.Top = 225
+	la.Caption = SDB.Localize("Image location:")
+
+	Dim le : Set le = SDB.UI.NewEdit(Form)
+	le.Common.Left = 150
+	le.Common.Width = 250
+	le.Common.Top = 260
+	le.Common.Height = 25
+	le.Text = CoverStorageName
+
+	Set la = SDB.UI.NewLabel(Form)
+	la.Common.Left = 15
+	la.Common.Top = 260
+	la.Caption = SDB.Localize("Image filename:")
+
+	Dim itm, path, res, j, k, ret
+	If Form.ShowModal = 1 Then
+
+		Set itm = SelectedSongsGlobal.item(0)
+		path = Mid(itm.Path,1,InStrRev(itm.Path,"\")-1)
+		If CheckCover Then
+			getimages AlbumArtURL, sTemp & "cover.jpg"
+		End If
+
+		If dd2.ItemIndex = 1 Or dd2.ItemIndex = 2 Then
+			If SDB.Tools.FileSystem.FileExists(path & "\" & le.Text) = True Then
+				res = SDB.MessageBox("The file " & le.Text & " already exist. Overwrite it ?", mtConfirmation, Array(mbYes, mbNo))
+				If res = 6 Then
+					SDB.Tools.FileSystem.DeleteFile(path & "\" & le.Text)
+					ret = SDB.Tools.FileSystem.MoveFile(sTemp & "cover.jpg", path & "\" & le.Text)
+					If ret = False Then
+						WriteLog "ERROR:Image could not moved to : " & path & "\" & le.Text
+						SDB.MessageBox "ERROR:Image could not moved !", mtError, Array(mbOk)
+					End If
+				End If
+			Else
+				ret = SDB.Tools.FileSystem.MoveFile(sTemp & "cover.jpg", path & "\" & le.Text)
+				If ret = False Then
+					WriteLog "ERROR:Image could not moved to : " & path & "\" & le.Text
+					SDB.MessageBox "ERROR:Image could not moved !", mtError, Array(mbOk)
+				End If
+			End If
+		End If
+
+		If res <> 7 Then 'don't overwrite file
+			For j = 0 To SelectedSongsGlobal.Count - 1
+				Set itm = SelectedSongsGlobal.item(j)
+				Dim pics : Set pics = itm.AlbumArt
+				If pics Is Nothing Then
+					Exit Sub
+				End If
+				Dim img
+
+				Set img = pics.AddNew
+				img.Description = ml.Text
+
+				If dd2.ItemIndex = 1 Or dd2.ItemIndex = 2 Then
+					img.PicturePath = path & "\" & le.Text
+					img.ItemStorage = 1
+				Else
+					img.PicturePath = ImageLocal.Item(i)
+					img.ItemStorage = 0
+				End If
+				For k = 0 to ImageTypeList.Count - 1
+					If dd.Text = ImageTypeList.Item(k) Then
+						If k = 0 Then k = -2
+						If k > 14 Then k = k + 1
+						img.ItemType = k + 2
+						pics.UpdateDB
+						Exit For
+					End If
+				Next
+
+				If CoverStorage = 3 Then
+					Set pics = itm.AlbumArt
+					Set img = pics.AddNew
+					img.Description = ml.Text
+					img.PicturePath = path & "\" & le.Text
+					img.ItemStorage = 0
+					For k = 0 to ImageTypeList.Count - 1
+						If dd.Text = ImageTypeList.Item(k) Then
+							If k = 0 Then k = -2
+							If k > 14 Then k = k + 1
+							img.ItemType = k + 2
+							REM pics.UpdateDB
+							Exit For
+						End If
+					Next
+				End If
+			Next
+		End If
+		If CoverStorage = 0 Then
+			SDB.Tools.FileSystem.DeleteFile(ImageLocal.Item(i))
+		End If
+	End If
+	If Not (Form Is Nothing) Then
+		Script.UnregisterEvents Form
+		Form.Common.Visible = False
+		Form.Common.ControlName = ""
+		Set Form = Nothing  
+	End If
+	
+End Sub
+
+
+
+
 Sub SaveMoreImagesSub()
 
 	Dim ret, res, RndFileName, i, itm, path, j, k, ImageSelected
@@ -4547,8 +4746,8 @@ Sub SaveMoreImagesSub()
 			If SaveImage.Item(i) = 1 Then ImageSelected = True
 		Next
 		If ImageSelected = True Then
-			res = SDB.MessageBox("Save the selected image(s) ?", mtConfirmation, Array(mbYes, mbNo))
-			If res = 6 Then
+			REM res = SDB.MessageBox("Save the selected image(s) ?", mtConfirmation, Array(mbYes, mbNo))
+			REM If res = 6 Then
 				For i = 0 to ImageList.Count - 1
 					res = 0
 					If SaveImage.Item(i) = 1 Then
@@ -4559,20 +4758,19 @@ Sub SaveMoreImagesSub()
 								res = SDB.MessageBox("The file " & FileNameList.Item(i) & " already exist. Overwrite it ?", mtConfirmation, Array(mbYes, mbNo))
 								If res = 6 Then
 									SDB.Tools.FileSystem.DeleteFile(path & "\" & FileNameList.Item(i))
-									ret = getimages(ImageList.Item(i), path & "\" & FileNameList.Item(i))
+									ret = SDB.Tools.FileSystem.MoveFile(ImageLocal.Item(i), path & "\" & FileNameList.Item(i))
+									If ret = False Then
+										WriteLog "ERROR:Image could not moved to : " & path & "\" & FileNameList.Item(i)
+										SDB.MessageBox "ERROR:Image could not moved !", mtError, Array(mbOk)
+									End If
 								End If
 							Else
-								ret = getimages(ImageList.Item(i), path & "\" & FileNameList.Item(i))
-								If ret = "" Then DebugOut("ERROR:Image Download failed !")
+								ret = SDB.Tools.FileSystem.MoveFile(ImageLocal.Item(i), path & "\" & FileNameList.Item(i))
+								If ret = False Then
+									WriteLog "ERROR:Image could not moved to : " & path & "\" & FileNameList.Item(i)
+									SDB.MessageBox "ERROR:Image could not moved !", mtError, Array(mbOk)
+								End If
 							End If
-						End If
-						If CoverStorage = 0 Then
-							Dim max, min
-							max=100000
-							min=10000
-							Randomize
-							RndFileName = Int((max-min+1)*Rnd+min) & ".jpg"
-							ret = getimages(ImageList.Item(i), path & "\" & RndFileName)
 						End If
 
 						If res <> 7 Then 'don't overwrite file
@@ -4582,8 +4780,7 @@ Sub SaveMoreImagesSub()
 								If pics Is Nothing Then
 									Exit Sub
 								End If
-								Dim img, ImageTagCount
-								ImageTagCount = pics.Count
+								Dim img
 
 								Set img = pics.AddNew
 								img.Description = ""
@@ -4592,7 +4789,7 @@ Sub SaveMoreImagesSub()
 									img.PicturePath = path & "\" & FileNameList.Item(i)
 									img.ItemStorage = 1
 								Else
-									img.PicturePath = path & "\" & RndFileName
+									img.PicturePath = ImageLocal.Item(i)
 									img.ItemStorage = 0
 								End If
 								For k = 0 to ImageTypeList.Count - 1
@@ -4604,13 +4801,9 @@ Sub SaveMoreImagesSub()
 										Exit For
 									End If
 								Next
-								Set pics = itm.AlbumArt
-								If ImageTagCount + 1 = pics.Count Then
-								Else
-								End If
+
 								If CoverStorage = 3 Then
 									Set pics = itm.AlbumArt
-									ImageTagCount = pics.Count
 									Set img = pics.AddNew
 									img.Description = ""
 									img.PicturePath = path & "\" & FileNameList.Item(i)
@@ -4620,23 +4813,19 @@ Sub SaveMoreImagesSub()
 											If k = 0 Then k = -2
 											If k > 14 Then k = k + 1
 											img.ItemType = k + 2
-											pics.UpdateDB
+											REM pics.UpdateDB
 											Exit For
 										End If
 									Next
-									Set pics = itm.AlbumArt
-									If ImageTagCount + 1 = pics.Count Then
-									Else
-									End If
 								End If
 							Next
 						End If
 						If CoverStorage = 0 Then
-							SDB.Tools.FileSystem.DeleteFile(path & "\" & RndFileName)
+							SDB.Tools.FileSystem.DeleteFile(ImageLocal.Item(i))
 						End If
 					End If
 				Next
-			End If
+			REM End If
 		End If
 	End If
 
@@ -4845,7 +5034,7 @@ End Function
 
 
 ' We use this procedure to reformat results as soon as they are downloaded
-Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtist, AlbumArtistTitle, ArtistTitles, AlbumTitle, ReleaseDate, OriginalDate, Genres, Styles, theLabels, theCountry, AlbumArtThumbNail, releaseID, Catalog, Lyricists, Composers, Conductors, Producers, InvolvedPeople, theFormat, theMaster, comment, DiscogsTracksNum, DataQuality)
+Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtist, AlbumArtistTitle, ArtistTitles, AlbumTitle, ReleaseDate, OriginalDate, Genres, Styles, theLabels, theCountry, AlbumArtThumbNail, releaseID, Catalog, Lyricists, Composers, Conductors, Producers, InvolvedArtists, theFormat, theMaster, comment, DiscogsTracksNum, DataQuality)
 
 	Dim templateHTML, checkBox, text, listBox, submitButton, tmp
 	Dim SelectedTracksCount, UnSelectedTracksCount
@@ -5095,17 +5284,17 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 		If(CheckConductor and Conductors.Item(i) <> "") Then templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left>Conductor: "& Conductors.Item(i) &"</td></tr>"
 		If(CheckProducer and Producers.Item(i) <> "") Then templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left>Producer: "& Producers.Item(i) &"</td></tr>"
 
-		If(CheckInvolved and InvolvedPeople.Item(i) <> "") Then
+		If(CheckInvolved and InvolvedArtists.Item(i) <> "") Then
 			templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left><b>Involved People:</b></td></tr>"
 			'SDB.Localize("Involved People")
-			If CheckInvolvedPeopleSingleLine = True And InStr(InvolvedPeople.Item(i), ";") <> 0 Then
+			If CheckInvolvedPeopleSingleLine = True And InStr(InvolvedArtists.Item(i), ";") <> 0 Then
 				Dim x
-				tmp = Split(InvolvedPeople.Item(i), "; ")
+				tmp = Split(InvolvedArtists.Item(i), "; ")
 				For each x in tmp
 					templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left>"& x &"</td></tr>"
 				Next
 			Else
-				templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left>"& InvolvedPeople.Item(i) &"</td></tr>"
+				templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left>"& InvolvedArtists.Item(i) &"</td></tr>"
 			End If
 		End If
 	Next
@@ -6712,28 +6901,7 @@ End Function
 
 Sub MoreImages()
 
-	Set ImageTypeList = SDB.NewStringList
-
-	ImageTypeList.Add SDB.Localize("Not specified")		'0
-	ImageTypeList.Add SDB.Localize("Cover (front)")		'3
-	ImageTypeList.Add SDB.Localize("Cover (back)")		'4
-	ImageTypeList.Add SDB.Localize("Leaflet Page")
-	ImageTypeList.Add SDB.Localize("Media Label")
-	ImageTypeList.Add SDB.Localize("Lead Artist")
-	ImageTypeList.Add SDB.Localize("Artist")
-	ImageTypeList.Add SDB.Localize("Conductor")
-	ImageTypeList.Add SDB.Localize("Band")
-	ImageTypeList.Add SDB.Localize("Composer")
-	ImageTypeList.Add SDB.Localize("Lyricist")
-	ImageTypeList.Add SDB.Localize("Recording Location")
-	ImageTypeList.Add SDB.Localize("During Recording")
-	ImageTypeList.Add SDB.Localize("During Performance")
-	ImageTypeList.Add SDB.Localize("Video Screen Capture")
-	ImageTypeList.Add SDB.Localize("Illustration")
-	ImageTypeList.Add SDB.Localize("Band Logotype")
-	ImageTypeList.Add SDB.Localize("Publisher Logotype")		'20
-
-	Dim iWidth, imageHTML, imageHTMLDoc, i, j
+	Dim iWidth, imageHTML, imageHTMLDoc, i, j, RndFileName, ret
 	imageHTML = "<HTML>"
 	imageHTML = imageHTML &  "<HEAD>"
 	imageHTML = imageHTML &  "<style type=""text/css"" media=""screen"">"
@@ -6745,8 +6913,17 @@ Sub MoreImages()
 	imageHTML = imageHTML &  "<table border=0 width=" & iWidth & " cellspacing=0 cellpadding=1 class=tabletext>"
 	imageHTML = imageHTML &  "<tr>"
 
+	Dim max, min
+	Set ImageLocal = SDB.NewStringList
 	For i = 0 To ImageList.Count - 1
-		imageHTML = imageHTML &  "<td><img border=""0"" src=""" & ImageList.Item(i) & """ width=""180"" height=""180""></td>"
+		max=100000
+		min=10000
+		Randomize
+		RndFileName = Int((max-min+1)*Rnd+min) & ".jpg"
+		ret = getimages(ImageList.Item(i), sTemp & RndFileName)
+		ImageLocal.Add sTemp & RndFileName
+		WriteLog "Random-File = " & sTemp & RndFileName
+		imageHTML = imageHTML &  "<td><img border=""0"" src=""" & sTemp & RndFileName & """ width=""180"" height=""180""></td>"
 	Next
 	imageHTML = imageHTML &  "</tr><tr>"
 	For i = 0 To ImageList.Count - 1
@@ -6791,7 +6968,6 @@ Sub MoreImages()
 	Form.Common.ClientWidth = 800
 	Form.Common.ClientHeight = 400
 	Form.FormPosition = 4
-	'Form.SavePositionName = "TheDiscogsWindow" 
 	Form.Caption = "Choose additional Images for the Release"
 	Form.BorderStyle = 3
 	Form.StayOnTop = True
@@ -6889,9 +7065,7 @@ Sub SetSaveImages()
 		End If
 	Next
 
-	If CheckImmedSaveImage Then
-		SaveMoreImagesSub()
-	End If
+	SaveMoreImagesSub()
 
 End Sub
 
@@ -6970,7 +7144,6 @@ Sub WriteOptions()
 	WriteLog "CheckInvolvedPeopleSingleLine=" & CheckInvolvedPeopleSingleLine
 	WriteLog "ArtistSeparator=" & ArtistSeparator
 	WriteLog "QueryPage=" & QueryPage
-	WriteLog "CheckImmedSaveImage=" & CheckImmedSaveImage
 	WriteLog "CheckDontFillEmptyFields=" & CheckDontFillEmptyFields
 	WriteLog "Separator=" & Separator
 	Set ini = SDB.IniFile

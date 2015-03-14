@@ -1,14 +1,17 @@
 '
 ' MediaMonkey Script
 '
-' NAME: Discogs Tagger Options 2.6
+' NAME: Discogs Tagger Options 2.7
 '
 ' AUTHOR: crap_inhuman
-' DATE : 18/01/2015
+' DATE : 14/03/2015
 '
 '
 ' INSTALL: Automatic installation during Discogs Tagger install
 '
+'Changes from 2.6 to 2.7
+'Removed CheckImmedSaveImage
+
 'Changes from 2.5 to 2.6
 'Added check for new version once a day
 
@@ -129,17 +132,17 @@ Sub InitSheet(Sheet)
 		If ini.StringValue("DiscogsAutoTagWeb","AccessTokenSecret") = "" Then
 			ini.StringValue("DiscogsAutoTagWeb","AccessTokenSecret") = ""
 		End If
-		If ini.StringValue("DiscogsAutoTagWeb","CheckImmedSaveImage") = "" Then
-			ini.BoolValue("DiscogsAutoTagWeb","CheckImmedSaveImage") = False
-		End If
-		If ini.ValueExists("DiscogsAutoTagWeb","ImmedSaveImage") Then
-			ini.DeleteKey "DiscogsAutoTagWeb","ImmedSaveImage"
-		End If
 		If ini.StringValue("DiscogsAutoTagWeb","CheckDontFillEmptyFields") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","CheckDontFillEmptyFields") = True
 		End If
 		If ini.StringValue("DiscogsAutoTagWeb","CheckNewVersion") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","CheckNewVersion") = True
+		End If
+		If ini.ValueExists("DiscogsAutoTagWeb","ImmedSaveImage") Then
+			ini.DeleteKey "DiscogsAutoTagWeb","ImmedSaveImage"
+		End If
+		If ini.ValueExists("DiscogsAutoTagWeb","CheckImmedSaveImage") Then
+			ini.DeleteKey "DiscogsAutoTagWeb","CheckImmedSaveImage"
 		End If
 	End If
 
@@ -156,7 +159,6 @@ Sub InitSheet(Sheet)
 	CheckSmallCover = ini.BoolValue("DiscogsAutoTagWeb","CheckSmallCover")
 	AccessToken = ini.StringValue("DiscogsAutoTagWeb","AccessToken")
 	AccessTokenSecret = ini.StringValue("DiscogsAutoTagWeb","AccessTokenSecret")
-	CheckImmedSaveImage = ini.BoolValue("DiscogsAutoTagWeb","CheckImmedSaveImage")
 	CheckDontFillEmptyFields = ini.BoolValue("DiscogsAutoTagWeb","CheckDontFillEmptyFields")
 	CheckNewVersion = ini.BoolValue("DiscogsAutoTagWeb","CheckNewVersion")
 
@@ -427,20 +429,6 @@ Sub InitSheet(Sheet)
 		Checkbox13.Common.Enabled = False
 	End If
 
-	Dim Checkbox14
-	Set Checkbox14 = UI.NewCheckBox(GroupBox1)
-	Checkbox14.Common.SetRect 20, 80, 270, 15
-	Checkbox14.Common.ControlName = "ControlSaveImage14"
-	Checkbox14.Caption = "Save selected 'More images' after closing the popup"
-	Checkbox14.Common.Hint = "If option not set the script store the selected images after closing the script."
-	
-	Set SDB.Objects("CheckImmedSaveImage") = Checkbox14
-	If CheckImmedSaveImage = True Then
-		Checkbox14.checked = True
-	Else
-		Checkbox14.checked = False
-	End If
-
 	Script.RegisterEvent Checkbox1.Common, "OnClick", "ChBClick"
 
 	Dim GroupBox2
@@ -575,12 +563,6 @@ Sub SaveSheet(Sheet)
 		ini.BoolValue("DiscogsAutoTagWeb", "CheckDontFillEmptyFields") = true
 	Else
 		ini.BoolValue("DiscogsAutoTagWeb", "CheckDontFillEmptyFields") = false
-	End If
-
-	If Sheet.Common.ChildControl("ControlSaveImage14").Checked = True Then
-		ini.BoolValue("DiscogsAutoTagWeb", "CheckImmedSaveImage") = true
-	Else
-		ini.BoolValue("DiscogsAutoTagWeb", "CheckImmedSaveImage") = false
 	End If
 
 	Set checkbox = Sheet.Common.ChildControl("CheckOriginalDiscogsTrack")
