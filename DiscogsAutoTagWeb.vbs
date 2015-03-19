@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.20"
+Const VersionStr = "v5.21"
+
+'Changes from 5.20 to 5.21 by crap_inhuman in 03.2015
+'	Saving cover-image bug removed
+
 
 'Changes from 5.19 to 5.20 by crap_inhuman in 03.2015
 '	Removed CheckImmedSaveImage, the image(s) will now saved immediately
@@ -3650,9 +3654,7 @@ Sub ReloadResults
 		End If
 	Next
 	For i = 0 To SDB.Tools.WebSearch.NewTracks.Count -1
-		If UnselectedTracks(i) = "" Then
-			SelectedSongsGlobal.Add SDB.Tools.WebSearch.NewTracks.item(i)
-		End If
+		SelectedSongsGlobal.Add SDB.Tools.WebSearch.NewTracks.item(i)
 	Next
 
 	SDB.Tools.WebSearch.SmartUpdateTracks SelectedTracks
@@ -4654,28 +4656,26 @@ Sub SaveCoverImage()
 			getimages AlbumArtURL, sTemp & "cover.jpg"
 		End If
 
+		res = 0
 		If dd2.ItemIndex = 1 Or dd2.ItemIndex = 2 Then
 			If SDB.Tools.FileSystem.FileExists(path & "\" & le.Text) = True Then
 				res = SDB.MessageBox("The file " & le.Text & " already exist. Overwrite it ?", mtConfirmation, Array(mbYes, mbNo))
 				If res = 6 Then
 					SDB.Tools.FileSystem.DeleteFile(path & "\" & le.Text)
-					ret = SDB.Tools.FileSystem.MoveFile(sTemp & "cover.jpg", path & "\" & le.Text)
+					ret = SDB.Tools.FileSystem.CopyFile(sTemp & "cover.jpg", path & "\" & le.Text)
 					If ret = False Then
 						WriteLog "ERROR:Image could not moved to : " & path & "\" & le.Text
 						SDB.MessageBox "ERROR:Image could not moved !", mtError, Array(mbOk)
 					End If
-				End If
-			Else
-				ret = SDB.Tools.FileSystem.MoveFile(sTemp & "cover.jpg", path & "\" & le.Text)
-				If ret = False Then
-					WriteLog "ERROR:Image could not moved to : " & path & "\" & le.Text
-					SDB.MessageBox "ERROR:Image could not moved !", mtError, Array(mbOk)
 				End If
 			End If
 		End If
 
 		If res <> 7 Then 'don't overwrite file
 			For j = 0 To SelectedSongsGlobal.Count - 1
+				WriteLog "J=" & j
+				WriteLog "dd2.ItemIndex=" & dd2.ItemIndex
+				WriteLog "count=" & SelectedSongsGlobal.Count
 				Set itm = SelectedSongsGlobal.item(j)
 				Dim pics : Set pics = itm.AlbumArt
 				If pics Is Nothing Then
@@ -4683,47 +4683,43 @@ Sub SaveCoverImage()
 				End If
 				Dim img
 
-				Set img = pics.AddNew
-				img.Description = ml.Text
-
 				If dd2.ItemIndex = 1 Or dd2.ItemIndex = 2 Then
-					img.PicturePath = path & "\" & le.Text
-					img.ItemStorage = 1
-				Else
-					img.PicturePath = ImageLocal.Item(i)
-					img.ItemStorage = 0
-				End If
-				For k = 0 to ImageTypeList.Count - 1
-					If dd.Text = ImageTypeList.Item(k) Then
-						If k = 0 Then k = -2
-						If k > 14 Then k = k + 1
-						img.ItemType = k + 2
-						pics.UpdateDB
-						Exit For
-					End If
-				Next
-
-				If CoverStorage = 3 Then
-					Set pics = itm.AlbumArt
+				
 					Set img = pics.AddNew
 					img.Description = ml.Text
+					img.ItemStorage = 1
 					img.PicturePath = path & "\" & le.Text
+
+					For k = 0 to ImageTypeList.Count - 1
+						If dd.Text = ImageTypeList.Item(k) Then
+							If k = 0 Then k = -2
+							If k > 14 Then k = k + 1
+							img.ItemType = k + 2
+							pics.UpdateDB
+							Exit For
+						End If
+					Next
+				End If
+
+				If dd2.ItemIndex = 0 Or dd2.ItemIndex = 2 Then
+					REM Set pics = itm.AlbumArt
+					Set img = pics.AddNew
+					img.Description = ml.Text
+					img.PicturePath = sTemp & "cover.jpg"
 					img.ItemStorage = 0
 					For k = 0 to ImageTypeList.Count - 1
 						If dd.Text = ImageTypeList.Item(k) Then
 							If k = 0 Then k = -2
 							If k > 14 Then k = k + 1
 							img.ItemType = k + 2
-							REM pics.UpdateDB
+							pics.UpdateDB
 							Exit For
 						End If
 					Next
 				End If
 			Next
 		End If
-		If CoverStorage = 0 Then
-			SDB.Tools.FileSystem.DeleteFile(ImageLocal.Item(i))
-		End If
+		SDB.Tools.FileSystem.DeleteFile(sTemp & "cover.jpg")
 	End If
 	If Not (Form Is Nothing) Then
 		Script.UnregisterEvents Form
