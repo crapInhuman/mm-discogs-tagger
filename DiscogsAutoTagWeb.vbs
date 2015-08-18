@@ -2,17 +2,7 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.22"
-
-'Changes from 5.21 to 5.22 by crap_inhuman in 03.2015
-'	Bug removed: mm hangs while downloading covers
-'	Bug removed: the tags will be written, while cover is saving
-'	The common filename masks are implemented (Title, Artist, AlbumArtist,…)
-
-
-'Changes from 5.20 to 5.21 by crap_inhuman in 03.2015
-'	Saving cover-image bug removed
-
+Const VersionStr = "v5.20"
 
 'Changes from 5.19 to 5.20 by crap_inhuman in 03.2015
 '	Removed CheckImmedSaveImage, the image(s) will now saved immediately
@@ -1344,6 +1334,7 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	Next
 
 	If UBound(tmpYear2) <> YearList.Count -1 Then
+		'MsgBox UBound(tmpYear2) & " -- " & YearList.Count -1
 		tmpYear = tmpYear & ",1"
 		ini.StringValue("DiscogsAutoTagWeb","CurrentYearFilter") = tmpYear
 		tmpYear2 = Split(tmpYear, ",")
@@ -1410,6 +1401,7 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	If SDB.Tools.WebSearch.NewTracks.Count > 0 Then
 		Set FirstTrack = SDB.Tools.WebSearch.NewTracks.item(0)
 		SavedReleaseId = get_release_ID(FirstTrack) 'get saved Release_ID from User-Defined Custom-Tag
+		REM SavedSearchTerm = SearchTerm
 		SavedSearchArtist = SearchArtist
 		SavedSearchAlbum = SearchAlbum
 	End If
@@ -1574,7 +1566,7 @@ Sub FindResults(SearchTerm, QueryPage)
 		If SearchTerm = SavedSearchTerm And (SavedSearchArtist <> "" Or SavedSearchAlbum <> "") Then SearchTerm = ""
 		If QueryPage = "MetalArchives" Then
 			Dim oXMLHTTP, MAReleases
-			Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+			Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 
 			WriteLog "Start FindResults MetalArchives"
 			WriteLog "SavedSearchArtist=" & SavedSearchArtist
@@ -1603,6 +1595,7 @@ Sub FindResults(SearchTerm, QueryPage)
 					TXTEnd = InStr(ResponseHTML, ",")
 					MAReleases = Left(ResponseHTML, TXTEnd -1)
 					WriteLog "Anzahl=" & MAReleases
+					'WriteLog "Anzahl=" & ResponseHTML
 					For i = 1 to MAReleases
 						TXTBegin = InStr(ResponseHTML, "\" & Chr(34) & ">")
 						If TXTBegin > 1 Then
@@ -1791,7 +1784,7 @@ Sub LoadMasterResults(MasterID)
 	WriteLog " "
 	WriteLog "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
 
-	Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+	Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 
 	WriteLog "Load MasterResult"
 	ErrorMessage = ""
@@ -1806,7 +1799,7 @@ Sub LoadMasterResults(MasterID)
 			searchURL = "http://api.discogs.com/masters/" & MasterID
 			WriteLog "searchURL=" & searchURL
 
-			Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")   
+			Set oXMLHTTP = CreateObject("Msxml2.XMLHttp.6.0")   
 			oXMLHTTP.open "GET", searchURL, false
 			oXMLHTTP.setRequestHeader "Content-Type","application/json"
 			oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
@@ -2098,7 +2091,6 @@ Sub ReloadResults
 						rSubPosition.Add subtrack
 					Next
 				End If
-				SDB.ProcessMessages
 			Next
 			WriteLog "rTrackPosition.Count=" & rTrackPosition.Count
 
@@ -2180,6 +2172,7 @@ Sub ReloadResults
 							NoSplit = True
 						Else
 							rolea = CheckSpecialRole(role)
+							Rem rolea = Split(role, ",")
 							zahl = UBound(rolea)
 						End If
 
@@ -2275,6 +2268,7 @@ Sub ReloadResults
 						WriteLog "Role(s)=" & role
 						NoSplit = False
 						If InStr(role, ",") <> 0 Then
+							Rem rolea = Split(role, ",")
 							rolea = CheckSpecialRole(role)
 							zahl = UBound(rolea)
 						ElseIf InStr(role, " & ") <> 0 Then
@@ -2348,13 +2342,14 @@ Sub ReloadResults
 			WriteLog "Track count from Title_position=" & UBound(Title_Position)
 			WriteLog " "
 			WriteLog " "
+			REM WriteLog "Position=" & position
 			Dim NewSubTrackFound, cNewSubTrack
 			NewSubTrackFound = False
 			For t = 0 To UBound(Title_Position)-1
-				SDB.ProcessMessages
 				If rSubPosition.Item(t) <> "" Then
 					Set currentTrack = CurrentRelease("tracklist")(CInt(rTrackPosition.Item(t)))("sub_tracks")(cInt(rSubPosition.Item(t)))
 				Else
+					REM WriteLog rTrackPosition.Item(t)
 					Set currentTrack = CurrentRelease("tracklist")(CInt(rTrackPosition.Item(t)))
 				End If
 
@@ -2425,6 +2420,7 @@ Sub ReloadResults
 											End If
 											cSubTrack = -1
 											subTrackTitle = ""
+											Rem CharSeparatorSubTrack = 0
 										End If
 									ElseIf CharSeparatorSubTrack = 2 Then
 										tmp2 = FindSubTrackSplit(position)
@@ -2436,6 +2432,7 @@ Sub ReloadResults
 											End If
 											cSubTrack = -1
 											subTrackTitle = ""
+											Rem CharSeparatorSubTrack = 0
 										End If
 									End If
 								Else   'new subtrack
@@ -2589,7 +2586,6 @@ Sub ReloadResults
 							Loop While True
 						End If
 					End If
-					SDB.ProcessMessages
 				Next
 
 				artistList = ""
@@ -2632,13 +2628,13 @@ Sub ReloadResults
 								FoundFeaturing = False
 							End If
 						End If
+						WriteLog "artistlist=" & artistlist
 					Next
 				End If
 
 				If artistList = "" Then artistList = AlbumArtistTitle
 
 				If Right(artistList, 3) = " , " Then artistList = Left(artistList, Len(artistList)-3)
-				WriteLog "artistlist=" & artistlist
 
 				If currentTrack.Exists("extraartists") Then
 					WriteLog " "
@@ -2657,6 +2653,7 @@ Sub ReloadResults
 								zahl = 1
 								NoSplit = True
 							Else
+								Rem rolea = Split(role, ", ")
 								rolea = CheckSpecialRole(role)
 								zahl = UBound(rolea)
 							End If
@@ -2737,7 +2734,6 @@ Sub ReloadResults
 								End If
 							Next
 						End If
-						SDB.ProcessMessages
 					Next
 					WriteLog "TrackArtist end"
 				End If
@@ -2839,10 +2835,10 @@ Sub ReloadResults
 					End If
 				Next
 			End If
+
 			getimages AlbumArtThumbNail, sTemp & "cover.jpg"
-
 			AlbumArtThumbNail = sTemp & "cover.jpg"
-
+			
 			'----------------------------------DiscogsImages----------------------------------------
 			Set ImageList = SDB.NewStringList
 			Set SaveImageType = SDB.NewStringList
@@ -2851,7 +2847,6 @@ Sub ReloadResults
 
 			If CurrentRelease.Exists("images") Then
 				ImagesCount = CurrentRelease("images").Count
-				WriteLog "ImagesCount=" & ImagesCount
 				If ImagesCount > 1 Then
 					For Each i In CurrentRelease("images")
 						Set currentImage = CurrentRelease("images")(i)
@@ -2861,7 +2856,7 @@ Sub ReloadResults
 							ImageList.add tmpArt
 							SaveImageType.add "other"
 							SaveImage.add "0"
-						End If
+						End If	
 					Next
 				End If
 			End If
@@ -2884,6 +2879,7 @@ Sub ReloadResults
 				SavedMasterID = theMaster
 				OriginalDate = ""
 			End If
+
 
 			' Get release year/date
 			If CurrentRelease.Exists("released") Then
@@ -3015,7 +3011,7 @@ Sub ReloadResults
 				Set currentArtist = CurrentRelease("artist-credit")(artist)
 				WriteLog "currentArtist=" & currentArtist("name")
 				artistName = CleanArtistName(currentArtist("name"))
-
+				' !!!!!artistName <- currentArtist
 				If SavedArtistID = "" Then SavedArtistID = currentArtist("artist")("id")
 
 				If (AlbumArtist = "") Then
@@ -3066,66 +3062,69 @@ Sub ReloadResults
 						Set currentArtist = CurrentRelease("relations")(extraArtist)
 						artistName = CleanArtistName(currentArtist("artist")("name"))
 						WriteLog "ArtistName=" & artistName
-						ret = RelationshipTypes(currentArtist)
-						If ret(0) > 0 Then
-							For i = 1 to ret(0)
-								currentRole = ret(i)
-								Do
-									tmp = searchKeyword(LyricistKeywords, currentRole, AlbumLyricist, artistName)
-									If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
-										AlbumLyricist = tmp
-										WriteLog "AlbumLyricist=" & AlbumLyricist
-										Exit Do
-									ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
-										WriteLog "ALREADY_INSIDE_ROLE"
-										Exit Do
-									End If
-									tmp = searchKeyword(ConductorKeywords, currentRole, AlbumConductor, artistName)
-									If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
-										AlbumConductor = tmp
-										WriteLog "AlbumConductor=" & AlbumConductor
-										Exit Do
-									ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
-										WriteLog "ALREADY_INSIDE_ROLE"
-										Exit Do
-									End If
-									tmp = searchKeyword(ProducerKeywords, currentRole, AlbumProducer, artistName)
-									If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
-										AlbumProducer = tmp
-										WriteLog "AlbumProducer=" & AlbumProducer
-										Exit Do
-									ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
-										WriteLog "ALREADY_INSIDE_ROLE"
-										Exit Do
-									End If
-									tmp = searchKeyword(ComposerKeywords, currentRole, AlbumComposer, artistName)
-									If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
-										AlbumComposer = tmp
-										WriteLog "AlbumComposer=" & AlbumComposer
-										Exit Do
-									ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
-										WriteLog "ALREADY_INSIDE_ROLE"
-										Exit Do
-									End If
-									tmp2 = search_involved(Involved_R, currentRole)
-									If tmp2 = -2 Then
-										WriteLog "Ignore Role: '" & currentRole & "' (Unwanted tag)"
-									ElseIf tmp2 = -1 Then
-										ReDim Preserve Involved_R(UBound(Involved_R)+1)
-										Involved_R(UBound(Involved_R)) = currentRole & ": " & artistName
-										WriteLog "New Role: " & currentRole & ": " & artistName
-									Else
-										If InStr(Involved_R(tmp2), artistName) = 0 Then
-											Involved_R(tmp2) = Involved_R(tmp2) & ", " & artistName
-											WriteLog "Role updated: " & Involved_R(tmp2)
-										Else
-											WriteLog "artist already inside role"
+						REM If currentArtist("attributes").Count > 0 Then
+							ret = RelationshipTypes(currentArtist)
+							If ret(0) > 0 Then
+								For i = 1 to ret(0)
+									currentRole = ret(i)
+									Do
+										tmp = searchKeyword(LyricistKeywords, currentRole, AlbumLyricist, artistName)
+										If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
+											AlbumLyricist = tmp
+											WriteLog "AlbumLyricist=" & AlbumLyricist
+											Exit Do
+										ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
+											WriteLog "ALREADY_INSIDE_ROLE"
+											Exit Do
 										End If
-									End If
-									Exit Do
-								Loop While True
-							Next
-						End If
+										tmp = searchKeyword(ConductorKeywords, currentRole, AlbumConductor, artistName)
+										If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
+											AlbumConductor = tmp
+											WriteLog "AlbumConductor=" & AlbumConductor
+											Exit Do
+										ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
+											WriteLog "ALREADY_INSIDE_ROLE"
+											Exit Do
+										End If
+										tmp = searchKeyword(ProducerKeywords, currentRole, AlbumProducer, artistName)
+										If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
+											AlbumProducer = tmp
+											WriteLog "AlbumProducer=" & AlbumProducer
+											Exit Do
+										ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
+											WriteLog "ALREADY_INSIDE_ROLE"
+											Exit Do
+										End If
+										tmp = searchKeyword(ComposerKeywords, currentRole, AlbumComposer, artistName)
+										If tmp <> "" And tmp <> "ALREADY_INSIDE_ROLE" Then
+											AlbumComposer = tmp
+											WriteLog "AlbumComposer=" & AlbumComposer
+											Exit Do
+										ElseIf tmp = "ALREADY_INSIDE_ROLE" Then
+											WriteLog "ALREADY_INSIDE_ROLE"
+											Exit Do
+										End If
+										tmp2 = search_involved(Involved_R, currentRole)
+										If tmp2 = -2 Then
+											WriteLog "Ignore Role: '" & currentRole & "' (Unwanted tag)"
+										ElseIf tmp2 = -1 Then
+											ReDim Preserve Involved_R(UBound(Involved_R)+1)
+											Involved_R(UBound(Involved_R)) = currentRole & ": " & artistName
+											WriteLog "New Role: " & currentRole & ": " & artistName
+										Else
+											If InStr(Involved_R(tmp2), artistName) = 0 Then
+												Involved_R(tmp2) = Involved_R(tmp2) & ", " & artistName
+												WriteLog "Role updated: " & Involved_R(tmp2)
+											Else
+												WriteLog "artist already inside role"
+											End If
+										End If
+										Exit Do
+									Loop While True
+								Next
+							End If
+						REM End If
+						'If IsObject(tmp5) Then Set tmp5 = nothing
 					Next
 				End If
 			End If
@@ -3235,6 +3234,7 @@ Sub ReloadResults
 					For tmp = 1 To UBound(TrackPos)
 						If TrackPos(tmp) = position Then
 							WriteLog "trackpos(" & tmp & ")=" & trackpos(tmp)
+							Rem msgbox tmp
 							involvedRole = TrackRoles(tmp)
 							involvedArtist = TrackArtist2(tmp)
 		
@@ -3350,11 +3350,12 @@ Sub ReloadResults
 						Else
 							FoundFeaturing = False
 						End If
+						WriteLog "artistlist=" & artistlist
 					Next
 					If artistList = "" Then artistList = AlbumArtistTitle
-
 					If Right(artistList, 3) = " , " Then artistList = Left(artistList, Len(artistList)-3)
-					WriteLog "artistlist=" & artistlist
+					
+
 
 					Set tmp = currentTrack("recording")
 					If tmp.Exists("relations") Then
@@ -3369,6 +3370,7 @@ Sub ReloadResults
 										If tmp3("relations")(tmp4).Exists("artist") Then
 											involvedArtist = CleanArtistName(tmp3("relations")(tmp4)("artist")("name"))
 										End If
+										REM type1 = tmp3("relations")(tmp4)("type")
 										involvedRole = ""
 										Set tmp5 = tmp3("relations")(tmp4)
 										If tmp5.Exists("attributes") Then
@@ -3478,7 +3480,7 @@ Sub ReloadResults
 				If CurrentRelease("cover-art-archive")("count") > 0 And CurrentRelease("cover-art-archive")("front") = True Then
 					searchURL = "http://coverartarchive.org/release/" & CurrentReleaseId
 					WriteLog searchURL
-					Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+					Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 					oXMLHTTP.Open "GET", searchURL, False
 					oXMLHTTP.setRequestHeader "Content-Type", "application/json"
 					oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
@@ -3508,7 +3510,7 @@ Sub ReloadResults
 				If CurrentRelease("cover-art-archive")("count") > 1 Then
 					searchURL = "http://coverartarchive.org/release/" & CurrentRelease("id")
 					WriteLog searchURL
-					Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0") 
+					Set oXMLHTTP = CreateObject("Msxml2.XMLHttp.6.0") 
 					ImagesCount = CurrentRelease("cover-art-archive")("count")
 					oXMLHTTP.Open "GET", searchURL, False
 					oXMLHTTP.setRequestHeader "Content-Type", "application/json"
@@ -3648,7 +3650,9 @@ Sub ReloadResults
 		End If
 	Next
 	For i = 0 To SDB.Tools.WebSearch.NewTracks.Count -1
-		SelectedSongsGlobal.Add SDB.Tools.WebSearch.NewTracks.item(i)
+		If UnselectedTracks(i) = "" Then
+			SelectedSongsGlobal.Add SDB.Tools.WebSearch.NewTracks.item(i)
+		End If
 	Next
 
 	SDB.Tools.WebSearch.SmartUpdateTracks SelectedTracks
@@ -3797,10 +3801,6 @@ Function RelationshipTypes(JSONArray)
 				ReDim role(2)
 				role(0) = 1
 				role(1) = "Guest " & UCase(Left(JSONArray("attributes")(0), 1)) & Mid(JSONArray("attributes")(0), 2)
-			ElseIf JSONArray("attributes")(0) = "guest" Then
-				ReDim role(2)
-				role(0) = 1
-				role(1) = "Guest " & UCase(Left(JSONArray("attributes")(1), 1)) & Mid(JSONArray("attributes")(1), 2)
 			Else
 				ReDim role(JSONArray("attributes").Count + 1)
 				role(0) = JSONArray("attributes").Count
@@ -4434,7 +4434,7 @@ Sub ShowResult(ResultID)
 	
 	If QueryPage = "MetalArchives" Then
 		searchURL = ResultsReleaseID.Item(ResultID)
-		Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+		Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 		Call oXMLHTTP.open("GET", searchURL, False)
 		Call oXMLHTTP.send()
 		If oXMLHTTP.Status = 200 Then
@@ -4480,7 +4480,7 @@ Sub ShowResult(ResultID)
 		searchURL = "http://musicbrainz.org/ws/2/release/" & ReleaseID & "?inc=recordings+recording-level-rels+work-rels+work-level-rels+artist-rels+artist-credits+media+release-group-rels+release-groups+labels&fmt=json"
 		WriteLog "searchURL=" & searchURL
 
-		Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")   
+		Set oXMLHTTP = CreateObject("Msxml2.XMLHttp.6.0")   
 		oXMLHTTP.Open "GET", searchURL, False
 		oXMLHTTP.setRequestHeader "Content-Type", "application/json"
 		oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
@@ -4512,7 +4512,7 @@ Sub ShowResult(ResultID)
 			searchURL = ReleaseID
 			searchURL_L = ""
 
-			Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")   
+			Set oXMLHTTP = CreateObject("Msxml2.XMLHttp.6.0")   
 			oXMLHTTP.open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
 
 			oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
@@ -4524,7 +4524,6 @@ Sub ShowResult(ResultID)
 				WriteLog "responseText=" & oXMLHTTP.responseText
 				Set CurrentRelease = json.Decode(oXMLHTTP.responseText)
 				CurrentReleaseId = ReleaseID
-				Set oXMLHTTP = Nothing
 				ReloadResults
 			End If
 		End If
@@ -4557,8 +4556,7 @@ End Sub
 
 Sub SaveCoverImage()
 
-	WriteLog "Start SaveCoverImage"
-	Dim i, SongList
+	Dim i
 	Dim Form
 	Set Form = UI.NewForm 
 	Form.Common.ClientWidth = 450
@@ -4640,94 +4638,92 @@ Sub SaveCoverImage()
 	le.Common.Width = 250
 	le.Common.Top = 260
 	le.Common.Height = 25
+	le.Text = CoverStorageName
 
 	Set la = SDB.UI.NewLabel(Form)
 	la.Common.Left = 15
 	la.Common.Top = 260
 	la.Caption = SDB.Localize("Image filename:")
 
-	Dim path, res, j, k, ret
-
-	le.Text = FileNameMask(CoverStorageName)
-
+	Dim itm, path, res, j, k, ret
 	If Form.ShowModal = 1 Then
 
+		Set itm = SelectedSongsGlobal.item(0)
 		path = Mid(itm.Path,1,InStrRev(itm.Path,"\")-1)
 		If CheckCover Then
 			getimages AlbumArtURL, sTemp & "cover.jpg"
 		End If
 
-		res = 0
 		If dd2.ItemIndex = 1 Or dd2.ItemIndex = 2 Then
 			If SDB.Tools.FileSystem.FileExists(path & "\" & le.Text) = True Then
 				res = SDB.MessageBox("The file " & le.Text & " already exist. Overwrite it ?", mtConfirmation, Array(mbYes, mbNo))
 				If res = 6 Then
 					SDB.Tools.FileSystem.DeleteFile(path & "\" & le.Text)
-					ret = SDB.Tools.FileSystem.CopyFile(sTemp & "cover.jpg", path & "\" & le.Text)
+					ret = SDB.Tools.FileSystem.MoveFile(sTemp & "cover.jpg", path & "\" & le.Text)
 					If ret = False Then
-						WriteLog "ERROR:Image could not copy to : " & path & "\" & le.Text
-						SDB.MessageBox "ERROR:Image could not copied !", mtError, Array(mbOk)
+						WriteLog "ERROR:Image could not moved to : " & path & "\" & le.Text
+						SDB.MessageBox "ERROR:Image could not moved !", mtError, Array(mbOk)
 					End If
 				End If
 			Else
-				ret = SDB.Tools.FileSystem.CopyFile(sTemp & "cover.jpg", path & "\" & le.Text)
+				ret = SDB.Tools.FileSystem.MoveFile(sTemp & "cover.jpg", path & "\" & le.Text)
 				If ret = False Then
-					WriteLog "ERROR:Image could not copy to : " & path & "\" & le.Text
-					SDB.MessageBox "ERROR:Image could not copied !", mtError, Array(mbOk)
+					WriteLog "ERROR:Image could not moved to : " & path & "\" & le.Text
+					SDB.MessageBox "ERROR:Image could not moved !", mtError, Array(mbOk)
 				End If
 			End If
 		End If
 
 		If res <> 7 Then 'don't overwrite file
-			Set SongList = SDB.SelectedSongList
-			For j = 0 To SongList.Count - 1
-				WriteLog "J=" & j
-				WriteLog "dd2.ItemIndex=" & dd2.ItemIndex
-				WriteLog "count=" & SongList.Count
-				Set itm = SongList.item(j)
+			For j = 0 To SelectedSongsGlobal.Count - 1
+				Set itm = SelectedSongsGlobal.item(j)
 				Dim pics : Set pics = itm.AlbumArt
 				If pics Is Nothing Then
 					Exit Sub
 				End If
 				Dim img
 
+				Set img = pics.AddNew
+				img.Description = ml.Text
+
 				If dd2.ItemIndex = 1 Or dd2.ItemIndex = 2 Then
-				
-					Set img = pics.AddNew
-					img.Description = ml.Text
-					img.ItemStorage = 1
 					img.PicturePath = path & "\" & le.Text
-
-					For k = 0 to ImageTypeList.Count - 1
-						If dd.Text = ImageTypeList.Item(k) Then
-							If k = 0 Then k = -2
-							If k > 14 Then k = k + 1
-							img.ItemType = k + 2
-							pics.UpdateDB
-							Exit For
-						End If
-					Next
+					img.ItemStorage = 1
+				Else
+					img.PicturePath = ImageLocal.Item(i)
+					img.ItemStorage = 0
 				End If
+				For k = 0 to ImageTypeList.Count - 1
+					If dd.Text = ImageTypeList.Item(k) Then
+						If k = 0 Then k = -2
+						If k > 14 Then k = k + 1
+						img.ItemType = k + 2
+						pics.UpdateDB
+						Exit For
+					End If
+				Next
 
-				If dd2.ItemIndex = 0 Or dd2.ItemIndex = 2 Then
-					REM Set pics = itm.AlbumArt
+				If CoverStorage = 3 Then
+					Set pics = itm.AlbumArt
 					Set img = pics.AddNew
 					img.Description = ml.Text
-					img.PicturePath = sTemp & "cover.jpg"
+					img.PicturePath = path & "\" & le.Text
 					img.ItemStorage = 0
 					For k = 0 to ImageTypeList.Count - 1
 						If dd.Text = ImageTypeList.Item(k) Then
 							If k = 0 Then k = -2
 							If k > 14 Then k = k + 1
 							img.ItemType = k + 2
-							pics.UpdateDB
+							REM pics.UpdateDB
 							Exit For
 						End If
 					Next
 				End If
 			Next
 		End If
-		SDB.Tools.FileSystem.DeleteFile(sTemp & "cover.jpg")
+		If CoverStorage = 0 Then
+			SDB.Tools.FileSystem.DeleteFile(ImageLocal.Item(i))
+		End If
 	End If
 	If Not (Form Is Nothing) Then
 		Script.UnregisterEvents Form
@@ -4739,27 +4735,11 @@ Sub SaveCoverImage()
 End Sub
 
 
-Function FilenameMask(Text)
-
-	Dim itm
-	Set itm = SelectedSongsGlobal.item(0)
-	
-	Text = Replace(CoverStorageName, "%R", itm.AlbumArtistName)
-	Text = Replace(Text, "%R", itm.AlbumArtistName)
-	Text = Replace(Text, "%L", itm.AlbumName)
-	Text = Replace(Text, "%T", itm.TrackOrderStr)
-	Text = Replace(Text, "%ZM", itm.DiscNumberStr)
-	Text = Replace(Text, "%S", itm.Title)
-	Text = Replace(Text, "%A", itm.ArtistName)
-
-	FilenameMask = Text
-
-End Function
 
 
 Sub SaveMoreImagesSub()
 
-	Dim ret, res, RndFileName, i, itm, path, j, k, ImageSelected, SongList
+	Dim ret, res, RndFileName, i, itm, path, j, k, ImageSelected
 	If ImageList.Count > 0 Then
 		ImageSelected = False
 		For i = 0 to ImageList.Count - 1
@@ -4794,14 +4774,14 @@ Sub SaveMoreImagesSub()
 						End If
 
 						If res <> 7 Then 'don't overwrite file
-							Set SongList = SDB.SelectedSongList
-							For j = 0 To SongList.Count - 1
-								Set itm = SongList.item(j)
+							For j = 0 To SelectedSongsGlobal.Count - 1
+								Set itm = SelectedSongsGlobal.item(j)
 								Dim pics : Set pics = itm.AlbumArt
 								If pics Is Nothing Then
 									Exit Sub
 								End If
 								Dim img
+
 								Set img = pics.AddNew
 								img.Description = ""
 
@@ -5896,7 +5876,7 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 	WriteLog "QueryPage=" & QueryPage
 
 
-	Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+	Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 
 	If QueryPage = "MusicBrainz" Then
 
@@ -6320,7 +6300,6 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 			End If
 		End If
 	End If
-	Set oXMLHTTP = Nothing
 	WriteLog "End JSONParser_find_result"
 	
 End Function
@@ -6330,8 +6309,9 @@ Function ReloadMaster(SavedMasterID)
 
 	WriteLog "Start ReloadMaster"
 	Dim oXMLHTTP, masterURL
+	REM masterURL = SavedMasterId
 	masterURL = "http://api.discogs.com/masters/" & SavedMasterID
-	Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+	Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 
 	Dim json
 	Set json = New VbsJson
@@ -6350,7 +6330,7 @@ Function ReloadMaster(SavedMasterID)
 			OriginalDate = ""
 		End If
 	End If
-	Set oXMLHTTP = Nothing
+
 	ReloadMaster = OriginalDate
 	WriteLog "Stop ReloadMaster"
 
@@ -7093,8 +7073,7 @@ End Sub
 function getimages(DownloadDest, LocalFile)
 
 	Dim oXMLHTTP, objStream
-	Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
-	SDB.ProcessMessages
+	Set oXMLHTTP = CreateObject("Msxml2.XMLHttp.6.0")   
 	oXMLHTTP.open "POST", "http://www.germanc64.de/coxy/coxy.php", False
 	oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
 	oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
@@ -7131,6 +7110,7 @@ Sub WriteOptions()
 	WriteLog "CheckGenre=" & CheckGenre
 	WriteLog "CheckStyle=" & CheckStyle
 	WriteLog "CheckCountry=" & CheckCountry
+	REM WriteLog "CheckCover=" & CheckCover
 	WriteLog "CheckSmallCover=" & CheckSmallCover
 	WriteLog "CheckCatalog=" & CheckCatalog
 	WriteLog "CheckRelease=" & CheckRelease
@@ -7219,6 +7199,7 @@ End Sub
 
 Function searchKeyword(Keywords, Role, AlbumRole, artistName)
 
+	'WriteLog "Start searchKeyword"
 	Dim tmp, x, RE, searchPattern
 	tmp = Split(Keywords, ",")
 	Set RE = New RegExp
@@ -7812,7 +7793,6 @@ End Function
 
 Function search_involved(Text, SearchText)
 
-	WriteLog " "
 	WriteLog "Start Search_involved"
 	Dim tmp, x, RE, searchPattern
 	Dim i
@@ -7958,7 +7938,7 @@ Function authorize_script()
 
 		Do While 1=1
 			Set oXMLHTTP = Nothing
-			Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+			Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 			oXMLHTTP.open "GET", "http://www.germanc64.de/mm/oauth/get_oauth_guid.php?f=" & GUID, false
 			oXMLHTTP.send()
 			If oXMLHTTP.Status = 200 Then
@@ -7992,7 +7972,6 @@ Function authorize_script()
 				SDB.ProcessMessages
 			Next
 		Loop
-		Set oXMLHTTP = Nothing
 	Else
 		WriteLog "AccessToken found in ini = " & AccessToken
 		WriteLog "AccessTokenSecret found in ini = " & AccessTokenSecret
