@@ -2,11 +2,18 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.24"
+Const VersionStr = "v5.25"
 
-'Changes from 5.23 to 5.24 by crap_inhuman in 05.2015
+'Changes from 5.24 to 5.25 by crap_inhuman in 06.2015
+'	Comment Tag added to the Release info
+'	Back to original Cover-Image saving-routine
+'	Easier Discogs authorization
+
+
+'Changes from 5.23 to 5.24 by crap_inhuman in 04.2015
 '	Added check for image before try download it.
 '	Image-Proxy removed
+
 
 'Changes from 5.22 to 5.23 by crap_inhuman in 03.2015
 '	Again a saving cover-image bug removed
@@ -1899,7 +1906,6 @@ End Sub
 
 Sub LoadVersionResults(MasterID)
 
-	Dim masterURL
 	WriteLog "VersionResult"
 
 	Set Results = SDB.NewStringList
@@ -1915,8 +1921,7 @@ Sub LoadVersionResults(MasterID)
 			ResultsReleaseID.Add SavedReleaseId
 		End If
 		If QueryPage = "Discogs" Then
-			masterURL = MasterID
-			JSONParser_find_result masterURL, "versions", "http://api.discogs.com/masters/", "/versions?per_page=100", "Discogs", False
+			JSONParser_find_result MasterID, "versions", "http://api.discogs.com/masters/", "/versions?per_page=100", "Discogs", False
 		Else
 			ErrorMessage = "Cannot load master release from MusicBrainz"
 		End If
@@ -1934,8 +1939,6 @@ End Sub
 
 Sub LoadArtistResults(ArtistId)
 
-	Dim artistURL
-	
 	Set Results = SDB.NewStringList
 	Set ResultsReleaseID = SDB.NewStringList
 	ErrorMessage = ""
@@ -1950,8 +1953,7 @@ Sub LoadArtistResults(ArtistId)
 		End If
 
 		If QueryPage = "Discogs" Then
-			artistURL = ArtistId
-			JSONParser_find_result artistURL, "releases", "http://api.discogs.com/artists/", "/releases?per_page=100", "Discogs", False
+			JSONParser_find_result ArtistId, "releases", "http://api.discogs.com/artists/", "/releases?per_page=100", "Discogs", False
 		ElseIf QueryPage = "MusicBrainz" Then
 			JSONParser_find_result "http://musicbrainz.org/ws/2/release?artist=" & ArtistId & "&inc=artist-credits+release-groups+media&fmt=json&limit=100", "Artist", "", "", "MusicBrainz", False
 		End If
@@ -1969,8 +1971,6 @@ End Sub
 
 Sub LoadLabelResults(LabelId)
 
-	Dim labelURL
-
 	Set Results = SDB.NewStringList
 	Set ResultsReleaseID = SDB.NewStringList
 	ErrorMessage = ""
@@ -1985,8 +1985,7 @@ Sub LoadLabelResults(LabelId)
 		End If
 
 		If QueryPage = "Discogs" Then
-			labelURL = LabelId
-			JSONParser_find_result labelURL, "releases", "http://api.discogs.com/labels/", "/releases?per_page=100", "Discogs", False
+			JSONParser_find_result LabelId, "releases", "http://api.discogs.com/labels/", "/releases?per_page=100", "Discogs", False
 		ElseIf QueryPage = "MusicBrainz" Then
 			JSONParser_find_result "http://musicbrainz.org/ws/2/release?label=" & LabelId & "&inc=artist-credits+media&fmt=json&limit=100", "Label", "", "", "MusicBrainz", False
 		End If
@@ -2058,7 +2057,7 @@ Sub ReloadResults
 		AlbumFeaturing = ""
 		LastDisc = ""
 
-		Dim iTrackNum, iSubTrack, cSubTrack, subTrackTitle, aSubtrack
+		Dim iTrackNum, cSubTrack, subTrackTitle, aSubtrack
 		Dim trackName, pos
 		Dim role, role2, rolea, currentRole, NoSplit, zahl, zahltemp, zahl2, zahltemp2, type1
 		Dim CharSeparatorSubTrack
@@ -2334,7 +2333,6 @@ Sub ReloadResults
 			iAutoDiscNumber = 1
 			iAutoDiscFormat = ""
 			iTrackNum = 0
-			iSubTrack = 0
 			cSubTrack = -1
 			subTrackTitle = ""
 			CharSeparatorSubTrack = 0
@@ -2351,6 +2349,7 @@ Sub ReloadResults
 				If InStr(Title_Position(t), ".") <> 0 Then tmp = tmp + 1
 			Next
 			If tmp = tmp2 And tmp <> 0 Then NoSubTrackUsing = True	'all tracks have "." in position tag, this can't be a subtrack
+			WriteLog "NoSubTrackUsing = " & NoSubTrackUsing
 			'Workaround for using "." as separator at discogs -----------------------------------------------------------------------------------------------------------
 
 			WriteLog "Track count from Title_position=" & UBound(Title_Position)
@@ -2358,6 +2357,7 @@ Sub ReloadResults
 			WriteLog " "
 			Dim NewSubTrackFound, cNewSubTrack
 			NewSubTrackFound = False
+
 			For t = 0 To UBound(Title_Position)-1
 				SDB.ProcessMessages
 				If rSubPosition.Item(t) <> "" Then
@@ -2396,9 +2396,11 @@ Sub ReloadResults
 					pos = InStr(LCase(position), "-")
 				End If
 				' Here comes the new track/disc numbering methods
-
+				WriteLog "Tracknumber=" & t
 				If position <> "" And rSubPosition.Item(t) = "" Then
 					If CheckTurnOffSubTrack = False Then
+						REM WriteLog "cSubTrack = " & cSubTrack
+						WriteLog "position = " & position
 						If (cSubTrack <> -1 And InStr(LCase(position), ".") = 0 And CharSeparatorSubTrack = 1) Or (cSubTrack <> -1 And IsNumeric(Right(position, 1)) And CharSeparatorSubTrack = 2) Or position = "-" Then
 							WriteLog "End of Subtrack found"
 							If SubTrackNameSelection = False Then
@@ -2420,6 +2422,7 @@ Sub ReloadResults
 							ElseIf Not IsNumeric(Right(position, 1)) And Len(position) > 1 And position <> "Video" Then
 								CharSeparatorSubTrack = 2
 							End If
+							WriteLog "CharSeparatorSubTrack = " & CharSeparatorSubTrack
 							If CharSeparatorSubTrack <> 0 Then
 								If cSubTrack <> -1 Then 'more subtrack
 									WriteLog "More Subtrack"
@@ -2483,7 +2486,6 @@ Sub ReloadResults
 					trackNumbering pos, position, TracksNum, TracksCD, iTrackNum
 
 				ElseIf currentTrack("duration") = "" Then
-				REM And currentTrack("title") = "-" Then
 					tracksNum.Add ""
 					tracksCD.Add ""
 					UnselectedTracks(iTrackNum) = "x"
@@ -2848,7 +2850,7 @@ Sub ReloadResults
 				Next
 			End If
 			If AlbumArtThumbNail <> "" Then
-				getimages AlbumArtThumbNail, sTemp & "cover.jpg"
+				ret = getimages(AlbumArtThumbNail, sTemp & "cover.jpg")
 				AlbumArtThumbNail = sTemp & "cover.jpg"
 			End If
 
@@ -3661,6 +3663,14 @@ Sub ReloadResults
 	Next
 
 	SDB.Tools.WebSearch.SmartUpdateTracks SelectedTracks
+
+	If CheckCover Then
+		SDB.Tools.WebSearch.AlbumArtURL = AlbumArtURL
+	ElseIf SmallCover Then
+		SDB.Tools.WebSearch.AlbumArtURL = AlbumArtThumbNail
+	Else
+		SDB.Tools.WebSearch.AlbumArtURL = ""
+	End If
 
 	For i = 0 To SDB.Tools.WebSearch.NewTracks.Count - 1
 
@@ -4552,10 +4562,6 @@ Sub FinishSearch(Panel)
 		SDB.Objects("WebBrowser") = Nothing
 	End If
 
-	If CheckCover Or SmallCover Then
-		SaveCoverImage()
-	End If
-
 	Set ini = Nothing
 	If isObject(ResultsReleaseID) Then
 		Set ResultsReleaseID = Nothing
@@ -4563,207 +4569,6 @@ Sub FinishSearch(Panel)
 	Script.UnregisterAllEvents
 
 End Sub
-
-
-Sub SaveCoverImage()
-
-	WriteLog "Start SaveCoverImage"
-	Dim i, SongList
-	Dim Form
-	Set Form = UI.NewForm 
-	Form.Common.ClientWidth = 450
-	Form.Common.ClientHeight = 350
-	Form.FormPosition = 4
-	Form.Caption = SDB.Localize("Add Artwork")
-	Form.BorderStyle = 3
-	Form.StayOnTop = True
-
-	Dim Btn : Set Btn = SDB.UI.NewButton(Form)
-	Btn.Caption = SDB.Localize("Cancel")
-	Btn.Common.Width = 85
-	Btn.Common.Height = 25
-	Btn.Common.Left = 450 - Btn.Common.Width - 30
-	Btn.Common.Top = 350 - 35
-	Btn.UseScript = Script.ScriptPath
-	Btn.ModalResult = 2
-	Btn.Cancel = True  
-
-	Dim Btn2 : Set Btn2 = SDB.UI.NewButton(Form)
-	Btn2.Caption = SDB.Localize("Ok")
-	Btn2.Common.Width = 85
-	Btn2.Common.Height = 25
-	Btn2.Common.Left = 450 - Btn2.Common.Width - Btn.Common.Width -30 - 15
-	Btn2.Common.Top = 350 - 35
-	Btn2.UseScript = Script.ScriptPath
-	Btn2.ModalResult = 1 
-	Btn2.Default = True
-
-	Dim dd : Set dd = SDB.UI.NewDropDown(Form)
-	dd.Common.Width = 250
-	dd.Common.Left = 150
-	dd.Common.Top = 35
-	For i = 0 To ImageTypeList.Count -1
-		dd.AddItem ImageTypeList.Item(i)
-	Next
-	dd.Style = 2
-	dd.ItemIndex = 1
-
-	Dim la : Set la = SDB.UI.NewLabel(Form)
-	la.Common.Left = 15
-	la.Common.Top = 35
-	la.Caption = SDB.Localize("Image type:")
-
-	Set la = SDB.UI.NewLabel(Form)
-	la.Common.Left = 15
-	la.Common.Top = 70
-	la.Caption = SDB.Localize("Description:")
-
-	Dim ml : Set ml = SDB.UI.NewMultiLineEdit(Form)
-	ml.Common.Left = 150
-	ml.Common.Width = 250
-	ml.Common.Top = 70
-	ml.Common.Height = 140
-
-	Dim dd2 : Set dd2 = SDB.UI.NewDropDown(Form)
-	dd2.Common.Width = 250
-	dd2.Common.Left = 150
-	dd2.Common.Top = 225
-	dd2.AddItem SDB.Localize("Save image to tag (if possible) otherwise save to file folder")
-	dd2.AddItem SDB.Localize("Save image to file folder")
-	dd2.AddItem SDB.Localize("Save image to tag (if possible) and to file folder")
-	dd2.Style = 2
-	If CoverStorage = 0 Then
-		dd2.ItemIndex = 0
-	ElseIf CoverStorage = 1 Then
-		dd2.ItemIndex = 1
-	Else
-		dd2.ItemIndex = 2
-	End If
-
-	Set la = SDB.UI.NewLabel(Form)
-	la.Common.Left = 15
-	la.Common.Top = 225
-	la.Caption = SDB.Localize("Image location:")
-
-	Dim le : Set le = SDB.UI.NewEdit(Form)
-	le.Common.Left = 150
-	le.Common.Width = 250
-	le.Common.Top = 260
-	le.Common.Height = 25
-
-	Set la = SDB.UI.NewLabel(Form)
-	la.Common.Left = 15
-	la.Common.Top = 260
-	la.Caption = SDB.Localize("Image filename:")
-
-	Dim itm, path, res, j, k, ret
-
-	le.Text = FileNameMask(CoverStorageName)
-
-	If Form.ShowModal = 1 Then
-
-		Set itm = SelectedSongsGlobal.item(0)
-		path = Mid(itm.Path,1,InStrRev(itm.Path,"\")-1)
-		If CheckCover Then
-			getimages AlbumArtURL, sTemp & "cover.jpg"
-		End If
-
-		res = 0
-		If dd2.ItemIndex = 1 Or dd2.ItemIndex = 2 Then
-			If SDB.Tools.FileSystem.FileExists(path & "\" & le.Text) = True Then
-				res = SDB.MessageBox("The file " & le.Text & " already exist. Overwrite it ?", mtConfirmation, Array(mbYes, mbNo))
-				If res = 6 Then
-					SDB.Tools.FileSystem.DeleteFile(path & "\" & le.Text)
-					ret = SDB.Tools.FileSystem.CopyFile(sTemp & "cover.jpg", path & "\" & le.Text)
-					If ret = False Then
-						WriteLog "ERROR:Image could not copy to : " & path & "\" & le.Text
-						SDB.MessageBox "ERROR:Image could not copied !", mtError, Array(mbOk)
-					End If
-				End If
-			Else
-				ret = SDB.Tools.FileSystem.CopyFile(sTemp & "cover.jpg", path & "\" & le.Text)
-				If ret = False Then
-					WriteLog "ERROR:Image could not copy to : " & path & "\" & le.Text
-					SDB.MessageBox "ERROR:Image could not copied !", mtError, Array(mbOk)
-				End If
-			End If
-		End If
-
-		If res <> 7 Then 'don't overwrite file
-			Set SongList = SDB.SelectedSongList
-			For j = 0 To SongList.Count - 1
-				Set itm = SongList.item(j)
-				Dim pics : Set pics = itm.AlbumArt
-				If pics Is Nothing Then
-					Exit Sub
-				End If
-				Dim img
-
-				If dd2.ItemIndex = 1 Or dd2.ItemIndex = 2 Then
-				
-					Set img = pics.AddNew
-					img.Description = ml.Text
-					img.ItemStorage = 1
-					img.PicturePath = path & "\" & le.Text
-
-					For k = 0 to ImageTypeList.Count - 1
-						If dd.Text = ImageTypeList.Item(k) Then
-							If k = 0 Then k = -2
-							If k > 14 Then k = k + 1
-							img.ItemType = k + 2
-							pics.UpdateDB
-							Exit For
-						End If
-					Next
-				End If
-
-				If dd2.ItemIndex = 0 Or dd2.ItemIndex = 2 Then
-					REM Set pics = itm.AlbumArt
-					Set img = pics.AddNew
-					img.Description = ml.Text
-					img.PicturePath = sTemp & "cover.jpg"
-					img.ItemStorage = 0
-					For k = 0 to ImageTypeList.Count - 1
-						If dd.Text = ImageTypeList.Item(k) Then
-							If k = 0 Then k = -2
-							If k > 14 Then k = k + 1
-							img.ItemType = k + 2
-							pics.UpdateDB
-							Exit For
-						End If
-					Next
-				End If
-			Next
-		End If
-		SDB.Tools.FileSystem.DeleteFile(sTemp & "cover.jpg")
-	End If
-	If Not (Form Is Nothing) Then
-		Script.UnregisterEvents Form
-		Form.Common.Visible = False
-		Form.Common.ControlName = ""
-		Set Form = Nothing  
-	End If
-	WriteLog "Stop SaveCoverImage"
-	
-End Sub
-
-
-Function FilenameMask(Text)
-
-	Dim itm
-	Set itm = SelectedSongsGlobal.item(0)
-	
-	Text = Replace(CoverStorageName, "%R", itm.AlbumArtistName)
-	Text = Replace(Text, "%R", itm.AlbumArtistName)
-	Text = Replace(Text, "%L", itm.AlbumName)
-	Text = Replace(Text, "%T", itm.TrackOrderStr)
-	Text = Replace(Text, "%ZM", itm.DiscNumberStr)
-	Text = Replace(Text, "%S", itm.Title)
-	Text = Replace(Text, "%A", itm.ArtistName)
-
-	FilenameMask = Text
-
-End Function
 
 
 Sub SaveMoreImagesSub()
@@ -4775,86 +4580,82 @@ Sub SaveMoreImagesSub()
 			If SaveImage.Item(i) = 1 Then ImageSelected = True
 		Next
 		If ImageSelected = True Then
-			REM res = SDB.MessageBox("Save the selected image(s) ?", mtConfirmation, Array(mbYes, mbNo))
-			REM If res = 6 Then
-				For i = 0 to ImageList.Count - 1
-					res = 0
-					If SaveImage.Item(i) = 1 Then
-						Set itm = SelectedSongsGlobal.item(0)
-						path = Mid(itm.Path,1,InStrRev(itm.Path,"\")-1)
-						If CoverStorage = 1 Or CoverStorage = 3 Then
-							If SDB.Tools.FileSystem.FileExists(path & "\" & FileNameList.Item(i)) = True Then
-								res = SDB.MessageBox("The file " & FileNameList.Item(i) & " already exist. Overwrite it ?", mtConfirmation, Array(mbYes, mbNo))
-								If res = 6 Then
-									SDB.Tools.FileSystem.DeleteFile(path & "\" & FileNameList.Item(i))
-									ret = SDB.Tools.FileSystem.MoveFile(ImageLocal.Item(i), path & "\" & FileNameList.Item(i))
-									If ret = False Then
-										WriteLog "ERROR:Image could not moved to : " & path & "\" & FileNameList.Item(i)
-										SDB.MessageBox "ERROR:Image could not moved !", mtError, Array(mbOk)
-									End If
-								End If
-							Else
+			For i = 0 to ImageList.Count - 1
+				res = 0
+				If SaveImage.Item(i) = 1 Then
+					Set itm = SelectedSongsGlobal.item(0)
+					path = Mid(itm.Path,1,InStrRev(itm.Path,"\")-1)
+					If CoverStorage = 1 Or CoverStorage = 3 Then
+						If SDB.Tools.FileSystem.FileExists(path & "\" & FileNameList.Item(i)) = True Then
+							res = SDB.MessageBox("The file " & FileNameList.Item(i) & " already exist. Overwrite it ?", mtConfirmation, Array(mbYes, mbNo))
+							If res = 6 Then
+								SDB.Tools.FileSystem.DeleteFile(path & "\" & FileNameList.Item(i))
 								ret = SDB.Tools.FileSystem.MoveFile(ImageLocal.Item(i), path & "\" & FileNameList.Item(i))
 								If ret = False Then
 									WriteLog "ERROR:Image could not moved to : " & path & "\" & FileNameList.Item(i)
 									SDB.MessageBox "ERROR:Image could not moved !", mtError, Array(mbOk)
 								End If
 							End If
+						Else
+							ret = SDB.Tools.FileSystem.MoveFile(ImageLocal.Item(i), path & "\" & FileNameList.Item(i))
+							If ret = False Then
+								WriteLog "ERROR:Image could not moved to : " & path & "\" & FileNameList.Item(i)
+								SDB.MessageBox "ERROR:Image could not moved !", mtError, Array(mbOk)
+							End If
 						End If
+					End If
 
-						If res <> 7 Then 'don't overwrite file
-							Set SongList = SDB.SelectedSongList
-							For j = 0 To SongList.Count - 1
-								Set itm = SongList.item(j)
-								Dim pics : Set pics = itm.AlbumArt
-								If pics Is Nothing Then
-									Exit Sub
+					If res <> 7 Then 'don't overwrite file
+						Set SongList = SDB.SelectedSongList
+						For j = 0 To SongList.Count - 1
+							Set itm = SongList.item(j)
+							Dim pics : Set pics = itm.AlbumArt
+							If pics Is Nothing Then
+								Exit Sub
+							End If
+							Dim img
+							Set img = pics.AddNew
+							img.Description = ""
+
+							If CoverStorage = 1 Or CoverStorage = 3 Then
+								img.PicturePath = path & "\" & FileNameList.Item(i)
+								img.ItemStorage = 1
+							Else
+								img.PicturePath = ImageLocal.Item(i)
+								img.ItemStorage = 0
+							End If
+							For k = 0 to ImageTypeList.Count - 1
+								If SaveImageType.Item(i) = ImageTypeList.Item(k) Then
+									If k = 0 Then k = -2
+									If k > 14 Then k = k + 1
+									img.ItemType = k + 2
+									pics.UpdateDB
+									Exit For
 								End If
-								Dim img
+							Next
+
+							If CoverStorage = 3 Then
+								Set pics = itm.AlbumArt
 								Set img = pics.AddNew
 								img.Description = ""
-
-								If CoverStorage = 1 Or CoverStorage = 3 Then
-									img.PicturePath = path & "\" & FileNameList.Item(i)
-									img.ItemStorage = 1
-								Else
-									img.PicturePath = ImageLocal.Item(i)
-									img.ItemStorage = 0
-								End If
+								img.PicturePath = path & "\" & FileNameList.Item(i)
+								img.ItemStorage = 0
 								For k = 0 to ImageTypeList.Count - 1
 									If SaveImageType.Item(i) = ImageTypeList.Item(k) Then
 										If k = 0 Then k = -2
 										If k > 14 Then k = k + 1
 										img.ItemType = k + 2
-										pics.UpdateDB
 										Exit For
 									End If
 								Next
-
-								If CoverStorage = 3 Then
-									Set pics = itm.AlbumArt
-									Set img = pics.AddNew
-									img.Description = ""
-									img.PicturePath = path & "\" & FileNameList.Item(i)
-									img.ItemStorage = 0
-									For k = 0 to ImageTypeList.Count - 1
-										If SaveImageType.Item(i) = ImageTypeList.Item(k) Then
-											If k = 0 Then k = -2
-											If k > 14 Then k = k + 1
-											img.ItemType = k + 2
-											REM pics.UpdateDB
-											Exit For
-										End If
-									Next
-								End If
-							Next
-						End If
-						If CoverStorage = 0 Then
-							SDB.Tools.FileSystem.DeleteFile(ImageLocal.Item(i))
-						End If
+							End If
+						Next
 					End If
-				Next
-			REM End If
+					If CoverStorage = 0 Then
+						SDB.Tools.FileSystem.DeleteFile(ImageLocal.Item(i))
+					End If
+				End If
+			Next
 		End If
 	End If
 
@@ -4876,7 +4677,7 @@ Function GetHeader()
 	templateHTML = templateHTML &  "<table border=0 width=100% cellspacing=0 cellpadding=1 class=tabletext>"
 	templateHTML = templateHTML &  "<tr>"
 	If QueryPage = "Discogs" Then
-		templateHTML = templateHTML &  "<td align=left><a href=""http://www.discogs.com"" target=""_blank""><img src=""http://s.pixogs.com/images/discogs-white.png?4"" border=""0""/ alt=""Discogs Homepage""></a><b>" & VersionStr & "</b></td>"
+		templateHTML = templateHTML &  "<td align=left><a href=""http://www.discogs.com"" target=""_blank""><img src=""http://www.germanc64.de/mm/i-love-discogs.png"" width=""100"" height=""60"" border=""0"" alt=""Discogs Homepage""></a><b>" & VersionStr & "</b></td>"
 	End If
 	If QueryPage = "MusicBrainz" Then
 		templateHTML = templateHTML &  "<td align=left><a href=""http://www.musicbrainz.org"" target=""_blank""><img src=""http://wiki.musicbrainz.org/images/musicbrainz_logo.png"" border=""0""/ alt=""MusicBrainz Homepage""></a><b>" & VersionStr & "</b></td>"
@@ -5087,7 +4888,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 		If QueryPage = "Discogs" Then
 			templateHTML = templateHTML &  "<tr><td colspan=2><a href=""http://www.discogs.com/viewimages?release=<!RELEASEID!>"" target=""_blank""><img src=""<!COVER!>"" border=""0""/></a></td></tr>"
 		ElseIf QueryPage = "MusicBrainz" Then
-			templateHTML = templateHTML &  "<tr><td colspan=2><img src=""<!COVER!>"" border=""0""/></a></td></tr>"
+			templateHTML = templateHTML &  "<tr><td colspan=2><img src=""<!COVER!>"" alt="""" border=""0""></a></td></tr>"
 		End If
 	Else
 		templateHTML = templateHTML &  "<tr><td colspan=2><table width=150 height=150 border=1><tr><td><center>No Image<br>Available</center></td></tr></table></td></tr>"
@@ -5109,7 +4910,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""producer"" >Save Producer</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""involved"" >Save Involved People</td></tr>"
 	If QueryPage = "Discogs" Then
-		templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""comments"" >Save Comment</td></tr>"
+		REM templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""comments"" >Save Comment</td></tr>"
 		templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""useanv"" title=""Artist Name Variation - Using no name variation (e.g. nickname)"" >Don't Use ANV's</td></tr>"
 	End If
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""yearonlydate"" title=""If checked only the Year will be saved (e.g. 14.01.1982 -> 1982)"" >Only Year Of Date</td></tr>"
@@ -5257,11 +5058,20 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 		templateHTML = templateHTML &  "<td>Genre:</td>"
 		templateHTML = templateHTML &  "<td><!GENRE!></td>"
 		templateHTML = templateHTML &  "</tr>"
+
+		templateHTML = templateHTML &  "<tr>"
+		templateHTML = templateHTML &  "<td><input type=checkbox id=""comments"" ></td>"
+		templateHTML = templateHTML &  "<td>Comment:</td>"
+		templateHTML = templateHTML &  "<td>" & Comment & "</td>"
+		templateHTML = templateHTML &  "</tr>"
+
 		templateHTML = templateHTML &  "<tr>"
 		templateHTML = templateHTML &  "<td colspan=2>Release Data Quality:</td>"
 		templateHTML = templateHTML &  "<td><!DATAQUALITY!></td>"
 		templateHTML = templateHTML &  "</tr>"
 	End If
+
+
 	templateHTML = templateHTML &  "</table>"
 	templateHTML = templateHTML &  "</td>"
 	' Release Information End
@@ -5346,9 +5156,11 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = Replace(templateHTML, "<!COVER!>", AlbumArtThumbNail)
 	templateHTML = Replace(templateHTML, "<!CATALOG!>", Catalog)
 	templateHTML = Replace(templateHTML, "<!FORMAT!>", theFormat)
-	templateHTML = Replace(templateHTML, "<!DATAQUALITY!>", DataQuality)
-
+	
 	If QueryPage = "Discogs" Then
+		templateHTML = Replace(templateHTML, "<!DATAQUALITY!>", DataQuality)
+		REM templateHTML = Replace(templateHTML, "<!COMMENT!>", Comment)
+	
 		theGenres = ""
 
 		If Genres <> "" Then
@@ -5377,11 +5189,11 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	End If
 
 	
-	Rem Dim filesys, filetxt, logdatei
-	Rem 'Const ForReading = 1, ForWriting = 2, ForAppending = 8
+	REM Dim filesys, filetxt, logdatei
+	REM 'Const ForReading = 1, ForWriting = 2, ForAppending = 8
 	REM logdatei = SDB.ScriptsPath & "HTML.htm"
-	Rem Set filesys = CreateObject("Scripting.FileSystemObject")
-	Rem Set filetxt = filesys.OpenTextFile(logdatei, 2, True)
+	REM Set filesys = CreateObject("Scripting.FileSystemObject")
+	REM Set filetxt = filesys.OpenTextFile(logdatei, 2, True)
 	REM filetxt.WriteLine(templateHTML)
 	REM filetxt.Close
 
@@ -5832,7 +5644,7 @@ Sub FormatErrorMessage(ErrorMessage)
 
 	WriteLog "Show ErrorMessage"
 	WriteLog "Errormessage=" & Errormessage
-	Dim templateHTML, listBox, templateHTMLDoc, submitButton, res
+	Dim templateHTML, listBox, templateHTMLDoc, submitButton, res, ret
 	templateHTML = ""
 	templateHTML = templateHTML &  GetHeader()
 	templateHTML = templateHTML &  "<tr>"
@@ -5879,8 +5691,10 @@ Sub FormatErrorMessage(ErrorMessage)
 		If res = 6 Then
 			AccessToken = ""
 			AccessTokenSecret = ""
-			authorize_script()
-			FindResults SavedSearchTerm, QueryPage
+			ret = authorize_script()
+			If ret = True Then
+				FindResults SavedSearchTerm, QueryPage
+			End If
 		End If
 	End If
 
@@ -5903,6 +5717,7 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 	WriteLog "Start JSONParser_find_result"
 	WriteLog "Arrayname=" & ArrayName
 	WriteLog "QueryPage=" & QueryPage
+	ErrorMessage = ""
 
 
 	Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
@@ -7099,7 +6914,7 @@ Sub SetSaveImages()
 End Sub
 
 
-function getimages(DownloadDest, LocalFile)
+Function getimages(DownloadDest, LocalFile)
 
 	Dim oXMLHTTP, objStream
 	Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
@@ -7846,8 +7661,8 @@ Function search_involved(Text, SearchText)
 	Next
 
 	For i = 1 To UBound(Text)
-		WriteLog "Text=" & Text(i)
 		If Left(Text(i), InStr(Text(i), ":")-1) = SearchText Then
+			WriteLog "Text=" & Text(i)
 			search_involved = i
 			Exit Function
 		End If
@@ -7954,54 +7769,41 @@ Function authorize_script()
 		
 		GUID = Mid(TypeLib.Guid, 2, 36)
 		WriteLog "GUID=" & GUID
+
 		IEobj.visible = true
 
 		IEobj.navigate ("http://www.germanc64.de/mm/oauth/oauth_guid.php?f=" & GUID)
 
 		WriteLog "IE started"
+		SDB.MessageBox "Press Ok after authorize the script", mtInformation, Array(mbOk)
+		
+		Set oXMLHTTP = Nothing
+		Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+		oXMLHTTP.open "GET", "http://www.germanc64.de/mm/oauth/get_oauth_guid.php?f=" & GUID, false
+		oXMLHTTP.send()
+		If oXMLHTTP.Status = 200 Then
+			retIE = oXMLHTTP.responseText
 
-		For a = 1 to 300
-			SDB.Tools.Sleep(100)
-			SDB.ProcessMessages
-		Next
-		retryCnt = 0
-
-		Do While 1=1
-			Set oXMLHTTP = Nothing
-			Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
-			oXMLHTTP.open "GET", "http://www.germanc64.de/mm/oauth/get_oauth_guid.php?f=" & GUID, false
-			oXMLHTTP.send()
-			If oXMLHTTP.Status = 200 Then
-				retIE = oXMLHTTP.responseText
-
-				If InStr(retIE, "AccessToken=") <> 0 Then
-					start = InStr(retIE, "AccessToken=")
-					retIE = Mid(retIE, start + 12)
-					AccessToken = Left(retIE, 40)
-					ini.StringValue("DiscogsAutoTagWeb","AccessToken") = AccessToken
-					WriteLog "AccessToken=" & AccessToken
-					start = InStr(retIE, "AccessTokenSecret=")
-					retIE = Mid(retIE, start + 18)
-					AccessTokenSecret = Left(retIE, 40)
-					ini.StringValue("DiscogsAutoTagWeb","AccessTokenSecret") = AccessTokenSecret
-					WriteLog "AccessTokenSecret=" & AccessTokenSecret
-					SDB.MessageBox "The Access Token was stored on your Computer. Now you can use Discogs Tagger till you revoke the permission", mtInformation, Array(mbOk)
-					authorize_script = True
-					Exit Do
-				End If
+			If InStr(retIE, "AccessToken=") <> 0 Then
+				start = InStr(retIE, "AccessToken=")
+				retIE = Mid(retIE, start + 12)
+				AccessToken = Left(retIE, 40)
+				ini.StringValue("DiscogsAutoTagWeb","AccessToken") = AccessToken
+				WriteLog "AccessToken=" & AccessToken
+				start = InStr(retIE, "AccessTokenSecret=")
+				retIE = Mid(retIE, start + 18)
+				AccessTokenSecret = Left(retIE, 40)
+				ini.StringValue("DiscogsAutoTagWeb","AccessTokenSecret") = AccessTokenSecret
+				WriteLog "AccessTokenSecret=" & AccessTokenSecret
+				SDB.MessageBox "The Access Token was stored on your Computer. Now you can use Discogs Tagger till you revoke the permission", mtInformation, Array(mbOk)
+				authorize_script = True
 			End If
-			retryCnt = retryCnt + 1
-			If retryCnt = 5 Then
-				WriteLog "Authorize failed (Err=1)!"
-				SDB.MessageBox "Authorize failed (Err=1)! You have to authorize Discogs Tagger to use it with your Discogs account !" & vbNewLine & "Please restart Discogs Tagger to authorize it !", mtError, Array(mbOk)
-				authorize_script = False
-				Exit Do
-			End If
-			For a = 1 to 100
-				SDB.Tools.Sleep(10)
-				SDB.ProcessMessages
-			Next
-		Loop
+		Else
+			WriteLog "Authorize failed (Err=1)!"
+			SDB.MessageBox "Authorize failed (Err=1)! You have to authorize Discogs Tagger to use it with your Discogs account !" & vbNewLine & "Please restart Discogs Tagger to authorize it !", mtError, Array(mbOk)
+			authorize_script = False
+		End If
+
 		Set oXMLHTTP = Nothing
 	Else
 		WriteLog "AccessToken found in ini = " & AccessToken
