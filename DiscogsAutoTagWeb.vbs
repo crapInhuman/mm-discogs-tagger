@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.27"
+Const VersionStr = "v5.28"
+
+'Changes from 5.27 to 5.28 by crap_inhuman in 07.2015
+'	Removed bug with unselecting tracks
+
 
 'Changes from 5.26 to 5.27 by crap_inhuman in 07.2015
 '	Removed bug with joint artists
@@ -308,7 +312,7 @@ Dim CurrentRelease, QueryPage
 
 Dim UI
 
-Dim Results, ResultsReleaseID
+Dim Results, ResultsReleaseID, NewResult
 Dim CurrentReleaseId, CurrentResultId
 Dim ini
 
@@ -401,6 +405,7 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	NewSearchTerm = SearchTerm
 
 	OptionsChanged = False
+	NewResult = True
 
 	'*FilterList.Item(0) = "0" -> No Filter
 	'*FilterList.Item(0) = "1" -> Custom Filter
@@ -1995,7 +2000,6 @@ Sub ReloadResults
 	Dim currentImage, currentLabel, currentFormat, theMaster, i, g, l, s, f, d, currentMedia, m, t
 	Dim ReleaseDate, ReleaseSplit, theLabels, theCatalogs, theCountry, theFormat
 	Dim rTrackPosition, rSubPosition
-	Dim cSubTrackNew
 	Dim oXMLHTTP, searchURL
 	Dim tmpArt, image
 	Dim Genres, Styles, Comment, DataQuality
@@ -2047,7 +2051,7 @@ Sub ReloadResults
 		Dim role, role2, rolea, currentRole, NoSplit, zahl, zahltemp, zahl2, zahltemp2, type1
 		Dim CharSeparatorSubTrack
 		ReDim Involved_R(0)
-		Dim tmp, tmp2, tmp3, tmp4, tmp5, tmp6
+		Dim tmp, tmp2, tmp3, tmp4, tmp5
 		Dim rTrack
 		Dim ret
 		Dim LeadingZeroTrackPosition
@@ -2057,7 +2061,6 @@ Sub ReloadResults
 		ReDim Title_Position(0)
 		ReDim TitleList(0)
 		ReDim ArtistsList(0)
-		ReDim UnselectedTracks(1000)
 		SavedArtistID = ""
 		SavedLabelID = ""
 		LeadingZeroTrackPosition = False
@@ -2334,6 +2337,7 @@ Sub ReloadResults
 				WriteLog "Process next track"
 				SDB.ProcessMessages
 				If rSubPosition.Item(t) <> "" And rSubPosition.Item(t) <> "NewSubTrack" Then
+					WriteLog "Processing Subtrack"
 					Set currentTrack = CurrentRelease("tracklist")(CInt(rTrackPosition.Item(t)))("sub_tracks")(cInt(rSubPosition.Item(t)))
 				Else
 					Set currentTrack = CurrentRelease("tracklist")(CInt(rTrackPosition.Item(t)))
@@ -2356,22 +2360,31 @@ Sub ReloadResults
 						Else
 							subTrackTitle = trackName
 						End If
-						UnselectedTracks(iTrackNum) = "x"
+						If NewResult = True Then
+							UnselectedTracks(iTrackNum) = "x"
+						End If
 						NewSubTrackFound = True
+						WriteLog "New Subtrack"
 					Else
 						If ArtistsList(t) <> "" then
 							subTrackTitle = subTrackTitle & ", " & ArtistsList(t) & " - " & trackName
 						Else
 							subTrackTitle = subTrackTitle & ", " & trackName
 						End If
-						UnselectedTracks(iTrackNum) = "x"
+						If NewResult = True Then
+							UnselectedTracks(iTrackNum) = "x"
+						End If
+						WriteLog "More Subtrack"
 					End If
 				Else
 					If NewSubTrackFound = True Then
 						Tracks.Item(cNewSubTrack) = Tracks.Item(cNewSubTrack) & " (" & subTrackTitle & ")"
-						UnselectedTracks(cNewSubTrack) = ""
+						If NewResult = True Then
+							UnselectedTracks(cNewSubTrack) = ""
+						End If
 						NewSubTrackFound = False
 						cNewSubTrack = -1
+						WriteLog "Subtrack end"
 					End If
 				End If
 
@@ -2395,7 +2408,6 @@ Sub ReloadResults
 						End If
 
 						If NoSubTrackUsing = False Then
-							WriteLog "Calling Subtrack Function"
 							CharSeparatorSubTrack = 0
 							'SubTrack Function ---------------------------------------------------------
 							If InStr(LCase(position), ".") > 0 Then
@@ -2455,13 +2467,15 @@ Sub ReloadResults
 									End If
 									If SubTrackNameSelection = False Then
 										If iTrackNum > 0 Then
-											UnselectedTracks(iTrackNum-1) = ""
-											UnselectedTracks(iTrackNum) = "x"
+											If NewResult = True Then
+												UnselectedTracks(iTrackNum-1) = ""
+												UnselectedTracks(iTrackNum) = "x"
+											End If
 										Else
-											UnselectedTracks(iTrackNum) = ""
+											If NewResult = True Then UnselectedTracks(iTrackNum) = ""
 										End If
 									Else
-										UnselectedTracks(iTrackNum) = ""
+										If NewResult = True Then UnselectedTracks(iTrackNum) = ""
 									End If
 								Else
 									If ArtistsList(t) <> "" Then
@@ -2469,7 +2483,7 @@ Sub ReloadResults
 									Else
 										subTrackTitle = subTrackTitle & ", " & trackName
 									End If
-									UnselectedTracks(iTrackNum) = "x"
+									If NewResult = True Then UnselectedTracks(iTrackNum) = "x"
 								End If
 
 								'SubTrack Function ---------------------------------------------------------
@@ -2479,11 +2493,19 @@ Sub ReloadResults
 
 					trackNumbering pos, position, TracksNum, TracksCD, iTrackNum
 
-				ElseIf trackName = "-" And rSubPosition.Item(t) <> "NewSubTrack" Then
-					REM currentTrack("duration") = ""
+				ElseIf (trackName = "-" And rSubPosition.Item(t) <> "NewSubTrack") Then
 					tracksNum.Add ""
 					tracksCD.Add ""
-					UnselectedTracks(iTrackNum) = "x"
+					If NewResult = True Then UnselectedTracks(iTrackNum) = "x"
+				ElseIf currentTrack("type_") = "heading" Then
+					If NewResult = True Or UnselectedTracks(iTrackNum) = "x" Then
+						UnselectedTracks(iTrackNum) = "x"
+						tracksNum.Add ""
+						tracksCD.Add ""
+					End If
+					If UnselectedTracks(iTrackNum) = "" Then
+						trackNumbering pos, position, TracksNum, TracksCD, iTrackNum
+					End If
 				Else ' Nothing specified
 					trackNumbering pos, position, TracksNum, TracksCD, iTrackNum
 				End If
@@ -3677,6 +3699,7 @@ Sub ReloadResults
 			If FormatTag = "Custom5" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom5 = theFormat
 		End If
 	Next
+	NewResult = False
 	SDB.Tools.WebSearch.RefreshViews   ' Tell MM that we have made some changes
 End Sub
 
@@ -4335,7 +4358,7 @@ End Sub
 Sub ShowResult(ResultID)
 
 	Dim ReleaseID, searchURL, oXMLHTTP, ResponseHTML, TXTBegin, TXTEnd, Title, SelectedTracks, searchURL_F, searchURL_L
-
+	NewResult = True
 	WebBrowser.SetHTMLDocument ""                 ' Deletes visible search result
 	If ResultsReleaseID.Item(ResultID) = "" Then Exit Sub
 	Dim json
