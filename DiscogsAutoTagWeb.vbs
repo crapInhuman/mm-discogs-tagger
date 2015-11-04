@@ -2,7 +2,14 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.28"
+Const VersionStr = "v5.29"
+
+'Changes from 5.28 to 5.29 by crap_inhuman in 10.2015
+'	Added Relationship-Attributes for Musicbrainz Credits
+'	Fixed bug with additional musicbrainz images
+'	Added support for foreign characters
+'	Fixed bug with anpersand in artistname
+
 
 'Changes from 5.27 to 5.28 by crap_inhuman in 07.2015
 '	Removed bug with unselecting tracks
@@ -332,7 +339,7 @@ Dim SavedSearchArtist, SavedSearchAlbum
 Dim SavedMasterID, SavedArtistID, SavedLabelID
 
 Dim FilterMediaType, FilterCountry, FilterYear, FilterMediaFormat, CurrentLoadType
-Dim MediaTypeList, MediaFormatList, CountryList, CountryCode, YearList, AlternativeList, LoadList
+Dim MediaTypeList, MediaFormatList, CountryList, CountryCode, YearList, AlternativeList, LoadList, RelationAttrList
 Dim ArtistSeparator, ArtistLastSeparator
 
 Dim FirstTrack, Errormessage
@@ -741,6 +748,21 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	Set YearList = SDB.NewStringList
 	Set AlternativeList = SDB.NewStringList
 	Set LoadList = SDB.NewStringList
+	Set RelationAttrList = SDB.NewStringList
+
+	RelationAttrList.Add "Additional"
+	RelationAttrList.Add "Assistant"
+	RelationAttrList.Add "Associate"
+	RelationAttrList.Add "Bonus"
+	RelationAttrList.Add "Co"
+	RelationAttrList.Add "Cover"
+	RelationAttrList.Add "Executive"
+	RelationAttrList.Add "Founder"
+	RelationAttrList.Add "Guest"
+	RelationAttrList.Add "Instrumental"
+	RelationAttrList.Add "Live"
+	RelationAttrList.Add "Medley"
+	RelationAttrList.Add "Solo"
 
 	LoadList.Add "Search Results"
 	LoadList.Add "Master Release"
@@ -1675,19 +1697,19 @@ Sub FindResults(SearchTerm, QueryPage)
 				ResultsReleaseID.Add SavedReleaseId
 			End If
 			If SearchTerm <> "" Then
-				searchURL = CleanSearchString(SearchTerm)
+				searchURL = URLEncodeUTF8(CleanSearchString(SearchTerm))
 				searchURL_F = "https://api.discogs.com/database/search?q="
 				searchURL_L = "%26type=release%26per_page=100"
 			ElseIf SavedSearchArtist <> "" And SavedSearchAlbum <> "" Then
-				searchURL = CleanSearchString(SavedSearchArtist) & " - " & CleanSearchString(SavedSearchAlbum)
+				searchURL = URLEncodeUTF8(CleanSearchString(SavedSearchArtist)) & " - " & URLEncodeUTF8(CleanSearchString(SavedSearchAlbum))
 				searchURL_F = "https://api.discogs.com/database/search?q="
 				searchURL_L = "%26type=release%26per_page=100"
 			ElseIf SavedSearchArtist = "" And SavedSearchAlbum <> "" Then
-				searchURL = CleanSearchString(SavedSearchAlbum)
+				searchURL = URLEncodeUTF8(CleanSearchString(SavedSearchAlbum))
 				searchURL_F = "https://api.discogs.com/database/search?type=release%26title="
 				searchURL_L = "%26per_page=100"
 			ElseIf SavedSearchArtist <> "" And SavedSearchAlbum = "" Then
-				searchURL = CleanSearchString(SavedSearchArtist)
+				searchURL = URLEncodeUTF8(CleanSearchString(SavedSearchArtist))
 				searchURL_F = "https://api.discogs.com/database/search?type=release%26artist="
 				searchURL_L = "%26per_page=100"
 			Else
@@ -1696,7 +1718,7 @@ Sub FindResults(SearchTerm, QueryPage)
 			End If
 
 			If ErrorMessage = "" Then
-				WriteLog "Complete searchURL=" & searchURL_F & searchURL & searchURL_L
+				WriteLog "Complete searchURL=" & searchURL_F & URLEncodeUTF8(searchURL) & searchURL_L
 				JSONParser_find_result searchURL, "results", searchURL_F, searchURL_L, "Discogs", True
 			End If
 		End If
@@ -1710,13 +1732,13 @@ Sub FindResults(SearchTerm, QueryPage)
 			WriteLog "newsearchTerm=" & NewSearchTerm
 			WriteLog "SavedSearchTerm=" & SavedSearchTerm
 			If SearchTerm <> "" And SearchTerm <> SavedSearchArtist Then
-				searchURL = "http://musicbrainz.org/ws/2/release?query=" & CleanSearchString(SearchTerm) & "&limit=50&offset=0&fmt=json"
+				searchURL = "http://musicbrainz.org/ws/2/release?query=" & CleanSearchString(URLEncodeUTF8(SearchTerm)) & "&limit=50&offset=0&fmt=json"
 			ElseIf (SavedSearchArtist <> "" And SavedSearchAlbum = "") Or (SearchTerm <> "" And SearchTerm = SavedSearchArtist) Then
-				searchURL = "http://musicbrainz.org/ws/2/release?query=artist:" & Chr(34) & CleanSearchString(SavedSearchArtist) & Chr(34) & "&limit=50&offset=0&fmt=json"
+				searchURL = "http://musicbrainz.org/ws/2/release?query=artist:" & Chr(34) & CleanSearchString(URLEncodeUTF8(SavedSearchArtist)) & Chr(34) & "&limit=50&offset=0&fmt=json"
 			ElseIf SavedSearchArtist <> "" And SavedSearchAlbum <> "" Then
-				searchURL = "http://musicbrainz.org/ws/2/release?query=artist:" & Chr(34) & CleanSearchString(SavedSearchArtist) & Chr(34) & " AND release:" & Chr(34) & CleanSearchString(SavedSearchAlbum) & Chr(34) & "&limit=50&offset=0&fmt=json"
+				searchURL = "http://musicbrainz.org/ws/2/release?query=artist:" & Chr(34) & CleanSearchString(URLEncodeUTF8(SavedSearchArtist)) & Chr(34) & " AND release:" & Chr(34) & URLEncodeUTF8(CleanSearchString(SavedSearchAlbum)) & Chr(34) & "&limit=50&offset=0&fmt=json"
 			ElseIf SavedSearchArtist = "" And SavedSearchAlbum <> "" Then
-				searchURL = "http://musicbrainz.org/ws/2/release?query=release:" & Chr(34) & CleanSearchString(SavedSearchAlbum) & Chr(34) & "&limit=50&offset=0&fmt=json"			
+				searchURL = "http://musicbrainz.org/ws/2/release?query=release:" & Chr(34) & CleanSearchString(URLEncodeUTF8(SavedSearchAlbum)) & Chr(34) & "&limit=50&offset=0&fmt=json"			
 			End If
 
 			WriteLog "searchURL=" & searchURL
@@ -3415,7 +3437,7 @@ Sub ReloadResults
 					End If
 				End If
 			End If
-	
+
 			'----------------------------------CoverArtArchive Images----------------------------------------
 			Set ImageList = SDB.NewStringList
 			Set SaveImageType = SDB.NewStringList
@@ -3426,7 +3448,6 @@ Sub ReloadResults
 				If CurrentRelease("cover-art-archive")("count") > 1 Then
 					searchURL = "http://coverartarchive.org/release/" & CurrentRelease("id")
 					WriteLog searchURL
-					Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0") 
 					ImagesCount = CurrentRelease("cover-art-archive")("count")
 					oXMLHTTP.Open "GET", searchURL, False
 					oXMLHTTP.setRequestHeader "Content-Type", "application/json"
@@ -3706,58 +3727,43 @@ End Sub
 
 Function RelationshipTypes(JSONArray)
 
-	Dim rType, i
+	Dim rType, i, a, nType, found, instrument, cInstr
 	ReDim role(0)
 	WriteLog "Start RelTypes"
 	SDB.ProcessMessages
 	rType = JSONArray("type")
+	nType = ""
+	cInstr = 0
+	
 	If rType <> "other version" Then
-		If JSONArray("attributes").Count > 1 Then
-			If JSONArray("attributes").Count > 2 Then
-				SDB.MessageBox "Found more than 2 attribute in track role !!", mtInformation, Array(mbOk)
-				WriteLog "Found more than 2 attribute in track role 2!!"
-			End If
-			If JSONArray("attributes")(0) = "additional" Then
-				ReDim role(2)
-				role(0) = 1
-				role(1) = "Additional " & UCase(Left(JSONArray("attributes")(1), 1)) & Mid(JSONArray("attributes")(1), 2)
-			ElseIf JSONArray("attributes")(1) = "guest" Then
-				ReDim role(2)
-				role(0) = 1
-				role(1) = "Guest " & UCase(Left(JSONArray("attributes")(0), 1)) & Mid(JSONArray("attributes")(0), 2)
-			ElseIf JSONArray("attributes")(0) = "guest" Then
-				ReDim role(2)
-				role(0) = 1
-				role(1) = "Guest " & UCase(Left(JSONArray("attributes")(1), 1)) & Mid(JSONArray("attributes")(1), 2)
-			Else
-				ReDim role(JSONArray("attributes").Count + 1)
-				role(0) = JSONArray("attributes").Count
-				For i = 0 to Role(0)-1
-					role(i+1) = UCase(Left(JSONArray("attributes")(i), 1)) & Mid(JSONArray("attributes")(i), 2)
-					WriteLog i & ". " & JSONArray("attributes")(i)
+		If JSONArray("attributes").Count > 0 Then
+			For a = 0 to JSONArray("attributes").Count -1
+				found = false
+				For i = 0 to RelationAttrList.Count -1
+					If LCase(RelationAttrList.Item(i)) = JSONArray("attributes")(a) Then
+						nType = nType & RelationAttrList.Item(i) & " "
+						WriteLog "Attribute found: " & RelationAttrList.Item(i)
+						found = true
+					End If
 				Next
-				WriteLog "New Attr found : 1=" & JSONArray("attributes")(0) & " -- 2=" & JSONArray("attributes")(1)
-			End If
-		ElseIf JSONArray("attributes").Count = 1 Then
-			ReDim role(2)
-			role(0) = 1
-			If JSONArray("attributes")(0) = "additional" Then
-				role(1) = "Additional " & UCase(Left(rType, 1)) & Mid(rType, 2)
-			ElseIf JSONArray("attributes")(0) = "guest" Then
-				role(1) = "Guest " & UCase(Left(rType, 1)) & Mid(rType, 2)
-			Else
-				role(1) = UCase(Left(JSONArray("attributes")(0), 1)) & Mid(JSONArray("attributes")(0), 2)
-			End If
-		Else
+				If found = false Then
+					If rType = "instrument" Then
+						cInstr = cInstr + 1
+						ReDim Preserve role(cInstr+1)
+						role(0) = cInstr
+						role(cInstr) = nType & UCase(Left(JSONArray("attributes")(a), 1)) & Mid(JSONArray("attributes")(a), 2)
+						WriteLog cInstr & ". Instrument: " & role(cInstr)
+					End If
+				End If
+			Next
+		End If
+		If rType <> "instrument" Then
 			If rType = "vocal" Then rType = "vocals"
 			ReDim role(2)
 			role(0) = 1
-			role(1) = UCase(Left(rType, 1)) & Mid(rType, 2)
+			role(1) = nType & UCase(Left(rType, 1)) & Mid(rType, 2)
+			WriteLog "Found Role=" & role(1)
 		End If
-		For i = 1 to Role(0)
-			WriteLog "Found Role=" & role(i)
-		Next
-		
 	Else
 		WriteLog "other Version found!!"
 		REM SDB.MessageBox "other Version found!!", mtInformation, Array(mbOk)
@@ -7445,10 +7451,10 @@ Function CleanSearchString(Text)
 	CleanSearchString = Replace(CleanSearchString,"(", " ") 'also clean other unneccessary characters
 	CleanSearchString = Replace(CleanSearchString,"[", " ")
 	CleanSearchString = Replace(CleanSearchString,"]", " ")
-	CleanSearchString = Replace(CleanSearchString,".", " ")
 	CleanSearchString = Replace(CleanSearchString,"@", " ")
 	CleanSearchString = Replace(CleanSearchString,"_", " ")
 	CleanSearchString = Replace(CleanSearchString,"?", " ")
+	CleanSearchString = Replace(CleanSearchString,"&", "%26")
 
 End Function
 
