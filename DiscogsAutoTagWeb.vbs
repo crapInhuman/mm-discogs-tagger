@@ -2,13 +2,17 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.29"
+Const VersionStr = "v5.30"
+
+'Changes from 5.29 to 5.30 by crap_inhuman in 11.2015
+'	Fixed new bug with ampersand
+
 
 'Changes from 5.28 to 5.29 by crap_inhuman in 10.2015
 '	Added Relationship-Attributes for Musicbrainz Credits
 '	Fixed bug with additional musicbrainz images
 '	Added support for foreign characters
-'	Fixed bug with anpersand in artistname
+'	Fixed bug with ampersand in artistname
 
 
 'Changes from 5.27 to 5.28 by crap_inhuman in 07.2015
@@ -7454,7 +7458,6 @@ Function CleanSearchString(Text)
 	CleanSearchString = Replace(CleanSearchString,"@", " ")
 	CleanSearchString = Replace(CleanSearchString,"_", " ")
 	CleanSearchString = Replace(CleanSearchString,"?", " ")
-	CleanSearchString = Replace(CleanSearchString,"&", "%26")
 
 End Function
 
