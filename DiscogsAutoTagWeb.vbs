@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.35"
+Const VersionStr = "v5.36"
+
+'Changes from 5.35 to 5.36 by crap_inhuman in 01.2016
+'	Bug with empty Label removed
+
 
 'Changes from 5.34 to 5.35 by crap_inhuman in 01.2016
 '	Changed feat. Artist function: Now you can use ";" for separator
@@ -3567,13 +3571,15 @@ Sub ReloadResults
 			If CurrentRelease.Exists("label-info") Then
 				For Each l In CurrentRelease("label-info")
 					Set currentLabel = CurrentRelease("label-info")(l)
-					If SavedLabelID = "" Then
+					If SavedLabelID = "" And Not IsNull(currentLabel("label")) Then
 						set tmp = currentLabel("label")
 						If tmp.Exists("id") Then
 							SavedLabelID = tmp("id")
 						End If
+						If Not IsNull(currentLabel("label")("name")) Then
+							AddToField theLabels, CleanArtistName(currentLabel("label")("name"))
+						End If
 					End If
-					AddToField theLabels, CleanArtistName(currentLabel("label")("name"))
 					If IsNull(currentLabel("catalog-number")) Then
 						theCatalogs = ""
 					Else
@@ -4868,7 +4874,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = templateHTML &  "<table border=0 cellspacing=0 cellpadding=1 class=tabletext>"
 	If AlbumArtThumbNail <> "" Then
 		If QueryPage = "Discogs" Then
-			templateHTML = templateHTML &  "<tr><td colspan=2><a href=""http://www.discogs.com/viewimages?release=<!RELEASEID!>"" target=""_blank""><img src=""<!COVER!>"" border=""0""/></a></td></tr>"
+			templateHTML = templateHTML &  "<tr><td colspan=2><a href=""https://www.discogs.com/viewimages?release=<!RELEASEID!>"" target=""_blank""><img src=""<!COVER!>"" border=""0""/></a></td></tr>"
 		ElseIf QueryPage = "MusicBrainz" Then
 			templateHTML = templateHTML &  "<tr><td colspan=2><img src=""<!COVER!>"" alt="""" border=""0""></a></td></tr>"
 		End If
@@ -4963,12 +4969,12 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = templateHTML &  "<td><input type=checkbox id=""releaseid"" ></td>"
 	templateHTML = templateHTML &  "<td>Release:</td>"
 	If InStr(Results.Item(CurrentResultId), " * ") <> 0 Or Right(Results.Item(CurrentResultID), 8) = "(Master)" Then
-		templateHTML = templateHTML &  "<td>N/A</a> (Master: <a href=""http://www.discogs.com/master/<!RELEASEID!>"" target=""_blank""><!RELEASEID!></a>)</td>"
+		templateHTML = templateHTML &  "<td>N/A</a> (Master: <a href=""https://www.discogs.com/master/<!RELEASEID!>"" target=""_blank""><!RELEASEID!></a>)</td>"
 	ElseIf (theMaster <> "") Then
-		templateHTML = templateHTML &  "<td><a href=""http://www.discogs.com/release/<!RELEASEID!>"" target=""_blank""><!RELEASEID!></a> (Master: <a href=""http://www.discogs.com/master/<!MASTERID!>"" target=""_blank""><!MASTERID!></a>)</td>"
+		templateHTML = templateHTML &  "<td><a href=""https://www.discogs.com/release/<!RELEASEID!>"" target=""_blank""><!RELEASEID!></a> (Master: <a href=""https://www.discogs.com/master/<!MASTERID!>"" target=""_blank""><!MASTERID!></a>)</td>"
 	Else
 		If QueryPage = "Discogs" Then
-			templateHTML = templateHTML &  "<td><a href=""http://www.discogs.com/release/<!RELEASEID!>"" target=""_blank""><!RELEASEID!></a> (Master: N/A)</td>"
+			templateHTML = templateHTML &  "<td><a href=""https://www.discogs.com/release/<!RELEASEID!>"" target=""_blank""><!RELEASEID!></a> (Master: N/A)</td>"
 		ElseIf QueryPage = "MusicBrainz" Then
 			templateHTML = templateHTML &  "<td><a href=""http://www.musicbrainz.org/release/<!RELEASEID!>"" target=""_blank""><!RELEASEID!></a> (Master: N/A)</td>"
 		End If
@@ -4978,7 +4984,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = templateHTML &  "<td><input type=checkbox id=""artist"" ></td>"
 	templateHTML = templateHTML &  "<td>Artist:</td>"
 	If QueryPage = "Discogs" Then
-		templateHTML = templateHTML &  "<td><a href=""http://www.discogs.com/artist/" & SavedArtistID & """ target=""_blank""><!ARTIST!></a></td>"
+		templateHTML = templateHTML &  "<td><a href=""https://www.discogs.com/artist/" & SavedArtistID & """ target=""_blank""><!ARTIST!></a></td>"
 	ElseIf QueryPage = "MusicBrainz" Then
 		templateHTML = templateHTML &  "<td><a href=""http://www.musicbrainz.org/artist/" & SavedArtistID & """ target=""_blank""><!ARTIST!></a></td>"
 	End If
@@ -4987,7 +4993,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = templateHTML &  "<td><input type=checkbox id=""album"" ></td>"
 	templateHTML = templateHTML &  "<td>Album:</td>"
 	If QueryPage = "Discogs" Then
-		templateHTML = templateHTML &  "<td><a href=""http://www.discogs.com/release/<!RELEASEID!>"" target=""_blank""><!ALBUMTITLE!></a></td>"
+		templateHTML = templateHTML &  "<td><a href=""https://www.discogs.com/release/<!RELEASEID!>"" target=""_blank""><!ALBUMTITLE!></a></td>"
 	ElseIf QueryPage = "MusicBrainz" Then
 		templateHTML = templateHTML &  "<td><a href=""http://www.musicbrainz.org/release/<!RELEASEID!>"" target=""_blank""><!ALBUMTITLE!></a></td>"
 	End If
@@ -4996,7 +5002,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = templateHTML &  "<td><input type=checkbox id=""albumartist"" ><input type=checkbox id=""albumartistfirst"" ></td>"
 	templateHTML = templateHTML &  "<td>Album Artist:</td>"
 	If QueryPage = "Discogs" Then
-		templateHTML = templateHTML &  "<td><a href=""http://www.discogs.com/artist/" & SavedArtistID & """ target=""_blank""><!ALBUMARTIST!></a></td>"
+		templateHTML = templateHTML &  "<td><a href=""https://www.discogs.com/artist/" & SavedArtistID & """ target=""_blank""><!ALBUMARTIST!></a></td>"
 	ElseIf QueryPage = "MusicBrainz" Then
 		templateHTML = templateHTML &  "<td><a href=""http://www.musicbrainz.org/artist/" & SavedArtistID & """ target=""_blank""><!ALBUMARTIST!></a></td>"
 	End If
@@ -5005,7 +5011,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = templateHTML &  "<td><input type=checkbox id=""label"" ></td>"
 	templateHTML = templateHTML &  "<td>Label:</td>"
 	If QueryPage = "Discogs" Then
-		templateHTML = templateHTML &  "<td><a href=""http://www.discogs.com/label/" & SavedLabelID & """ target=""_blank""><!LABEL!></a></td>"
+		templateHTML = templateHTML &  "<td><a href=""https://www.discogs.com/label/" & SavedLabelID & """ target=""_blank""><!LABEL!></a></td>"
 	ElseIf QueryPage = "MusicBrainz" Then
 		templateHTML = templateHTML &  "<td><a href=""http://www.musicbrainz.org/label/" & SavedLabelID & """ target=""_blank""><!LABEL!></a></td>"
 	End If
@@ -6145,7 +6151,7 @@ Function ReloadMaster(SavedMasterID)
 
 	WriteLog "Start ReloadMaster"
 	Dim oXMLHTTP, masterURL
-	masterURL = "http://api.discogs.com/masters/" & SavedMasterID
+	masterURL = "https://api.discogs.com/masters/" & SavedMasterID
 	Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
 
 	Dim json
@@ -7940,7 +7946,7 @@ Function ShowSearchFor
 	If QueryPage = "Discogs" Then
 		Btn3.Caption = SDB.Localize("Artist/Title/Album")
 	Else
-		Btn3.Caption = SDB.Localize("Release")
+		Btn3.Caption = SDB.Localize("Artist - Album")
 	End If
 	Btn3.Common.Width = 95
 	Btn3.Common.Height = 25
