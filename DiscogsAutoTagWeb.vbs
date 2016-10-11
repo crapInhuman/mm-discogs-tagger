@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.33"
+Const VersionStr = "v5.34"
+
+'Changes from 5.33 to 5.34 by crap_inhuman in 01.2016
+'	Artist search now use discogs artist-id
+
 
 'Changes from 5.32 to 5.33 by crap_inhuman in 12.2015
 '	Added advanced search button
@@ -4973,7 +4977,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = templateHTML &  "<td><input type=checkbox id=""artist"" ></td>"
 	templateHTML = templateHTML &  "<td>Artist:</td>"
 	If QueryPage = "Discogs" Then
-		templateHTML = templateHTML &  "<td><a href=""http://www.discogs.com/artist/<!ARTIST!>"" target=""_blank""><!ARTIST!></a></td>"
+		templateHTML = templateHTML &  "<td><a href=""http://www.discogs.com/artist/" & SavedArtistID & """ target=""_blank""><!ARTIST!></a></td>"
 	ElseIf QueryPage = "MusicBrainz" Then
 		templateHTML = templateHTML &  "<td><a href=""http://www.musicbrainz.org/artist/" & SavedArtistID & """ target=""_blank""><!ARTIST!></a></td>"
 	End If
@@ -4991,7 +4995,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = templateHTML &  "<td><input type=checkbox id=""albumartist"" ><input type=checkbox id=""albumartistfirst"" ></td>"
 	templateHTML = templateHTML &  "<td>Album Artist:</td>"
 	If QueryPage = "Discogs" Then
-		templateHTML = templateHTML &  "<td><a href=""http://www.discogs.com/artist/<!ALBUMARTIST!>"" target=""_blank""><!ALBUMARTIST!></a></td>"
+		templateHTML = templateHTML &  "<td><a href=""http://www.discogs.com/artist/" & SavedArtistID & """ target=""_blank""><!ALBUMARTIST!></a></td>"
 	ElseIf QueryPage = "MusicBrainz" Then
 		templateHTML = templateHTML &  "<td><a href=""http://www.musicbrainz.org/artist/" & SavedArtistID & """ target=""_blank""><!ALBUMARTIST!></a></td>"
 	End If
@@ -7836,6 +7840,7 @@ Function getArtistsName(Current, Role, QueryPage)
 				If CheckTheBehindArtist And Left(artistName, 4) = "The " Then artistName = Mid(artistName, 5) & ", The"
 				If SavedArtistID = "" Then SavedArtistID = currentArtist("artist")("id")
 			End If
+			WriteLog "SavedArtistID=" & SavedArtistID
 
 			If Artists(0) = "" Then
 				Artists(0) = artistName
