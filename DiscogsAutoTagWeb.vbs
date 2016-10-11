@@ -2,7 +2,13 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.39"
+Const VersionStr = "v5.40"
+
+'Changes from 5.39 to 5.40 by crap_inhuman in 06.2016
+'	Discogs: Removed bug with featuring artist in the albumartist
+'	Musicbrainz: Removed one of the two blank character in featuring artist
+'	Trackname removed from first search
+
 
 'Changes from 5.38 to 5.39 by crap_inhuman in 04.2016
 '	The check if it's already in Discogs Collection can be turned off
@@ -386,7 +392,7 @@ Dim LyricistKeywords, ConductorKeywords, ProducerKeywords, ComposerKeywords, Fea
 
 Dim SavedReleaseId
 Dim NewSearchTerm, NewSearchArtist, NewSearchAlbum, NewSearchTrack
-Dim SavedSearchArtist, SavedSearchAlbum, SavedSearchTrack
+Dim SavedSearchArtist, SavedSearchAlbum
 Dim SavedMasterID, SavedArtistID, SavedLabelID
 
 Dim FilterMediaType, FilterCountry, FilterYear, FilterMediaFormat, CurrentLoadType
@@ -1548,11 +1554,9 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		Set FirstTrack = SDB.Tools.WebSearch.NewTracks.item(0)
 		SavedReleaseId = get_release_ID(FirstTrack) 'get saved Release_ID from User-Defined Custom-Tag
 		SavedSearchArtist = SearchArtist
-		SavedSearchTrack = FirstTrack.Title
 		SavedSearchAlbum = SearchAlbum
 		NewSearchArtist = SearchArtist
 		NewSearchAlbum = SearchAlbum
-		NewSearchTrack = SavedSearchTrack
 	End If
 
 	If CheckNewVersion = True Then
@@ -1847,7 +1851,7 @@ Sub FindResults(SearchTerm, QueryPage)
 			End If
 		End If
 
-		If ResultsReleaseID.Count = 0 Then
+		If ResultsReleaseID.Count = 0 And ErrorMessage = "" Then
 			WriteLog "ResultsReleaseID=0"
 			FilterFound = False
 			If FilterCountry = "Use Country Filter" Then
@@ -2251,7 +2255,7 @@ Sub ReloadResults
 			tmp = getArtistsName(CurrentRelease, "artists", QueryPage)
 
 			AlbumArtist = tmp(2)
-			AlbumArtistTitle = tmp(0)
+			AlbumArtistTitle = tmp(0) & tmp(1)
 			Writelog "AlbumArtistTitle=" & AlbumArtistTitle
 
 			If (Not CheckAlbumArtistFirst) Then
@@ -3126,7 +3130,7 @@ Sub ReloadResults
 
 			' Get release artist
 			tmp = getArtistsName(CurrentRelease, "artist-credit", QueryPage)
-			AlbumArtistTitle = tmp(0)
+			AlbumArtistTitle = tmp(0) & tmp(1)
 			AlbumArtist = tmp(2)
 
 			Writelog "AlbumArtistTitle=" & AlbumArtistTitle
@@ -3404,7 +3408,7 @@ Sub ReloadResults
 					If currentTrack.Exists("artist-credit") Then
 						tmp = getArtistsName(CurrentTrack, "artist-credit", QueryPage)
 						artistList = tmp(0)
-						TrackFeaturing = tmp(1)
+						TrackFeaturing = Trim(tmp(1))
 					End If
 					If artistList = "" Then artistList = AlbumArtistTitle
 
@@ -4539,6 +4543,14 @@ Sub ShowResult(ResultID)
 			Set CurrentRelease = json.Decode(oXMLHTTP.responseText)
 			CurrentReleaseId = ReleaseID
 			ReloadResults
+		ElseIf oXMLHTTP.Status = 503 Then
+			ErrorMessage = "Status:" & oXMLHTTP.Status & " - The number of requests exceeds the limit. Please try again later"
+			WriteLog "Status=" & oXMLHTTP.Status
+			FormatErrorMessage ErrorMessage
+		Else
+			ErrorMessage = "Status:" & oXMLHTTP.Status & " - Please try again later"
+			WriteLog "Status=" & oXMLHTTP.Status
+			FormatErrorMessage ErrorMessage
 		End If
 	End If
 
@@ -5783,6 +5795,7 @@ Function JSONParser_find_result(searchURL, ArrayName, SendArtist, SendAlbum, Sen
 	WriteLog "Start JSONParser_find_result"
 	WriteLog "Arrayname=" & ArrayName
 	WriteLog "QueryPage=" & QueryPage
+	WriteLog "searchURL=" & searchURL
 	ErrorMessage = ""
 
 
@@ -5794,6 +5807,7 @@ Function JSONParser_find_result(searchURL, ArrayName, SendArtist, SendAlbum, Sen
 		oXMLHTTP.setRequestHeader "Content-Type", "application/json"
 		oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
 		oXMLHTTP.send ()
+		WriteLog "1"
 
 		If oXMLHTTP.Status = 200 Then
 			WriteLog "Musicbrainz"
@@ -5983,11 +5997,17 @@ Function JSONParser_find_result(searchURL, ArrayName, SendArtist, SendAlbum, Sen
 							Results.Item(r-1) = "(" & ListCount & "/" & SongCount & "/" & SongCountMax & ") " & Results.Item(r-1)
 						Else
 							Results.Item(r-1) = "(" & ListCount & "/" & SongCountMax & ") " & Results.Item(r-1)
-						End IF
+						End If
 						ListCount = ListCount + 1
 					End If
 				Next
 			End If
+		ElseIf oXMLHTTP.Status = 503 Then
+			ErrorMessage = "Status:" & oXMLHTTP.Status & " - The number of requests exceeds the limit. Please try again later"
+			WriteLog "Status=" & oXMLHTTP.Status
+		Else
+			ErrorMessage = "Status:" & oXMLHTTP.Status & " - Please try again later"
+			WriteLog "Status=" & oXMLHTTP.Status
 		End If
 
 	End If
@@ -7912,6 +7932,11 @@ Function getArtistsName(Current, Role, QueryPage)
 
 	REM Current = CurrentTrack
 	REM Role = "artists" or "artist-credit"
+	REM Artists(0) = All Artists without Featuring
+	REM Artists(1) = Featuring Artist
+	REM Artists(2) = Only first Artist
+
+	REM WriteLog "Start getArtistsName"
 	Dim artist, currentArtist, artistName, tmpArtistSeparator, tmp
 	Dim FoundFeaturing
 
@@ -7942,6 +7967,7 @@ Function getArtistsName(Current, Role, QueryPage)
 					WriteLog "SavedArtistID=" & SavedArtistID
 				End If
 			End If
+			WriteLog "Artist found=" & artistName
 
 			If Artists(0) = "" Then
 				Artists(0) = artistName
@@ -7968,6 +7994,7 @@ Function getArtistsName(Current, Role, QueryPage)
 					tmp = Trim(currentArtist("joinphrase"))
 				End If
 			End If
+			WriteLog "Featuring found=" & tmp
 
 			If tmp <> "" Then
 				If tmp = "," Then
@@ -7982,6 +8009,7 @@ Function getArtistsName(Current, Role, QueryPage)
 					tmpArtistSeparator = " " & tmp & " "
 				End If
 				If LookForFeaturing(tmp) = True Then FoundFeaturing = True
+				WriteLog "FoundFeaturing=" & FoundFeaturing
 			Else
 				tmpArtistSeparator = ""
 			End If
@@ -7990,9 +8018,15 @@ Function getArtistsName(Current, Role, QueryPage)
 		If Right(Artists(0), Len(ArtistSeparator)) = ArtistSeparator Then Artists(0) = Left(Artists(0), Len(Artists(0))-Len(ArtistSeparator))
 		Artists(0) = Trim(Artists(0))
 		getArtistsName = Artists
+		WriteLog "Artists(0)=" & Artists(0)
+		WriteLog "Artists(1)=" & Artists(1)
+		WriteLog "Artists(2)=" & Artists(2)
+		WriteLog ""
 	Else
 		Artists(0) = ""
 		getArtistsName = Artists
+		WriteLog "No ExtraArtist found"
+		WriteLog ""
 	End If
 
 End Function
