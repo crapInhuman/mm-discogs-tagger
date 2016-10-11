@@ -2,7 +2,12 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.38"
+Const VersionStr = "v5.39"
+
+'Changes from 5.38 to 5.39 by crap_inhuman in 04.2016
+'	The check if it's already in Discogs Collection can be turned off
+'	Added option to delete duplicated entries in tags
+
 
 'Changes from 5.37 to 5.38 by crap_inhuman in 03.2016
 '	Redirected back to my webspace
@@ -372,6 +377,7 @@ Dim CheckComposer, CheckConductor, CheckProducer, CheckDiscNum, CheckTrackNum, C
 Dim CheckForceNumeric, CheckSidesToDisc, CheckForceDisc, CheckNoDisc, CheckLeadingZero, CheckVarious, TxtVarious
 Dim CheckTitleFeaturing, CheckComment, CheckFeaturingName, TxtFeaturingName, CheckOriginalDiscogsTrack, CheckSaveImage
 Dim CheckStyleField, CheckTurnOffSubTrack, CheckInvolvedPeopleSingleLine, CheckDontFillEmptyFields, CheckTheBehindArtist
+Dim CheckDiscogsCollectionOff, CheckDeleteDuplicatedEntry
 REM Dim CheckUserCollection
 Dim DiscogsUsername
 Dim SubTrackNameSelection
@@ -686,6 +692,12 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		If ini.StringValue("DiscogsAutoTagWeb","DiscogsUsername") = "" Then
 			ini.StringValue("DiscogsAutoTagWeb","DiscogsUsername") = ""
 		End If
+		If ini.StringValue("DiscogsAutoTagWeb","CheckDiscogsCollectionOff") = "" Then
+			ini.BoolValue("DiscogsAutoTagWeb","CheckDiscogsCollectionOff") = True
+		End If
+		If ini.StringValue("DiscogsAutoTagWeb","CheckDeleteDuplicatedEntry") = "" Then
+			ini.BoolValue("DiscogsAutoTagWeb","CheckDeleteDuplicatedEntry") = False
+		End If
 
 		'----------------------------------DiscogsImages----------------------------------------
 		CoverStorage = ini.StringValue("PreviewSettings","DefaultCoverStorage")
@@ -783,6 +795,8 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	CheckNewVersion = ini.BoolValue("DiscogsAutoTagWeb","CheckNewVersion")
 	LastCheck = ini.StringValue("DiscogsAutoTagWeb","LastCheck")
 	CheckTheBehindArtist = ini.BoolValue("DiscogsAutoTagWeb","CheckTheBehindArtist")
+	CheckDiscogsCollectionOff = ini.BoolValue("DiscogsAutoTagWeb","CheckDiscogsCollectionOff")
+	CheckDeleteDuplicatedEntry = ini.BoolValue("DiscogsAutoTagWeb","CheckDiscogsCollectionOff")
 
 	Separator = Left(Separator, Len(Separator)-1)
 	Separator = Right(Separator, Len(Separator)-1)
@@ -3034,8 +3048,13 @@ Sub ReloadResults
 							SavedLabelID = currentLabel("id")
 						End If
 					End If
-					AddToField theLabels, CleanArtistName(currentLabel("name"))
-					AddToField theCatalogs, currentLabel("catno")
+					If CheckDeleteDuplicatedEntry = True Then
+						AddToFieldWD theLabels, CleanArtistName(currentLabel("name"))
+						AddToFieldWD theCatalogs, currentLabel("catno")
+					Else
+						AddToField theLabels, CleanArtistName(currentLabel("name"))
+						AddToField theCatalogs, currentLabel("catno")
+					End If
 				Next
 			Else
 				theLabels = ""
@@ -4934,6 +4953,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 		templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""useanv"" title=""Artist Name Variation - Using no name variation (e.g. nickname)"" >Don't Use ANV's</td></tr>"
 	End If
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""yearonlydate"" title=""If checked only the Year will be saved (e.g. 14.01.1982 -> 1982)"" >Only Year Of Date</td></tr>"
+	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""deleteduplicatedentry"" title=""If checked the duplicated entries in the label-tag or the catalog-tag will be deleted (e.g. Label-tag: Roadrunner Records; Roadrunner Records  ->  Roadrunner Records"" >Delete duplicated Entries</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""titlefeaturing"" title=""If checked the feat. Artist appears in the title tag (e.g. Aaliyah (ft. Timbaland) - We Need a Resolution  ->  Aaliyah - We Need a Resolution (ft. Timbaland) )"" >feat. Artist behind Title</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""TheBehindArtist"" title=""If checked the ArtistName will be 'Beatles, The' instead of 'The Beatles'"" >Move 'The' in Artist to the end</td></tr>"
 
@@ -5319,6 +5339,9 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Set checkBox = templateHTMLDoc.getElementById("titlefeaturing")
 	checkBox.Checked = CheckTitleFeaturing
 	Script.RegisterEvent checkBox, "onclick", "Update"
+	Set checkBox = templateHTMLDoc.getElementById("deleteduplicatedentry")
+	checkBox.Checked = CheckDeleteDuplicatedEntry
+	Script.RegisterEvent checkBox, "onclick", "Update"
 	Set text = templateHTMLDoc.getElementById("TxtFeaturingName")
 	text.value = TxtFeaturingName
 	Script.RegisterEvent text, "onchange", "Update"
@@ -5482,6 +5505,8 @@ Sub Update()
 	CheckLeadingZero = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("titlefeaturing")
 	CheckTitleFeaturing = checkBox.Checked
+	Set checkBox = templateHTMLDoc.getElementById("deleteduplicatedentry")
+	CheckDeleteDuplicatedEntry = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("FeaturingName")
 	CheckFeaturingName = checkBox.Checked
 	Set text = templateHTMLDoc.getElementById("TxtFeaturingName")
@@ -5643,6 +5668,7 @@ Sub SaveOptions()
 		ini.BoolValue("DiscogsAutoTagWeb","CheckVarious") = CheckVarious
 		ini.StringValue("DiscogsAutoTagWeb","TxtVarious") = TxtVarious
 		ini.BoolValue("DiscogsAutoTagWeb","CheckTitleFeaturing") = CheckTitleFeaturing
+		ini.BoolValue("DiscogsAutoTagWeb","CheckDeleteDuplicatedEntry") = CheckDeleteDuplicatedEntry
 		ini.StringValue("DiscogsAutoTagWeb","TxtFeaturingName") = TxtFeaturingName
 		ini.BoolValue("DiscogsAutoTagWeb","CheckFeaturingName") = CheckFeaturingName
 		ini.BoolValue("DiscogsAutoTagWeb","CheckComment") = CheckComment
@@ -7021,6 +7047,7 @@ Sub WriteOptions()
 	WriteLog "CheckVarious=" & CheckVarious
 	WriteLog "TxtVarious=" & TxtVarious
 	WriteLog "CheckTitleFeaturing=" & CheckTitleFeaturing
+	WriteLog "CheckDeleteDuplicatedEntry=" & CheckDeleteDuplicatedEntry
 	WriteLog "TxtFeaturingName=" & TxtFeaturingName
 	WriteLog "CheckFeaturingName=" & CheckFeaturingName
 	WriteLog "CheckComment=" & CheckComment
@@ -7478,9 +7505,28 @@ Function AddToField(ByRef field, ByVal ftext)
 End Function
 
 
+Function AddToFieldWD(ByRef field, ByVal ftext)
+
+	' for adding data to multi-valued fields without duplicated entries
+	Dim tmp, x
+	If field = "" Then
+		field = ftext
+	Else
+		tmp = Split(field, Separator)
+		For each x in tmp
+			If LCase(ftext) = LCase(x) Then
+				Exit Function
+			End If
+		Next
+		field = field & Separator & ftext
+	End If
+
+End Function
+
+
 Function LookForFeaturing(Text)
 
-	Dim i, tmp, x
+	Dim tmp, x
 	tmp = Split(FeaturingKeywords, ",")
 	For each x in tmp
 		If LCase(Text) = LCase(x) Then
@@ -8147,75 +8193,90 @@ Function UserCollection()
 		End If
 	End If
 
-	oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/get_release.php", False
-	oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
-	oXMLHTTP.setRequestHeader "User-Agent", "MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
-	WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&username=" & DiscogsUsername & "&page=1"
-	oXMLHTTP.send("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&username=" & DiscogsUsername & "&page=1")
-	If oXMLHTTP.Status = 200 Then
-		If InStr(oXMLHTTP.responseText, "OAuth client error") = 0 Then
-			WriteLog "Response=" & oXMLHTTP.responseText
-			WriteLog "User Collection received"
-			Set response = json.Decode(oXMLHTTP.responseText)
-			ReleaseCountMax = response("pagination")("items")
-			WriteLog "ReleaseCountMax=" & ReleaseCountMax
-			If Int(ReleaseCountMax) > 0 Then
-				ReleaseFound = False
-				ErrorFound = False
-				ReleasePages = response("pagination")("pages")
-				WriteLog "ReleasePages=" & ReleasePages
-				For Page = 1 To ReleasePages
-					If Page <> 1 Then
-						oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/get_release.php", False
-						oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
-						oXMLHTTP.setRequestHeader "User-Agent", "MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
-						WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&username=" & DiscogsUsername & "&page=" & Page
-						oXMLHTTP.send("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&username=" & DiscogsUsername & "&page=" & Page)
-						If oXMLHTTP.Status = 200 Then
-							If InStr(oXMLHTTP.responseText, "OAuth client error") <> 0 Then
-								ErrorFound = True
+	If CheckDiscogsCollectionOff = False Then
+		oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/get_release.php", False
+		oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
+		oXMLHTTP.setRequestHeader "User-Agent", "MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
+		WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&username=" & DiscogsUsername & "&page=1"
+		oXMLHTTP.send("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&username=" & DiscogsUsername & "&page=1")
+		If oXMLHTTP.Status = 200 Then
+			If InStr(oXMLHTTP.responseText, "OAuth client error") = 0 Then
+				WriteLog "Response=" & oXMLHTTP.responseText
+				WriteLog "User Collection received"
+				Set response = json.Decode(oXMLHTTP.responseText)
+				ReleaseCountMax = response("pagination")("items")
+				WriteLog "ReleaseCountMax=" & ReleaseCountMax
+				If Int(ReleaseCountMax) > 0 Then
+					ReleaseFound = False
+					ErrorFound = False
+					ReleasePages = response("pagination")("pages")
+					WriteLog "ReleasePages=" & ReleasePages
+					For Page = 1 To ReleasePages
+						If Page <> 1 Then
+							oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/get_release.php", False
+							oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
+							oXMLHTTP.setRequestHeader "User-Agent", "MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
+							WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&username=" & DiscogsUsername & "&page=" & Page
+							oXMLHTTP.send("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&username=" & DiscogsUsername & "&page=" & Page)
+							If oXMLHTTP.Status = 200 Then
+								If InStr(oXMLHTTP.responseText, "OAuth client error") <> 0 Then
+									ErrorFound = True
+									Exit For
+								End If
+								WriteLog "responseText=" & oXMLHTTP.responseText
+								Set response = json.Decode(oXMLHTTP.responseText)
+							Else
 								Exit For
 							End If
-							WriteLog "responseText=" & oXMLHTTP.responseText
-							Set response = json.Decode(oXMLHTTP.responseText)
-						Else
-							Exit For
 						End If
-					End If
-					For Each r In response("releases")
-						id = response("releases")(r)("id")
-						REM WriteLog "ID gelesen=" & id
-						If Int(CurrentReleaseID) = Int(id) Then
-							ReleaseFound = True
-							Exit For
-						End If
+						For Each r In response("releases")
+							id = response("releases")(r)("id")
+							REM WriteLog "ID gelesen=" & id
+							If Int(CurrentReleaseID) = Int(id) Then
+								ReleaseFound = True
+								Exit For
+							End If
+						Next
+						If ReleaseFound = True Then Exit For
 					Next
-					If ReleaseFound = True Then Exit For
-				Next
 
-				If ReleaseFound = False And ErrorFound = False Then
+					If ReleaseFound = False And ErrorFound = False Then
 
-					oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/add_release.php", False
-					oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
-					oXMLHTTP.setRequestHeader "User-Agent", "MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
-					WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&username=" & DiscogsUsername & "&release=" & CurrentReleaseID
-					oXMLHTTP.send("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&username=" & DiscogsUsername & "&release=" & CurrentReleaseID)
-					If oXMLHTTP.Status = 200 Then
-						If InStr(oXMLHTTP.responseText, "OAuth client error") = 0 Then
-							WriteLog "Response=" & oXMLHTTP.responseText
-							WriteLog "Release added to User Collection"
-							SDB.MessageBox "Release added to User Collection", mtInformation, Array(mbOk)
+						oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/add_release.php", False
+						oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
+						oXMLHTTP.setRequestHeader "User-Agent", "MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
+						WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&username=" & DiscogsUsername & "&release=" & CurrentReleaseID
+						oXMLHTTP.send("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&username=" & DiscogsUsername & "&release=" & CurrentReleaseID)
+						If oXMLHTTP.Status = 200 Then
+							If InStr(oXMLHTTP.responseText, "OAuth client error") = 0 Then
+								WriteLog "Response=" & oXMLHTTP.responseText
+								WriteLog "Release added to User Collection"
+								SDB.MessageBox "Release added to your User Collection", mtInformation, Array(mbOk)
+							End If
 						End If
 					End If
+					If ReleaseFound = True Then
+						WriteLog "Release already exists"
+						SDB.MessageBox "Release already exists in User Collection", mtInformation, Array(mbOk)
+					End If
 				End If
-				If ReleaseFound = True Then
-					WriteLog "Release already exists"
-					SDB.MessageBox "Release already exists in User Collection", mtInformation, Array(mbOk)
-				End If
+			Else
+				WriteLog "responseText=" & oXMLHTTP.responseText
+				WriteLog "Error"
 			End If
-		Else
-			WriteLog "responseText=" & oXMLHTTP.responseText
-			WriteLog "Error"
+		End If
+	Else
+		oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/add_release.php", False
+		oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
+		oXMLHTTP.setRequestHeader "User-Agent", "MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
+		WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&username=" & DiscogsUsername & "&release=" & CurrentReleaseID
+		oXMLHTTP.send("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&username=" & DiscogsUsername & "&release=" & CurrentReleaseID)
+		If oXMLHTTP.Status = 200 Then
+			If InStr(oXMLHTTP.responseText, "OAuth client error") = 0 Then
+				WriteLog "Response=" & oXMLHTTP.responseText
+				WriteLog "Release added to User Collection"
+				SDB.MessageBox "Release added to your User Collection", mtInformation, Array(mbOk)
+			End If
 		End If
 	End If
 

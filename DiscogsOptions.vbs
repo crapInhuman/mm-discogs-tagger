@@ -1,14 +1,20 @@
 '
 ' MediaMonkey Script
 '
-' NAME: Discogs Tagger Options 2.7
+' NAME: Discogs Tagger Options 2.9
 '
 ' AUTHOR: crap_inhuman
-' DATE : 14/03/2015
+' DATE : 04/04/2016
 '
 '
 ' INSTALL: Automatic installation during Discogs Tagger install
 '
+'Changes from 2.8 to 2.9
+'Added option to turn 'check if it's already in Discogs Collection' off
+
+'Changes from 2.7 to 2.8
+'"Save small cover" option corrected
+
 'Changes from 2.6 to 2.7
 'Removed CheckImmedSaveImage
 
@@ -138,6 +144,9 @@ Sub InitSheet(Sheet)
 		If ini.StringValue("DiscogsAutoTagWeb","CheckNewVersion") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","CheckNewVersion") = True
 		End If
+		If ini.StringValue("DiscogsAutoTagWeb","CheckDiscogsCollectionOff") = "" Then
+			ini.BoolValue("DiscogsAutoTagWeb","CheckDiscogsCollectionOff") = True
+		End If
 		If ini.ValueExists("DiscogsAutoTagWeb","ImmedSaveImage") Then
 			ini.DeleteKey "DiscogsAutoTagWeb","ImmedSaveImage"
 		End If
@@ -161,6 +170,7 @@ Sub InitSheet(Sheet)
 	AccessTokenSecret = ini.StringValue("DiscogsAutoTagWeb","AccessTokenSecret")
 	CheckDontFillEmptyFields = ini.BoolValue("DiscogsAutoTagWeb","CheckDontFillEmptyFields")
 	CheckNewVersion = ini.BoolValue("DiscogsAutoTagWeb","CheckNewVersion")
+	CheckDiscogsCollectionOff = ini.BoolValue("DiscogsAutoTagWeb","CheckDiscogsCollectionOff")
 
 	CustomField1 = "Custom1 (" & ini.StringValue("CustomFields","Fld1Name") & ")"
 	CustomField2 = "Custom2 (" & ini.StringValue("CustomFields","Fld2Name") & ")"
@@ -413,7 +423,7 @@ Sub InitSheet(Sheet)
 
 	Dim Checkbox13
 	Set Checkbox13 = UI.NewCheckBox(GroupBox1)
-	Checkbox13.Common.SetRect 40, 60, 250, 15
+	Checkbox13.Common.SetRect 20, 60, 250, 15
 	Checkbox13.Common.ControlName = "ControlSaveImage13"
 	Checkbox13.Caption = "Small Cover (150x150)"
 	Checkbox13.Common.Hint = "If option not set the script get the large cover images."
@@ -423,18 +433,13 @@ Sub InitSheet(Sheet)
 	Else
 		Checkbox13.checked = True
 	End If
-	If CheckSaveImage = 0 or CheckSaveImage = 1 Then
-		Checkbox13.Common.Enabled = True
-	Else
-		Checkbox13.Common.Enabled = False
-	End If
-
+	
 	Script.RegisterEvent Checkbox1.Common, "OnClick", "ChBClick"
 
 	Dim GroupBox2
 	Set GroupBox2 = UI.NewGroupBox(Sheet)
 	GroupBox2.Caption = "Misc"
-	GroupBox2.Common.SetRect 10, 320, 500, 140
+	GroupBox2.Common.SetRect 10, 320, 500, 170
 
 
 	Set Label2 = UI.NewLabel(GroupBox2)
@@ -490,10 +495,22 @@ Sub InitSheet(Sheet)
 	Checkbox3.Common.Hint = "If checked artist list will be Artist1" & ArtistSeparator & "Artist2 & Artist3" & vbCrLf & "If not checked it will be Artist1" & ArtistSeparator & "Artist2" & ArtistSeparator & "Artist3"
 	If ArtistLastSeparator = true Then Checkbox3.Checked = true
 
+	Set Label2 = UI.NewLabel(GroupBox2)
+	Label2.Common.SetRect 40, 145, 125, 25
+	Label2.Caption = "Turn check if it's already in Discogs Collection off"
+	Label2.Common.Hint = "If checked the script will not check if the album is already in the Discogs Collection"
+
+	Dim Checkbox4
+	Set Checkbox4 = UI.NewCheckBox(GroupBox2)
+	Checkbox4.Common.SetRect 20, 145, 15, 15
+	Checkbox4.Common.ControlName = "CheckDCoff"
+	Checkbox4.Common.Hint = "If checked the script will not check if the album is already in the Discogs Collection"
+	If CheckDiscogsCollectionOff = true Then Checkbox4.Checked = true
+
 	Dim GroupBox4
 	Set GroupBox4 = UI.NewGroupBox(Sheet)
 	GroupBox4.Caption = "Discogs Access Token"
-	GroupBox4.Common.SetRect 10, 470, 500, 90
+	GroupBox4.Common.SetRect 10, 500, 500, 90
 
 	Set Label2 = UI.NewLabel(GroupBox4)
 	Label2.Common.SetRect 300, 25, 100, 25
@@ -581,6 +598,13 @@ Sub SaveSheet(Sheet)
 
 	Set edt = Sheet.Common.ChildControl("ArtistSeparator")
 	ini.StringValue("DiscogsAutoTagWeb", "ArtistSeparator") = edt.Text
+
+	Set checkbox = Sheet.Common.ChildControl("CheckDCoff")
+	If checkbox.checked Then
+		ini.BoolValue("DiscogsAutoTagWeb", "CheckDiscogsCollectionOff") = true
+	Else
+		ini.BoolValue("DiscogsAutoTagWeb", "CheckDiscogsCollectionOff") = false
+	End If
 
 	Set checkbox = Sheet.Common.ChildControl("EditArtistLastSep")
 	If checkbox.checked Then
