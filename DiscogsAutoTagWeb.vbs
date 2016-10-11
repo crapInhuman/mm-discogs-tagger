@@ -2,13 +2,17 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.29"
+Const VersionStr = "v5.30"
+
+'Changes from 5.29 to 5.30 by crap_inhuman in 11.2015
+'	Fixed new bug with ampersand
+
 
 'Changes from 5.28 to 5.29 by crap_inhuman in 10.2015
 '	Added Relationship-Attributes for Musicbrainz Credits
 '	Fixed bug with additional musicbrainz images
 '	Added support for foreign characters
-'	Fixed bug with anpersand in artistname
+'	Fixed bug with ampersand in artistname
 
 
 'Changes from 5.27 to 5.28 by crap_inhuman in 07.2015
@@ -689,7 +693,7 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	TxtFeaturingName = ini.StringValue("DiscogsAutoTagWeb","TxtFeaturingName")
 	CheckComment = ini.BoolValue("DiscogsAutoTagWeb","CheckComment")
 	SubTrackNameSelection = ini.BoolValue("DiscogsAutoTagWeb","SubTrackNameSelection")
-	Separator = ini.StringValue("Appearance","MultiStringSeparator")
+	Separator = Trim(ini.StringValue("Appearance","MultiStringSeparator"))
 	tmpCountry = ini.StringValue("DiscogsAutoTagWeb","CurrentCountryFilter")
 	tmpCountry2 = Split(tmpCountry, ",")
 	If UBound(tmpCountry2) < 262 Then
@@ -725,9 +729,6 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	CheckDontFillEmptyFields = ini.BoolValue("DiscogsAutoTagWeb","CheckDontFillEmptyFields")
 	CheckNewVersion = ini.BoolValue("DiscogsAutoTagWeb","CheckNewVersion")
 	LastCheck = ini.StringValue("DiscogsAutoTagWeb","LastCheck")
-
-	Separator = Left(Separator, Len(Separator)-1)
-	Separator = Right(Separator, Len(Separator)-1)
 
 	SelectAll = True
 
@@ -7454,7 +7455,6 @@ Function CleanSearchString(Text)
 	CleanSearchString = Replace(CleanSearchString,"@", " ")
 	CleanSearchString = Replace(CleanSearchString,"_", " ")
 	CleanSearchString = Replace(CleanSearchString,"?", " ")
-	CleanSearchString = Replace(CleanSearchString,"&", "%26")
 
 End Function
 
