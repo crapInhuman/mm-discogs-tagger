@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.26"
+Const VersionStr = "v5.27"
+
+'Changes from 5.26 to 5.27 by crap_inhuman in 07.2015
+'	Removed bug with joint artists
+
 
 'Changes from 5.25 to 5.26 by crap_inhuman in 07.2015
 '	Comma removed after artist
@@ -332,7 +336,8 @@ Dim AlbumArtURL, AlbumArtThumbNail
 Dim iMaxTracks
 Dim iAutoTrackNumber, iAutoDiscNumber, iAutoDiscFormat
 Dim LastDisc
-Dim SelectAll, UnselectedTracks(1000)
+Dim SelectAll
+ReDim UnselectedTracks(1000)
 Dim CheckNewVersion, LastCheck
 
 Dim ReleaseTag, CountryTag, CatalogTag, FormatTag
@@ -2050,6 +2055,9 @@ Sub ReloadResults
 		ReDim TrackArtist2(0)
 		ReDim TrackPos(0)
 		ReDim Title_Position(0)
+		ReDim TitleList(0)
+		ReDim ArtistsList(0)
+		ReDim UnselectedTracks(1000)
 		SavedArtistID = ""
 		SavedLabelID = ""
 		LeadingZeroTrackPosition = False
@@ -2061,7 +2069,6 @@ Sub ReloadResults
 		WriteLog "QueryPage=" & QueryPage
 		If QueryPage = "Discogs" Then
 			'Get Track-List
-
 			For Each track In CurrentRelease("tracklist")
 				Set currentTrack = CurrentRelease("tracklist")(track)
 				position = currentTrack("position")
@@ -2069,10 +2076,17 @@ Sub ReloadResults
 				position = exchange_roman_numbers(position)
 				ReDim Preserve Title_Position(UBound(Title_Position)+1)
 				Title_Position(UBound(Title_Position)) = position
+				TitleList(UBound(TitleList)) = currentTrack("title")
+				ReDim Preserve TitleList(UBound(TitleList)+1)
+				tmp = getArtistsName(currentTrack, "artists", QueryPage)
+				ArtistsList(UBound(ArtistsList)) = tmp(0)
+				ReDim Preserve ArtistsList(UBound(ArtistsList)+1)
+
 				rTrackPosition.Add track
-				rSubPosition.Add ""
+				
 				If currentTrack.Exists("sub_tracks") Then
 					WriteLog "SubTrack(s) found"
+					rSubPosition.Add "NewSubTrack"
 					For Each subtrack in currentTrack("sub_tracks")
 						WriteLog "subTrack=" & subTrack
 						Set aSubtrack = currentTrack("sub_tracks")(subtrack)
@@ -2083,11 +2097,22 @@ Sub ReloadResults
 						Title_Position(UBound(Title_Position)) = position
 						rTrackPosition.Add track
 						rSubPosition.Add subtrack
+						TitleList(UBound(TitleList)) = aSubtrack("title")
+						ReDim Preserve TitleList(UBound(TitleList)+1)
+						tmp = getArtistsName(aSubtrack, "artists", QueryPage)
+						ArtistsList(UBound(ArtistsList)) = tmp(0)
+						ReDim Preserve ArtistsList(UBound(ArtistsList)+1)
 					Next
+				Else
+					rSubPosition.Add ""
 				End If
 				SDB.ProcessMessages
 			Next
 			WriteLog "rTrackPosition.Count=" & rTrackPosition.Count
+
+			For i = 0 To UBound(TitleList)-1
+				writelog(i & " " & ArtistsList(i) &  " - " & TitleList(i))
+			next
 
 
 			'Check for leading zero in track-position
@@ -2300,14 +2325,15 @@ Sub ReloadResults
 			'Workaround for using "." as separator at discogs -----------------------------------------------------------------------------------------------------------
 
 			WriteLog "Track count from Title_position=" & UBound(Title_Position)
-			WriteLog " "
-			WriteLog " "
+
 			Dim NewSubTrackFound, cNewSubTrack
 			NewSubTrackFound = False
 
 			For t = 0 To UBound(Title_Position)-1
+				WriteLog " "
+				WriteLog "Process next track"
 				SDB.ProcessMessages
-				If rSubPosition.Item(t) <> "" Then
+				If rSubPosition.Item(t) <> "" And rSubPosition.Item(t) <> "NewSubTrack" Then
 					Set currentTrack = CurrentRelease("tracklist")(CInt(rTrackPosition.Item(t)))("sub_tracks")(cInt(rSubPosition.Item(t)))
 				Else
 					Set currentTrack = CurrentRelease("tracklist")(CInt(rTrackPosition.Item(t)))
@@ -2316,23 +2342,34 @@ Sub ReloadResults
 				position = currentTrack("position")
 				If Right(position, 1) = "." Then position = Left(position, Len(position)-1)
 				If NoSubTrackUsing = True Then position = Replace(position, ".", "-")
-				trackName = PackSpaces(DecodeHtmlChars(currentTrack("title")))
+				trackname = PackSpaces(DecodeHtmlChars(TitleList(t)))
+				WriteLog "Trackname=" & trackname
+				WriteLog "Position=" & position
 				Durations.Add currentTrack("duration")
 				position = exchange_roman_numbers(position)
 
-				If rSubPosition.Item(t) <> "" Then
+				If rSubPosition.Item(t) <> "" And rSubPosition.Item(t) <> "NewSubTrack" Then
 					If NewSubTrackFound = False Then
 						cNewSubTrack = t - 1
-						subTrackTitle = trackName
+						If ArtistsList(t) <> "" then
+							subTrackTitle = ArtistsList(t) & " - " & trackName
+						Else
+							subTrackTitle = trackName
+						End If
 						UnselectedTracks(iTrackNum) = "x"
 						NewSubTrackFound = True
 					Else
-						subTrackTitle = subTrackTitle & ", " & trackName
+						If ArtistsList(t) <> "" then
+							subTrackTitle = subTrackTitle & ", " & ArtistsList(t) & " - " & trackName
+						Else
+							subTrackTitle = subTrackTitle & ", " & trackName
+						End If
 						UnselectedTracks(iTrackNum) = "x"
 					End If
 				Else
 					If NewSubTrackFound = True Then
 						Tracks.Item(cNewSubTrack) = Tracks.Item(cNewSubTrack) & " (" & subTrackTitle & ")"
+						UnselectedTracks(cNewSubTrack) = ""
 						NewSubTrackFound = False
 						cNewSubTrack = -1
 					End If
@@ -2343,11 +2380,8 @@ Sub ReloadResults
 					pos = InStr(LCase(position), "-")
 				End If
 				' Here comes the new track/disc numbering methods
-				WriteLog "Tracknumber=" & t
 				If position <> "" And rSubPosition.Item(t) = "" Then
 					If CheckTurnOffSubTrack = False Then
-						Rem WriteLog "cSubTrack = " & cSubTrack
-						WriteLog "position = " & position
 						If (cSubTrack <> -1 And InStr(LCase(position), ".") = 0 And CharSeparatorSubTrack = 1) Or (cSubTrack <> -1 And IsNumeric(Right(position, 1)) And CharSeparatorSubTrack = 2) Or position = "-" Then
 							WriteLog "End of Subtrack found"
 							If SubTrackNameSelection = False Then
@@ -2414,7 +2448,11 @@ Sub ReloadResults
 								End If
 								
 								If subTrackTitle = "" Then
-									subTrackTitle = trackName
+									If ArtistsList(t) <> "" Then
+										subTrackTitle = ArtistsList(t) & " - " & trackName
+									Else
+										subTrackTitle = trackName
+									End If
 									If SubTrackNameSelection = False Then
 										If iTrackNum > 0 Then
 											UnselectedTracks(iTrackNum-1) = ""
@@ -2422,26 +2460,15 @@ Sub ReloadResults
 										Else
 											UnselectedTracks(iTrackNum) = ""
 										End If
-
-										If CheckLeadingZero = True And iAutoTrackNumber < 10 Then
-											If iTrackNum = 0 Then
-												tracksNum.Add "0" & iAutoTrackNumber
-											Else
-												tracksNum.Item(iTrackNum - 1) = "0" & iAutoTrackNumber
-											End If
-										Else
-											If iTrackNum = 0 Then
-												tracksNum.Add iAutoTrackNumber
-											Else
-												tracksNum.Item(iTrackNum - 1) = iAutoTrackNumber
-											End If
-										End If
-										iAutoTrackNumber = iAutoTrackNumber + 1
 									Else
 										UnselectedTracks(iTrackNum) = ""
 									End If
 								Else
-									subTrackTitle = subTrackTitle & ", " & trackName
+									If ArtistsList(t) <> "" Then
+										subTrackTitle = subTrackTitle & ", " & ArtistsList(t) & " - " & trackName
+									Else
+										subTrackTitle = subTrackTitle & ", " & trackName
+									End If
 									UnselectedTracks(iTrackNum) = "x"
 								End If
 
@@ -2452,26 +2479,13 @@ Sub ReloadResults
 
 					trackNumbering pos, position, TracksNum, TracksCD, iTrackNum
 
-				ElseIf currentTrack("duration") = "" Then
+				ElseIf trackName = "-" And rSubPosition.Item(t) <> "NewSubTrack" Then
+					REM currentTrack("duration") = ""
 					tracksNum.Add ""
 					tracksCD.Add ""
 					UnselectedTracks(iTrackNum) = "x"
 				Else ' Nothing specified
-					If CheckForceNumeric and UnselectedTracks(iTrackNum) <> "x" Then
-						If CheckLeadingZero = True And iAutoTrackNumber < 10 Then
-							tracksNum.Add "0" & iAutoTrackNumber
-						Else
-							tracksNum.Add iAutoTrackNumber
-						End If
-						iAutoTrackNumber = iAutoTrackNumber + 1
-					Else
-						tracksNum.Add ""
-					End If
-					If CheckForceDisc Then
-						tracksCD.Add iAutoDiscNumber
-					Else
-						tracksCD.Add ""
-					End If
+					trackNumbering pos, position, TracksNum, TracksCD, iTrackNum
 				End If
 
 				ReDim Involved_R_T(0)
@@ -3867,7 +3881,7 @@ Function trackNumbering(byRef pos, byRef position, byRef TracksNum, byRef Tracks
 					tracksNum.Add ""
 				End If
 			Else
-				If CheckLeadingZero = True And IsInteger(position) Then
+				If CheckLeadingZero = True And IsNumeric(position) Then
 					If position < 10 And position > 0 Then
 						tracksNum.Add "0" & position
 					Else
@@ -3877,7 +3891,7 @@ Function trackNumbering(byRef pos, byRef position, byRef TracksNum, byRef Tracks
 					tracksNum.Add position
 				End If
 				If UnselectedTracks(iTrackNum) <> "x" Then
-					If IsInteger(position) Then
+					If IsNumeric(position) Then
 						iAutoTrackNumber = position + 1
 					Else
 						iAutoTrackNumber = iAutoTrackNumber + 1
@@ -4002,6 +4016,9 @@ Function trackNumbering(byRef pos, byRef position, byRef TracksNum, byRef Tracks
 			End If
 		End If
 	End If
+	WriteLog "iAutoTrackNumber=" & iAutoTrackNumber
+	WriteLog "iTrackNum=" & iTrackNum
+	WriteLog "tracksnum.item(iTrackNum)=" & tracksnum.item(iTrackNum)
 
 End Function
 
@@ -7425,13 +7442,15 @@ End Function
 Function AddAlternative(Alternative)
 
 	Dim i
-	If Trim(Alternative) <> "" Then
+	Alternative = Trim(Alternative)
+	If Alternative <> "" Then
+		If Len(Alternative) > 50 Then Alternative = Left(Alternative, 50)
 		For i = 0 To AlternativeList.Count - 1
-			If AlternativeList.Item(i) = Trim(Alternative) Then
+			If AlternativeList.Item(i) = Alternative Then
 				Exit Function
 			End If
 		Next
-		AlternativeList.Add Trim(Alternative)
+		AlternativeList.Add Alternative
 	End If
 
 End Function
@@ -7707,62 +7726,67 @@ Function getArtistsName(Current, Role, QueryPage)
 	SavedArtistID = ""
 	FoundFeaturing = False
 
-	For Each artist in Current(Role)
-		Set currentArtist = Current(Role)(artist)
-		If QueryPage = "Discogs" Then
-			If Not CheckUseAnv And currentArtist("anv") <> "" Then
-				artistName = CleanArtistName(currentArtist("anv"))
+	If current.Exists(Role) Then
+		For Each artist in Current(Role)
+			Set currentArtist = Current(Role)(artist)
+			If QueryPage = "Discogs" Then
+				If Not CheckUseAnv And currentArtist("anv") <> "" Then
+					artistName = CleanArtistName(currentArtist("anv"))
+				Else
+					artistName = CleanArtistName(currentArtist("name"))
+				End If
+				If SavedArtistID = "" Then SavedArtistID = currentArtist("id")
 			Else
 				artistName = CleanArtistName(currentArtist("name"))
+				If SavedArtistID = "" Then SavedArtistID = currentArtist("artist")("id")
 			End If
-			If SavedArtistID = "" Then SavedArtistID = currentArtist("id")
-		Else
-			artistName = CleanArtistName(currentArtist("name"))
-			If SavedArtistID = "" Then SavedArtistID = currentArtist("artist")("id")
-		End If
 
-		If Artists(0) = "" Then
-			Artists(0) = artistName
-			Artists(2) = artistName
-		Else
-			If FoundFeaturing = False Then
-				Artists(0) = Artists(0) & tmpArtistSeparator & artistName
+			If Artists(0) = "" Then
+				Artists(0) = artistName
+				Artists(2) = artistName
 			Else
-				If Artists(1) = "" Then
-					Artists(1) = tmpArtistSeparator & artistName
+				If FoundFeaturing = False Then
+					Artists(0) = Artists(0) & tmpArtistSeparator & artistName
 				Else
-					Artists(1) = Artists(1) & ", " & artistName
+					If Artists(1) = "" Then
+						Artists(1) = tmpArtistSeparator & artistName
+					Else
+						Artists(1) = Artists(1) & ", " & artistName
+					End If
 				End If
 			End If
-		End If
 
-		tmp = ""
-		If QueryPage = "Discogs" Then
-			If currentArtist("join") <> "" Then
-				tmp = Trim(currentArtist("join"))
-			End If
-		Else
-			If currentArtist("joinphrase") <> "" Then
-				tmp = Trim(currentArtist("joinphrase"))
-			End If
-		End If
-
-		If tmp <> "" Then
-			If tmp = "," Then
-				tmpArtistSeparator = ArtistSeparator
-			ElseIf LookForFeaturing(tmp) And CheckFeaturingName Then
-				tmpArtistSeparator = TxtFeaturingName & " "
+			tmp = ""
+			If QueryPage = "Discogs" Then
+				If currentArtist("join") <> "" Then
+					tmp = Trim(currentArtist("join"))
+				End If
 			Else
-				tmpArtistSeparator = tmp & " "
+				If currentArtist("joinphrase") <> "" Then
+					tmp = Trim(currentArtist("joinphrase"))
+				End If
 			End If
-			If LookForFeaturing(tmp) = True Then FoundFeaturing = True
-		Else
-			tmpArtistSeparator = ""
-		End If
-	Next
 
-	If Right(Artists(0), 2) = ", " Then Artists(0) = Left(Artists(0), Len(Artists(0))-2)
-	Artists(0) = Trim(Artists(0))
-	getArtistsName = Artists
+			If tmp <> "" Then
+				If tmp = "," Then
+					tmpArtistSeparator = ArtistSeparator
+				ElseIf LookForFeaturing(tmp) And CheckFeaturingName Then
+					tmpArtistSeparator = " " & TxtFeaturingName & " "
+				Else
+					tmpArtistSeparator = " " & tmp & " "
+				End If
+				If LookForFeaturing(tmp) = True Then FoundFeaturing = True
+			Else
+				tmpArtistSeparator = ""
+			End If
+		Next
+
+		If Right(Artists(0), 2) = ", " Then Artists(0) = Left(Artists(0), Len(Artists(0))-2)
+		Artists(0) = Trim(Artists(0))
+		getArtistsName = Artists
+	Else
+		Artists(0) = ""
+		getArtistsName = Artists
+	End If
 
 End Function
