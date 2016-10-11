@@ -2,7 +2,15 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.36"
+Const VersionStr = "v5.37"
+
+'Changes from 5.36a to 5.37 by crap_inhuman in 03.2016
+'	Changed the authorize script
+
+
+'Changes from 5.36 to 5.36a by crap_inhuman in 03.2016
+'	Changed from HTTP to HTTPS - using free webspace discogstagger.hol.es
+
 
 'Changes from 5.35 to 5.36 by crap_inhuman in 01.2016
 '	Bug with empty Label removed
@@ -1580,7 +1588,7 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	WebBrowser.Common.BringToFront
 
 	If QueryPage = "Discogs" Then
-		ret = authorize_Script
+		ret = authorize_script
 	End If
 
 	If (AccessToken <> "" And AccessTokenSecret <> "") Or QueryPage <> "Discogs" Then
@@ -1902,7 +1910,7 @@ Sub LoadMasterResults(MasterID)
 	Dim json
 	Set json = New VbsJson
 
-	Dim title, v_year, artist, artistName, main_release, ReleaseDesc, currentArtist, AlbumArtistTitle, tmp, tmpArtistSeparator
+	Dim title, v_year, artist, artistName, main_release, ReleaseDesc, currentArtist, AlbumArtistTitle, tmp
 
 	WriteLog " "
 	WriteLog "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
@@ -1919,7 +1927,7 @@ Sub LoadMasterResults(MasterID)
 			ErrorMessage = "Cannot load master release from MusicBrainz"
 
 		ElseIf QueryPage = "Discogs" Then
-			searchURL = "http://api.discogs.com/masters/" & MasterID
+			searchURL = "https://api.discogs.com/masters/" & MasterID
 			WriteLog "searchURL=" & searchURL
 
 			Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")   
@@ -1997,7 +2005,7 @@ Sub LoadVersionResults(MasterID)
 			ResultsReleaseID.Add SavedReleaseId
 		End If
 		If QueryPage = "Discogs" Then
-			JSONParser_find_result "http://api.discogs.com/masters/" & MasterID & "/versions?per_page=100", "versions", "", "", "", "", "", "", "Discogs", False
+			JSONParser_find_result "https://api.discogs.com/masters/" & MasterID & "/versions?per_page=100", "versions", "", "", "", "", "", "", "Discogs", False
 		Else
 			ErrorMessage = "Cannot load master release from MusicBrainz"
 		End If
@@ -2029,7 +2037,7 @@ Sub LoadArtistResults(ArtistId)
 		End If
 
 		If QueryPage = "Discogs" Then
-			JSONParser_find_result "http://api.discogs.com/artists/" & ArtistId & "/releases?per_page=100", "releases", "", "", "", "", "", "", "Discogs", False
+			JSONParser_find_result "https://api.discogs.com/artists/" & ArtistId & "/releases?per_page=100", "releases", "", "", "", "", "", "", "Discogs", False
 		ElseIf QueryPage = "MusicBrainz" Then
 			JSONParser_find_result "http://musicbrainz.org/ws/2/release?artist=" & ArtistId & "&inc=artist-credits+release-groups+media&fmt=json&limit=100", "Artist", "", "", "", "", "", "", "MusicBrainz", False
 		End If
@@ -2061,7 +2069,7 @@ Sub LoadLabelResults(LabelId)
 		End If
 
 		If QueryPage = "Discogs" Then
-			JSONParser_find_result "http://api.discogs.com/labels/" & LabelId &  "/releases?per_page=100", "releases", "", "", "", "", "", "", "Discogs", False
+			JSONParser_find_result "https://api.discogs.com/labels/" & LabelId &  "/releases?per_page=100", "releases", "", "", "", "", "", "", "Discogs", False
 		ElseIf QueryPage = "MusicBrainz" Then
 			JSONParser_find_result "http://musicbrainz.org/ws/2/release?label=" & LabelId & "&inc=artist-credits+media&fmt=json&limit=100", "Label", "", "", "", "", "", "", "MusicBrainz", False
 		End If
@@ -2203,7 +2211,9 @@ Sub ReloadResults
 			For i = 0 To UBound(TitleList)-1
 				writelog(i & " " & ArtistsList(i) &  " - " & TitleList(i))
 			next
-
+			For i = 0 To rSubPosition.count-1
+				writelog(i & " " & rSubPosition.item(i))
+			next
 
 			'Check for leading zero in track-position
 			LeadingZeroTrackPosition = CheckLeadingZeroTrackPosition(Title_Position(1))
@@ -2422,6 +2432,7 @@ Sub ReloadResults
 			For t = 0 To UBound(Title_Position)-1
 				WriteLog " "
 				WriteLog "Process next track"
+				WriteLog "Tracknumber=" & t
 				SDB.ProcessMessages
 				If rSubPosition.Item(t) <> "" And rSubPosition.Item(t) <> "NewSubTrack" Then
 					WriteLog "Processing Subtrack"
@@ -2436,6 +2447,8 @@ Sub ReloadResults
 				trackname = PackSpaces(DecodeHtmlChars(TitleList(t)))
 				WriteLog "Trackname=" & trackname
 				WriteLog "Position=" & position
+				WriteLog "t=" & t
+				WriteLog "rSubPosition(t)=" & rSubPosition.item(t)
 				Durations.Add currentTrack("duration")
 				position = exchange_roman_numbers(position)
 
@@ -2495,6 +2508,7 @@ Sub ReloadResults
 						End If
 
 						If NoSubTrackUsing = False Then
+							WriteLog "Calling Subtrack Function"
 							CharSeparatorSubTrack = 0
 							'SubTrack Function ---------------------------------------------------------
 							If InStr(LCase(position), ".") > 0 Then
@@ -2585,6 +2599,7 @@ Sub ReloadResults
 					tracksCD.Add ""
 					If NewResult = True Then UnselectedTracks(iTrackNum) = "x"
 				ElseIf currentTrack("type_") = "heading" Then
+					WriteLog "Heading-Track erkannt"
 					If NewResult = True Or UnselectedTracks(iTrackNum) = "x" Then
 						UnselectedTracks(iTrackNum) = "x"
 						tracksNum.Add ""
@@ -2704,9 +2719,12 @@ Sub ReloadResults
 				If artistList = "" Then artistList = AlbumArtistTitle
 
 				WriteLog "artistlist=" & artistlist
+				WriteLog "rTrack=" & rTrackPosition.Item(t)
+				REM WriteLog "ubound=" & UBound($currentTrack)
 
 				If currentTrack.Exists("extraartists") Then
 					WriteLog " "
+					WriteLog "ExtraArtist found"
 					For Each extra In currentTrack("extraartists")
 						Set currentArtist = CurrentTrack("extraartists")(extra)
 						If (currentArtist("anv") <> "") And Not CheckUseAnv Then
@@ -2714,6 +2732,7 @@ Sub ReloadResults
 						Else
 							involvedArtist = CleanArtistName(currentArtist("name"))
 						End If
+						WriteLog "involvedArtist=" & involvedArtist
 						If involvedArtist <> "" Then
 							role = currentArtist("role")
 							NoSplit = False
@@ -2804,7 +2823,7 @@ Sub ReloadResults
 						End If
 						SDB.ProcessMessages
 					Next
-					WriteLog "TrackArtist end"
+					WriteLog "ExtraArtist end"
 				End If
 
 				If TrackFeaturing <> "" Then
@@ -2829,9 +2848,6 @@ Sub ReloadResults
 					End If
 				End If
 
-				If InStr(artistList, " & ") <> 0 And ArtistLastSeparator = False Then
-					artistList = Replace(artistList, " & ", ArtistSeparator)
-				End If
 				ArtistTitles.Add artistList
 
 				TrackLyricists = FindArtist(TrackLyricists, AlbumLyricist)
@@ -3420,10 +3436,7 @@ Sub ReloadResults
 							End If
 						End If
 					End If
-		
-					If InStr(artistList, " & ") <> 0 And ArtistLastSeparator = False Then
-						artistList = Replace(artistList, " & ", ArtistSeparator)
-					End If
+
 					ArtistTitles.Add artistList
 		
 					TrackLyricists = FindArtist(TrackLyricists, AlbumLyricist)
@@ -4505,17 +4518,16 @@ Sub ShowResult(ResultID)
 		WriteLog "ReleaseID=" & ReleaseID
 		If InStr(Results.Item(ResultID), "search returned no results") = 0 Then
 			If InStr(Results.Item(ResultID), " * ") <> 0 Or Right(Results.Item(ResultID), 8) = "(Master)" Then  'Master-Release
-				searchURL_F = "http://api.discogs.com/masters/"
+				searchURL_F = "https://api.discogs.com/masters/"
 				WriteLog "Show Master-Release"
 			Else
-				searchURL_F = "http://api.discogs.com/releases/"
+				searchURL_F = "https://api.discogs.com/releases/"
 			End If
 			searchURL = ReleaseID
 			searchURL_L = ""
 
 			Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")   
-			oXMLHTTP.open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
-
+			oXMLHTTP.open "POST", "http://discogstagger.hol.es/check_new.php", False
 			oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
 			oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
 			WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L
@@ -5517,7 +5529,7 @@ Sub Filter()
 	Set listBox = templateHTMLDoc.getElementById("searchpage")
 	If QueryPage <> Mid(listBox.Value, 11) Then
 		If Mid(listBox.Value, 11) = "Discogs" Then
-			If authorize_Script = False Then
+			If authorize_script = False Then
 				Exit Sub
 			End If
 		End If
@@ -5929,7 +5941,8 @@ Function JSONParser_find_result(searchURL, ArrayName, SendArtist, SendAlbum, Sen
 		' use json api with vbsjson class at start of file now
 
 		If useOAuth = True Then
-			oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new_v2.php", False
+			REM oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new_v2.php", False
+			oXMLHTTP.Open "POST", "http://discogstagger.hol.es/check_new_v2.php", False
 			oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
 			oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
 			WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&artist=" & SendArtist & "&album=" & SendAlbum & "&track=" & SendTrack & "&type=" & SendType & "&dbsearch=" & SendDBSearch & "&perpage=" & SendPerPage & "&querypage=" & QueryPage & "&page=1"
@@ -5981,7 +5994,8 @@ Function JSONParser_find_result(searchURL, ArrayName, SendArtist, SendAlbum, Sen
 				WriteLog "SongPages=" & SongPages
 				For Page = 1 to SongPages
 					If Page <> 1 Then
-						oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new_v2.php", False
+						REM oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new_v2.php", False
+						oXMLHTTP.Open "POST", "http://discogstagger.hol.es/check_new_v2.php", False
 						oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"  
 						oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
 						WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&artist=" & SendArtist & "&album=" & SendAlbum & "&track=" & SendTrack & "&type=" & SendType & "&dbsearch=" & SendDBSearch & "&perpage=" & SendPerPage & "&querypage=" & QueryPage & "&page=" & Page
@@ -7773,14 +7787,16 @@ Function authorize_script()
 
 		IEobj.visible = true
 
-		IEobj.navigate ("http://www.germanc64.de/mm/oauth/oauth_guid.php?f=" & GUID)
+		REM IEobj.navigate ("http://www.germanc64.de/mm/oauth/oauth_guid.php?f=" & GUID)
+		IEobj.navigate ("http://discogstagger.hol.es/oauth_guid.php?f=" & GUID)
 
 		WriteLog "IE started"
 		SDB.MessageBox "Press Ok after authorize the script", mtInformation, Array(mbOk)
 		
 		Set oXMLHTTP = Nothing
 		Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
-		oXMLHTTP.open "GET", "http://www.germanc64.de/mm/oauth/get_oauth_guid.php?f=" & GUID, false
+		REM oXMLHTTP.open "GET", "http://www.germanc64.de/mm/oauth/get_oauth_guid.php?f=" & GUID, false
+		oXMLHTTP.open "GET", "http://discogstagger.hol.es/get_oauth_guid.php?f=" & GUID, false
 		oXMLHTTP.send()
 		If oXMLHTTP.Status = 200 Then
 			retIE = oXMLHTTP.responseText
