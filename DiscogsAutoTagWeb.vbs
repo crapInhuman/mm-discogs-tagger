@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.23"
+Const VersionStr = "v5.24"
+
+'Changes from 5.23 to 5.24 by crap_inhuman in 05.2015
+'	Added check for image before try download it.
+'	Image-Proxy removed
 
 'Changes from 5.22 to 5.23 by crap_inhuman in 03.2015
 '	Again a saving cover-image bug removed
@@ -2843,9 +2847,10 @@ Sub ReloadResults
 					End If
 				Next
 			End If
-			getimages AlbumArtThumbNail, sTemp & "cover.jpg"
-
-			AlbumArtThumbNail = sTemp & "cover.jpg"
+			If AlbumArtThumbNail <> "" Then
+				getimages AlbumArtThumbNail, sTemp & "cover.jpg"
+				AlbumArtThumbNail = sTemp & "cover.jpg"
+			End If
 
 			'----------------------------------DiscogsImages----------------------------------------
 			Set ImageList = SDB.NewStringList
@@ -3786,6 +3791,7 @@ Function RelationshipTypes(JSONArray)
 	Dim rType, i
 	ReDim role(0)
 	WriteLog "Start RelTypes"
+	SDB.ProcessMessages
 	rType = JSONArray("type")
 	If rType <> "other version" Then
 		If JSONArray("attributes").Count > 1 Then
@@ -3812,7 +3818,7 @@ Function RelationshipTypes(JSONArray)
 					role(i+1) = UCase(Left(JSONArray("attributes")(i), 1)) & Mid(JSONArray("attributes")(i), 2)
 					WriteLog i & ". " & JSONArray("attributes")(i)
 				Next
-				SDB.MessageBox "New Attr found : 1=" & JSONArray("attributes")(0) & " -- 2=" & JSONArray("attributes")(1), mtInformation, Array(mbOk)
+				WriteLog "New Attr found : 1=" & JSONArray("attributes")(0) & " -- 2=" & JSONArray("attributes")(1)
 			End If
 		ElseIf JSONArray("attributes").Count = 1 Then
 			ReDim role(2)
@@ -7098,10 +7104,11 @@ function getimages(DownloadDest, LocalFile)
 	Dim oXMLHTTP, objStream
 	Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
 	SDB.ProcessMessages
-	oXMLHTTP.open "POST", "http://www.germanc64.de/coxy/coxy.php", False
+	WriteLog "Start getimages"
+	oXMLHTTP.open "GET", DownloadDest, False
 	oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
 	oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
-	oXMLHTTP.send("url=" & DownloadDest)
+	oXMLHTTP.send()
 	If oXMLHTTP.Status = 200 Then
 		Set objStream = CreateObject("ADODB.Stream")
 		objStream.Type = 1
