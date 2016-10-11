@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.31"
+Const VersionStr = "v5.32"
+
+'Changes from 5.31 to 5.32 by crap_inhuman in 12.2015
+'	Search improved for more accurate results
+
 
 'Changes from 5.30 to 5.31 by crap_inhuman in 11.2015
 '	Choose what kind of search after entering search string
@@ -342,7 +346,7 @@ Dim CountryFilterList, MediaTypeFilterList, MediaFormatFilterList, YearFilterLis
 Dim LyricistKeywords, ConductorKeywords, ProducerKeywords, ComposerKeywords, FeaturingKeywords, UnwantedKeywords
 
 Dim SavedReleaseId
-Dim NewSearchTerm
+Dim NewSearchTerm, NewSearchArtist, NewSearchAlbum
 Dim SavedSearchArtist, SavedSearchAlbum
 Dim SavedMasterID, SavedArtistID, SavedLabelID
 
@@ -419,8 +423,6 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	Set MediaTypeFilterList = SDB.NewStringList
 	Set MediaFormatFilterList = SDB.NewStringList
 	Set YearFilterList = SDB.NewStringList
-	SearchTerm = Trim(SearchTerm)
-	NewSearchTerm = SearchTerm
 
 	OptionsChanged = False
 	NewResult = True
@@ -741,15 +743,6 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	Separator = Right(Separator, Len(Separator)-1)
 
 	SelectAll = True
-
-	WriteLogInit  'Only use for debugging
-
-	WriteLog " "
-	WriteLog "SearchTerm=" & SearchTerm
-	WriteLog "SearchArtist=" & SearchArtist
-	WriteLog "SearchAlbum=" & SearchAlbum
-	WriteLog " "
-
 
 	Set MediaTypeList = SDB.NewStringList
 	Set MediaFormatList = SDB.NewStringList
@@ -1427,9 +1420,32 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		YearFilterList.Add tmpYear2(a)
 	Next
 
-	AddAlternative SearchTerm
-	AddAlternative SearchArtist
-	AddAlternative SearchAlbum
+
+
+
+	SearchTerm = Trim(SearchTerm)
+
+	WriteLogInit  'Only use for debugging
+	WriteLog " "
+	WriteLog "SearchTerm=" & SearchTerm
+	WriteLog "SearchArtist=" & SearchArtist
+	WriteLog "SearchAlbum=" & SearchAlbum
+	WriteLog " "
+
+	tmp = SDB.Tools.WebSearch.NewTracks.Item(0).AlbumArtistName
+	If tmp = "Various" or tmp = "Various Artists" or tmp = TxtVarious Then
+		AddAlternative TxtVarious & " - " & SearchAlbum
+		SearchTerm = "Various " & SearchAlbum
+		SearchArtist = "Various"
+		WriteLog "SearchTerm changed to: " & SearchTerm
+		WriteLog "SearchArtist changed to: Various"
+	Else
+		AddAlternative SearchTerm
+		AddAlternative SearchArtist
+		AddAlternative SearchAlbum
+	End If
+
+	NewSearchTerm = SearchTerm
 
 	For i = 0 To SDB.Tools.WebSearch.NewTracks.Count - 1
 		AddAlternatives SDB.Tools.WebSearch.NewTracks.item(i)
@@ -1474,6 +1490,8 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		SavedReleaseId = get_release_ID(FirstTrack) 'get saved Release_ID from User-Defined Custom-Tag
 		SavedSearchArtist = SearchArtist
 		SavedSearchAlbum = SearchAlbum
+		NewSearchArtist = SearchArtist
+		NewSearchAlbum = SearchAlbum
 	End If
 
 	If CheckNewVersion = True Then
@@ -1556,9 +1574,9 @@ Sub FindResults(SearchTerm, QueryPage)
 	WriteLog "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-"
 	WriteLog "Start FindResults"
 	WriteLog "SearchTerm=" & SearchTerm
-	WriteLog "SavedSearchArtist=" & SavedSearchArtist
-	WriteLog "SavedSearchAlbum=" & SavedSearchAlbum
-	
+	WriteLog "NewSearchArtist=" & NewSearchArtist
+	WriteLog "NewSearchAlbum=" & NewSearchAlbum
+
 	Dim FilterFound, a, searchURL, searchURL_F, searchURL_L, SearchFor
 	Dim TXTBegin, TXTEnd, ResponseHTML, ReleaseDesc, i, tmp
 
@@ -1615,7 +1633,7 @@ Sub FindResults(SearchTerm, QueryPage)
 
 	SDB.ProcessMessages
 
-	If SearchTerm = "" and SavedSearchArtist = "" And SavedSearchAlbum = "" Then
+	If SearchTerm = "" and NewSearchArtist = "" And NewSearchAlbum = "" Then
 		ErrorMessage = "No search term"
 		WriteLog "No search term"
 	ElseIf IsNumeric(SearchTerm) Then
@@ -1638,15 +1656,15 @@ Sub FindResults(SearchTerm, QueryPage)
 			Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
 
 			WriteLog "Start FindResults MetalArchives"
-			WriteLog "SavedSearchArtist=" & SavedSearchArtist
-			WriteLog "SavedSearchAlbum=" & SavedSearchAlbum
+			WriteLog "NewSearchArtist=" & NewSearchArtist
+			WriteLog "NewSearchAlbum=" & NewSearchAlbum
 
 			Set Results = SDB.NewStringList
 			Set ResultsReleaseID = SDB.NewStringList
 			ErrorMessage = ""
 
 			'searchURL = "http://www.metal-archives.com/search/ajax-advanced/searching/albums?bandName=" & URLEncodeUTF8(CleanSearchString(SavedSearchArtist)) & "&exactBandMatch=1&releaseTitle=" & URLEncodeUTF8(CleanSearchString(SavedSearchAlbum)) & "&exactReleaseMatch=1&releaseYearFrom=&releaseMonthFrom=&releaseYearTo=&releaseMonthTo=&country=&location=&releaseLabelName=&genre=#albums"
-			searchURL = "http://www.metal-archives.com/search/ajax-advanced/searching/albums/?bandName=" & URLEncodeUTF8(CleanSearchString(SavedSearchArtist)) & "&exactBandMatch=1&releaseTitle=" & URLEncodeUTF8(CleanSearchString(SavedSearchAlbum)) & "&exactReleaseMatch=1&releaseYearFrom=&releaseMonthFrom=&releaseYearTo=&releaseMonthTo=&country=&location=&releaseLabelName=&genre="
+			searchURL = "http://www.metal-archives.com/search/ajax-advanced/searching/albums/?bandName=" & URLEncodeUTF8(CleanSearchString(NewSearchArtist)) & "&exactBandMatch=1&releaseTitle=" & URLEncodeUTF8(CleanSearchString(NewSearchAlbum)) & "&exactReleaseMatch=1&releaseYearFrom=&releaseMonthFrom=&releaseYearTo=&releaseMonthTo=&country=&location=&releaseLabelName=&genre="
 			WriteLog searchURL
 			oXMLHTTP.open "GET", searchURL, false
 			oXMLHTTP.send()
@@ -1701,10 +1719,10 @@ Sub FindResults(SearchTerm, QueryPage)
 
 		If QueryPage = "Discogs" Then
 			If IsNumeric(SavedReleaseId) Then
-				Results.Add FirstTrack.Artist.Name & " - " & FirstTrack.Album.Name & " - [currently tagged with this release]"
+				Results.Add FirstTrack.AlbumArtistName & " - " & FirstTrack.Album.Name & " - [currently tagged with this release]"
 				ResultsReleaseID.Add SavedReleaseId
 			End If
-			If SearchTerm <> "" And SavedSearchArtist = "" And SavedSearchAlbum = "" Then
+			If SearchTerm <> "" And NewSearchArtist = "" And NewSearchAlbum = "" Then
 				REM Search from user-typed input
 				WriteLog "Search from user-typed input"
 				SearchFor = ShowSearchFor()
@@ -1722,16 +1740,16 @@ Sub FindResults(SearchTerm, QueryPage)
 					searchURL_L = "%26type=release%26per_page=100"
 				End If
 				WriteLog "SearchFor= " & SearchFor
-			ElseIf SavedSearchArtist <> "" And SavedSearchAlbum <> "" Then
-				searchURL = URLEncodeUTF8(CleanSearchString(SavedSearchArtist)) & " - " & URLEncodeUTF8(CleanSearchString(SavedSearchAlbum))
+			ElseIf NewSearchArtist <> "" And NewSearchAlbum <> "" Then
+				searchURL = URLEncodeUTF8(CleanSearchString(NewSearchArtist)) & " - " & URLEncodeUTF8(CleanSearchString(NewSearchAlbum))
 				searchURL_F = "https://api.discogs.com/database/search?q="
 				searchURL_L = "%26type=release%26per_page=100"
-			ElseIf SavedSearchArtist = "" And SavedSearchAlbum <> "" Then
-				searchURL = URLEncodeUTF8(CleanSearchString(SavedSearchAlbum))
+			ElseIf NewSearchArtist = "" And NewSearchAlbum <> "" Then
+				searchURL = URLEncodeUTF8(CleanSearchString(NewSearchAlbum))
 				searchURL_F = "https://api.discogs.com/database/search?type=release%26title="
 				searchURL_L = "%26per_page=100"
-			ElseIf SavedSearchArtist <> "" And SavedSearchAlbum = "" Then
-				searchURL = URLEncodeUTF8(CleanSearchString(SavedSearchArtist))
+			ElseIf NewSearchArtist <> "" And NewSearchAlbum = "" Then
+				searchURL = URLEncodeUTF8(CleanSearchString(NewSearchArtist))
 				searchURL_F = "https://api.discogs.com/database/search?type=release%26artist="
 				searchURL_L = "%26per_page=100"
 			Else
@@ -1747,12 +1765,12 @@ Sub FindResults(SearchTerm, QueryPage)
 
 		If QueryPage = "MusicBrainz" Then
 			If Len(SavedReleaseId) = 36 Then
-				Results.Add FirstTrack.Artist.Name & " - " & FirstTrack.Album.Name & " - [currently tagged with this release]"
+				Results.Add FirstTrack.AlbumArtistName & " - " & FirstTrack.Album.Name & " - [currently tagged with this release]"
 				ResultsReleaseID.Add SavedReleaseId
 			End If
 			WriteLog "searchTerm=" & SearchTerm
 			WriteLog "newsearchTerm=" & NewSearchTerm
-			If SearchTerm <> "" And SavedSearchArtist = "" And SavedSearchAlbum = "" Then
+			If SearchTerm <> "" And NewSearchArtist = "" And NewSearchAlbum = "" Then
 				REM Search from user-typed input
 				WriteLog "Search from user-typed input"
 				SearchFor = ShowSearchFor()
@@ -1765,16 +1783,16 @@ Sub FindResults(SearchTerm, QueryPage)
 					If UBound(a) = 1 Then
 						searchURL = "http://musicbrainz.org/ws/2/release?query=artist:" & Chr(34) & CleanSearchString(URLEncodeUTF8(a(0))) & Chr(34) & " AND release:" & Chr(34) & URLEncodeUTF8(CleanSearchString(a(1))) & Chr(34) & "&limit=50&offset=0&fmt=json"
 					Else
-						SDB.MessageBox "other Version found!!", mtInformation, Array(mbOk)
+						SDB.MessageBox "Please use this format: Artist - Album", mtInformation, Array(mbOk)
 					End If
 				End If
 				WriteLog "SearchFor= " & SearchFor
-			ElseIf (SavedSearchArtist <> "" And SavedSearchAlbum = "") Or (SearchTerm <> "" And SearchTerm = SavedSearchArtist) Then
-				searchURL = "http://musicbrainz.org/ws/2/release?query=artist:" & Chr(34) & CleanSearchString(URLEncodeUTF8(SavedSearchArtist)) & Chr(34) & "&limit=50&offset=0&fmt=json"
-			ElseIf SavedSearchArtist <> "" And SavedSearchAlbum <> "" Then
-				searchURL = "http://musicbrainz.org/ws/2/release?query=artist:" & Chr(34) & CleanSearchString(URLEncodeUTF8(SavedSearchArtist)) & Chr(34) & " AND release:" & Chr(34) & URLEncodeUTF8(CleanSearchString(SavedSearchAlbum)) & Chr(34) & "&limit=50&offset=0&fmt=json"
-			ElseIf SavedSearchArtist = "" And SavedSearchAlbum <> "" Then
-				searchURL = "http://musicbrainz.org/ws/2/release?query=release:" & Chr(34) & CleanSearchString(URLEncodeUTF8(SavedSearchAlbum)) & Chr(34) & "&limit=50&offset=0&fmt=json"
+			ElseIf (NewSearchArtist <> "" And NewSearchAlbum = "") Or (SearchTerm <> "" And SearchTerm = NewSearchArtist) Then
+				searchURL = "http://musicbrainz.org/ws/2/release?query=artist:" & Chr(34) & CleanSearchString(URLEncodeUTF8(NewSearchArtist)) & Chr(34) & "&limit=50&offset=0&fmt=json"
+			ElseIf NewSearchArtist <> "" And NewSearchAlbum <> "" Then
+				searchURL = "http://musicbrainz.org/ws/2/release?query=artist:" & Chr(34) & CleanSearchString(URLEncodeUTF8(NewSearchArtist)) & Chr(34) & " AND release:" & Chr(34) & URLEncodeUTF8(CleanSearchString(NewSearchAlbum)) & Chr(34) & "&limit=50&offset=0&fmt=json"
+			ElseIf NewSearchArtist = "" And NewSearchAlbum <> "" Then
+				searchURL = "http://musicbrainz.org/ws/2/release?query=release:" & Chr(34) & CleanSearchString(URLEncodeUTF8(NewSearchAlbum)) & Chr(34) & "&limit=50&offset=0&fmt=json"
 			End If
 
 			WriteLog "searchURL=" & searchURL
@@ -1965,7 +1983,7 @@ Sub LoadVersionResults(MasterID)
 	Else
 		If IsNumeric(SavedReleaseId) Then
 			Set FirstTrack = SDB.Tools.WebSearch.NewTracks.item(0)
-			Results.Add FirstTrack.Artist.Name & " - " & FirstTrack.Album.Name & " - [currently tagged with this release]"
+			Results.Add FirstTrack.AlbumArtistName & " - " & FirstTrack.Album.Name & " - [currently tagged with this release]"
 			ResultsReleaseID.Add SavedReleaseId
 		End If
 		If QueryPage = "Discogs" Then
@@ -1996,7 +2014,7 @@ Sub LoadArtistResults(ArtistId)
 	Else
 		If IsNumeric(SavedReleaseId) Then
 			Set FirstTrack = SDB.Tools.WebSearch.NewTracks.item(0)
-			Results.Add FirstTrack.Artist.Name & " - " & FirstTrack.Album.Name & " - [currently tagged with this release]"
+			Results.Add FirstTrack.AlbumArtistName & " - " & FirstTrack.Album.Name & " - [currently tagged with this release]"
 			ResultsReleaseID.Add SavedReleaseId
 		End If
 
@@ -2028,7 +2046,7 @@ Sub LoadLabelResults(LabelId)
 	Else
 		If IsNumeric(SavedReleaseId) Then
 			Set FirstTrack = SDB.Tools.WebSearch.NewTracks.item(0)
-			Results.Add FirstTrack.Artist.Name & " - " & FirstTrack.Album.Name & " - [currently tagged with this release]"
+			Results.Add FirstTrack.AlbumArtistName & " - " & FirstTrack.Album.Name & " - [currently tagged with this release]"
 			ResultsReleaseID.Add SavedReleaseId
 		End If
 
@@ -5283,16 +5301,6 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	checkBox.Checked = CheckInvolvedPeopleSingleLine
 	Script.RegisterEvent checkBox, "onclick", "Update"
 
-	REM Set radio = templateHTMLDoc.getElementById("searchartist")
-	REM If SearchFor = 1 Then radio.checked = True
-	REM Script.RegisterEvent radio, "onclick", "UpdateSearchFor"
-	REM Set radio = templateHTMLDoc.getElementById("searchalbum")
-	REM If SearchFor = 2 Then radio.checked = True
-	REM Script.RegisterEvent radio, "onclick", "UpdateSearchFor"
-	REM Set radio = templateHTMLDoc.getElementById("searchrelease")
-	REM If SearchFor = 3 Then radio.checked = True
-	REM Script.RegisterEvent radio, "onclick", "UpdateSearchFor"
-
 	Set listBox = templateHTMLDoc.getElementById("filtermediatype")
 	Script.RegisterEvent listBox, "onchange", "Filter"
 	Set listBox = templateHTMLDoc.getElementById("filtermediaformat")
@@ -5445,23 +5453,6 @@ Sub Update()
 End Sub
 
 
-REM Sub UpdateSearchFor()
-
-	REM Dim templateHTMLDoc, radio
-	REM Set WebBrowser = SDB.Objects("WebBrowser")
-	REM Set templateHTMLDoc = WebBrowser.Interf.Document
-
-	REM Set radio = templateHTMLDoc.getElementById("searchartist")
-	REM If radio.checked Then SearchFor = 1
-	REM Set radio = templateHTMLDoc.getElementById("searchalbum")
-	REM If radio.checked Then SearchFor = 2
-	REM Set radio = templateHTMLDoc.getElementById("searchrelease")
-	REM If radio.checked Then SearchFor = 3
-	REM ini.StringValue("DiscogsAutoTagWeb","SearchFor") = SearchFor
-
-REM End Sub
-
-
 Sub Filter()
 
 	Dim templateHTMLDoc, listBox, ret
@@ -5531,6 +5522,8 @@ Sub Filter()
 		LoadLabelResults(SavedLabelID)
 	Else
 		SDB.ProcessMessages
+		NewSearchArtist = SavedSearchArtist
+		NewSearchAlbum = SavedSearchAlbum
 		FindResults NewSearchTerm, QueryPage
 	End If
 
@@ -5544,6 +5537,8 @@ Sub Alternative()
 	Set templateHTMLDoc = WebBrowser.Interf.Document
 	CurrentLoadType = "Search Results"
 	NewSearchTerm = templateHTMLDoc.getElementById("alternative").Value
+	NewSearchArtist = ""
+	NewSearchAlbum = ""
 	FindResults templateHTMLDoc.getElementById("alternative").Value, QueryPage
 	
 End Sub
@@ -7506,8 +7501,8 @@ End Function
 Function CleanSearchString(Text)
 
 	CleanSearchString = Text
-	CleanSearchString = Replace(CleanSearchString,")", " ") 'remove paranthesis to avoid search errors (discogs bug)
-	CleanSearchString = Replace(CleanSearchString,"(", " ") 'also clean other unneccessary characters
+	CleanSearchString = Replace(CleanSearchString,")", " ")
+	CleanSearchString = Replace(CleanSearchString,"(", " ")
 	CleanSearchString = Replace(CleanSearchString,"[", " ")
 	CleanSearchString = Replace(CleanSearchString,"]", " ")
 	CleanSearchString = Replace(CleanSearchString,"@", " ")
@@ -7577,7 +7572,9 @@ Function AddAlternatives(Song)
 	AddAlternative SavedArtist
 	AddAlternative SavedTitle
 	AddAlternative SavedAlbum
-	AddAlternative SavedAlbumArtist
+	If SavedAlbumArtist <> "Various" And SavedAlbumArtist <> "Various Artists" And SavedAlbumArtist <> TxtVarious Then
+		AddAlternative SavedAlbumArtist
+	End If
 	If(InStr(SavedTitle,"(") > 0) Then
 		Custom = Mid(SavedTitle,1,InStr(SavedTitle,"(")-1)
 		AddAlternative Custom
@@ -7883,49 +7880,50 @@ Function ShowSearchFor
 
 	Dim Form
 	Set Form = UI.NewForm
-	Form.Common.Width = 330
+	Form.Common.Width = 360
 	Form.Common.Height = 90
 	Form.FormPosition = 4
 	Form.Caption = "What are you searching for"
 	Form.BorderStyle = 3
 	Form.StayOnTop = True
-	SDB.Objects("SearchForForm") = Form
+	SDB.Objects("ShowSearchForForm") = Form
 
 	Dim Btn
 	Set Btn = SDB.UI.NewButton(Form)
 	Btn.Caption = SDB.Localize("Artist")
-	Btn.Common.Width = 85
+	Btn.Common.Width = 95
 	Btn.Common.Height = 25
 	Btn.Common.Left = 15
 	Btn.Common.Top = 15
 	Btn.Common.Anchors = 2+4
-	Btn.UseScript = Script.ScriptPath
 	Btn.ModalResult = 1
 
 	Dim Btn2
 	Set Btn2 = SDB.UI.NewButton(Form)
 	Btn2.Caption = SDB.Localize("Album")
-	Btn2.Common.Width = 85
+	Btn2.Common.Width = 95
 	Btn2.Common.Height = 25
-	Btn2.Common.Left = 115
+	Btn2.Common.Left = 125
 	Btn2.Common.Top = 15
 	Btn2.Common.Anchors = 2+4
-	Btn2.UseScript = Script.ScriptPath
 	Btn2.ModalResult = 2
 
 	Dim Btn3
 	Set Btn3 = SDB.UI.NewButton(Form)
-	Btn3.Caption = SDB.Localize("Release")
-	Btn3.Common.Width = 85
+	If QueryPage = "Discogs" Then
+		Btn3.Caption = SDB.Localize("Artist/Title/Album")
+	Else
+		Btn3.Caption = SDB.Localize("Release")
+	End If
+	Btn3.Common.Width = 95
 	Btn3.Common.Height = 25
-	Btn3.Common.Left = 215
+	Btn3.Common.Left = 235
 	Btn3.Common.Top = 15
 	Btn3.Common.Anchors = 2+4
-	Btn3.UseScript = Script.ScriptPath
 	Btn3.ModalResult = 3
 
 	ShowSearchFor = Form.ShowModal
-
-	SDB.Objects("SearchForForm") = Nothing
+	SDB.Objects("ShowSearchForForm") = Nothing
+	SDB.ProcessMessages
 
 End Function
