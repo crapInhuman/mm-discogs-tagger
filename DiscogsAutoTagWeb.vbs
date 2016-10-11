@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.40"
+Const VersionStr = "v5.41"
+
+'Changes from 5.40 to 5.41 by crap_inhuman in 07.2016
+'	Small bugfixes
+
 
 'Changes from 5.39 to 5.40 by crap_inhuman in 06.2016
 '	Discogs: Removed bug with featuring artist in the albumartist
@@ -6061,7 +6065,7 @@ Function JSONParser_find_result(searchURL, ArrayName, SendArtist, SendAlbum, Sen
 			WriteLog "SongCountMax=" & SongCountMax
 
 			If Int(SongCountMax) = 0 Then
-				ErrorMessage = "No Release found at Discogs !!"
+				WriteLog "No Release found at Discogs !!"
 			Else
 				isRelease = False
 				If Results.Count = 1 Then isRelease = True
