@@ -2,7 +2,12 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.32"
+Const VersionStr = "v5.33"
+
+'Changes from 5.32 to 5.33 by crap_inhuman in 12.2015
+'	Added advanced search button
+'	Added option: Move The in artist name to the end
+
 
 'Changes from 5.31 to 5.32 by crap_inhuman in 12.2015
 '	Search improved for more accurate results
@@ -340,14 +345,14 @@ Dim CheckCountry, CheckCover, CheckSmallCover, SmallCover, CheckStyle, CheckCata
 Dim CheckComposer, CheckConductor, CheckProducer, CheckDiscNum, CheckTrackNum, CheckFormat, CheckUseAnv, CheckYearOnlyDate
 Dim CheckForceNumeric, CheckSidesToDisc, CheckForceDisc, CheckNoDisc, CheckLeadingZero, CheckVarious, TxtVarious
 Dim CheckTitleFeaturing, CheckComment, CheckFeaturingName, TxtFeaturingName, CheckOriginalDiscogsTrack, CheckSaveImage
-Dim CheckStyleField, CheckTurnOffSubTrack, CheckInvolvedPeopleSingleLine, CheckDontFillEmptyFields
+Dim CheckStyleField, CheckTurnOffSubTrack, CheckInvolvedPeopleSingleLine, CheckDontFillEmptyFields, CheckTheBehindArtist
 Dim SubTrackNameSelection
 Dim CountryFilterList, MediaTypeFilterList, MediaFormatFilterList, YearFilterList
 Dim LyricistKeywords, ConductorKeywords, ProducerKeywords, ComposerKeywords, FeaturingKeywords, UnwantedKeywords
 
 Dim SavedReleaseId
-Dim NewSearchTerm, NewSearchArtist, NewSearchAlbum
-Dim SavedSearchArtist, SavedSearchAlbum
+Dim NewSearchTerm, NewSearchArtist, NewSearchAlbum, NewSearchTrack
+Dim SavedSearchArtist, SavedSearchAlbum, SavedSearchTrack
 Dim SavedMasterID, SavedArtistID, SavedLabelID
 
 Dim FilterMediaType, FilterCountry, FilterYear, FilterMediaFormat, CurrentLoadType
@@ -644,6 +649,9 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		If ini.StringValue("DiscogsAutoTagWeb","LastCheck") = "" Then
 			ini.StringValue("DiscogsAutoTagWeb","LastCheck") = "1"
 		End If
+		If ini.StringValue("DiscogsAutoTagWeb","CheckTheBehindArtist") = "" Then
+			ini.BoolValue("DiscogsAutoTagWeb","CheckTheBehindArtist") = False
+		End If
 
 		'----------------------------------DiscogsImages----------------------------------------
 		CoverStorage = ini.StringValue("PreviewSettings","DefaultCoverStorage")
@@ -738,6 +746,7 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	CheckDontFillEmptyFields = ini.BoolValue("DiscogsAutoTagWeb","CheckDontFillEmptyFields")
 	CheckNewVersion = ini.BoolValue("DiscogsAutoTagWeb","CheckNewVersion")
 	LastCheck = ini.StringValue("DiscogsAutoTagWeb","LastCheck")
+	CheckTheBehindArtist = ini.BoolValue("DiscogsAutoTagWeb","CheckTheBehindArtist")
 
 	Separator = Left(Separator, Len(Separator)-1)
 	Separator = Right(Separator, Len(Separator)-1)
@@ -1489,9 +1498,11 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		Set FirstTrack = SDB.Tools.WebSearch.NewTracks.item(0)
 		SavedReleaseId = get_release_ID(FirstTrack) 'get saved Release_ID from User-Defined Custom-Tag
 		SavedSearchArtist = SearchArtist
+		SavedSearchTrack = FirstTrack.Title
 		SavedSearchAlbum = SearchAlbum
 		NewSearchArtist = SearchArtist
 		NewSearchAlbum = SearchAlbum
+		NewSearchTrack = SavedSearchTrack
 	End If
 
 	If CheckNewVersion = True Then
@@ -1576,8 +1587,10 @@ Sub FindResults(SearchTerm, QueryPage)
 	WriteLog "SearchTerm=" & SearchTerm
 	WriteLog "NewSearchArtist=" & NewSearchArtist
 	WriteLog "NewSearchAlbum=" & NewSearchAlbum
+	WriteLog "NewSearchTrack=" & NewSearchTrack
 
 	Dim FilterFound, a, searchURL, searchURL_F, searchURL_L, SearchFor
+	Dim SendArtist, SendAlbum, SendTrack, SendType, SendDBSearch, SendPerPage
 	Dim TXTBegin, TXTEnd, ResponseHTML, ReleaseDesc, i, tmp
 
 	Set Results = SDB.NewStringList
@@ -1633,7 +1646,7 @@ Sub FindResults(SearchTerm, QueryPage)
 
 	SDB.ProcessMessages
 
-	If SearchTerm = "" and NewSearchArtist = "" And NewSearchAlbum = "" Then
+	If SearchTerm = "" and NewSearchArtist = "" And NewSearchAlbum = "" And NewSearchTrack = "" Then
 		ErrorMessage = "No search term"
 		WriteLog "No search term"
 	ElseIf IsNumeric(SearchTerm) Then
@@ -1722,44 +1735,27 @@ Sub FindResults(SearchTerm, QueryPage)
 				Results.Add FirstTrack.AlbumArtistName & " - " & FirstTrack.Album.Name & " - [currently tagged with this release]"
 				ResultsReleaseID.Add SavedReleaseId
 			End If
+
+			SendType = "release"
+			SendPerPage = "100"
+
 			If SearchTerm <> "" And NewSearchArtist = "" And NewSearchAlbum = "" Then
 				REM Search from user-typed input
 				WriteLog "Search from user-typed input"
-				SearchFor = ShowSearchFor()
-				If SearchFor = 1 Then
-					searchURL = URLEncodeUTF8(CleanSearchString(SearchTerm))
-					searchURL_F = "https://api.discogs.com/database/search?type=release%26artist="
-					searchURL_L = "%26per_page=100"
-				ElseIf SearchFor = 2 Then
-					searchURL = URLEncodeUTF8(CleanSearchString(SearchTerm))
-					searchURL_F = "https://api.discogs.com/database/search?type=release%26title="
-					searchURL_L = "%26per_page=100"
-				ElseIf SearchFor = 3 Then
-					searchURL = URLEncodeUTF8(CleanSearchString(SearchTerm))
-					searchURL_F = "https://api.discogs.com/database/search?q="
-					searchURL_L = "%26type=release%26per_page=100"
+				SendDBSearch = URLEncodeUTF8(CleanSearchString(SearchTerm))
+			ElseIf NewSearchArtist <> "" Or NewSearchAlbum <> "" Or NewSearchTrack <> "" Then
+				SendArtist = URLEncodeUTF8(CleanSearchString(NewSearchArtist))
+				SendAlbum = URLEncodeUTF8(CleanSearchString(NewSearchAlbum))
+				If SendAlbum = "" Then
+					SendTrack = URLEncodeUTF8(CleanSearchString(NewSearchTrack))
 				End If
-				WriteLog "SearchFor= " & SearchFor
-			ElseIf NewSearchArtist <> "" And NewSearchAlbum <> "" Then
-				searchURL = URLEncodeUTF8(CleanSearchString(NewSearchArtist)) & " - " & URLEncodeUTF8(CleanSearchString(NewSearchAlbum))
-				searchURL_F = "https://api.discogs.com/database/search?q="
-				searchURL_L = "%26type=release%26per_page=100"
-			ElseIf NewSearchArtist = "" And NewSearchAlbum <> "" Then
-				searchURL = URLEncodeUTF8(CleanSearchString(NewSearchAlbum))
-				searchURL_F = "https://api.discogs.com/database/search?type=release%26title="
-				searchURL_L = "%26per_page=100"
-			ElseIf NewSearchArtist <> "" And NewSearchAlbum = "" Then
-				searchURL = URLEncodeUTF8(CleanSearchString(NewSearchArtist))
-				searchURL_F = "https://api.discogs.com/database/search?type=release%26artist="
-				searchURL_L = "%26per_page=100"
 			Else
 				ErrorMessage = "No SearchTerm found"
 				WriteLog "No SearchTerm found"
 			End If
 
 			If ErrorMessage = "" Then
-				WriteLog "Complete searchURL=" & searchURL_F & URLEncodeUTF8(searchURL) & searchURL_L
-				JSONParser_find_result searchURL, "results", searchURL_F, searchURL_L, "Discogs", True
+				JSONParser_find_result "", "results", SendArtist, SendAlbum, SendTrack, SendType, SendDBSearch, SendPerPage, QueryPage, True
 			End If
 		End If
 
@@ -1795,9 +1791,10 @@ Sub FindResults(SearchTerm, QueryPage)
 				searchURL = "http://musicbrainz.org/ws/2/release?query=release:" & Chr(34) & CleanSearchString(URLEncodeUTF8(NewSearchAlbum)) & Chr(34) & "&limit=50&offset=0&fmt=json"
 			End If
 
-			WriteLog "searchURL=" & searchURL
-
-			JSONParser_find_result searchURL, "releases", "", "", "MusicBrainz", False
+			If searchURL <> "" Then
+				WriteLog "searchURL=" & searchURL
+				JSONParser_find_result searchURL, "releases", "", "", "", "", "", "", "MusicBrainz", False
+			End If
 		End If
 
 		If ResultsReleaseID.Count = 0 Then
@@ -1987,7 +1984,7 @@ Sub LoadVersionResults(MasterID)
 			ResultsReleaseID.Add SavedReleaseId
 		End If
 		If QueryPage = "Discogs" Then
-			JSONParser_find_result MasterID, "versions", "http://api.discogs.com/masters/", "/versions?per_page=100", "Discogs", False
+			JSONParser_find_result "http://api.discogs.com/masters/" & MasterID & "/versions?per_page=100", "versions", "", "", "", "", "", "", "Discogs", False
 		Else
 			ErrorMessage = "Cannot load master release from MusicBrainz"
 		End If
@@ -2019,9 +2016,9 @@ Sub LoadArtistResults(ArtistId)
 		End If
 
 		If QueryPage = "Discogs" Then
-			JSONParser_find_result ArtistId, "releases", "http://api.discogs.com/artists/", "/releases?per_page=100", "Discogs", False
+			JSONParser_find_result "http://api.discogs.com/artists/" & ArtistId & "/releases?per_page=100", "releases", "", "", "", "", "", "", "Discogs", False
 		ElseIf QueryPage = "MusicBrainz" Then
-			JSONParser_find_result "http://musicbrainz.org/ws/2/release?artist=" & ArtistId & "&inc=artist-credits+release-groups+media&fmt=json&limit=100", "Artist", "", "", "MusicBrainz", False
+			JSONParser_find_result "http://musicbrainz.org/ws/2/release?artist=" & ArtistId & "&inc=artist-credits+release-groups+media&fmt=json&limit=100", "Artist", "", "", "", "", "", "", "MusicBrainz", False
 		End If
 	End If
 
@@ -2051,9 +2048,9 @@ Sub LoadLabelResults(LabelId)
 		End If
 
 		If QueryPage = "Discogs" Then
-			JSONParser_find_result LabelId, "releases", "http://api.discogs.com/labels/", "/releases?per_page=100", "Discogs", False
+			JSONParser_find_result "http://api.discogs.com/labels/" & LabelId &  "/releases?per_page=100", "releases", "", "", "", "", "", "", "Discogs", False
 		ElseIf QueryPage = "MusicBrainz" Then
-			JSONParser_find_result "http://musicbrainz.org/ws/2/release?label=" & LabelId & "&inc=artist-credits+media&fmt=json&limit=100", "Label", "", "", "MusicBrainz", False
+			JSONParser_find_result "http://musicbrainz.org/ws/2/release?label=" & LabelId & "&inc=artist-credits+media&fmt=json&limit=100", "Label", "", "", "", "", "", "", "MusicBrainz", False
 		End If
 	End If
 
@@ -4663,7 +4660,8 @@ Function GetHeader()
 	templateHTML = templateHTML &  "<td colspan=3 align=right valign=top>"
 
 	templateHTML = templateHTML &  "<table border=0 cellspacing=0 cellpadding=2 class=tabletext>"
-	templateHTML = templateHTML &  "<tr><td colspan=5></td><td><b>Filter Results: </b></td><td colspan=3> </td></tr>"
+	REM templateHTML = templateHTML &  "<tr><td colspan=5></td><td><b>Filter Results: </b></td><td colspan=3> </td></tr>"
+	templateHTML = templateHTML &  "<tr><td colspan=3></td><td><button type=button class=tabletext id=""showadvancedsearch"">Advanced Search</button></td><td></td><td><b>Filter Results: </b></td><td colspan=3> </td></tr>"
 	REM templateHTML = templateHTML &  "<tr><td colspan=3></td><td colspan=2>Search for:<input type=radio id=""searchartist"" name=""SearchFor"" title=""Enter search string in upper dropdown-field and choose what to search for"" value=""Artist"">Artist<input type=radio id=""searchalbum"" name=""SearchFor"" title=""Enter search string in upper dropdown-field and choose what to search for"" value=""Album"">Album<input type=radio id=""searchrelease"" name=""SearchFor"" title=""Enter search string in upper drop-down field and choose what to search for"" value=""Release"">Release</td><td><b>Filter Results: </b></td><td colspan=3> </td></tr>"
 	templateHTML = templateHTML &  "<tr>"
 	templateHTML = templateHTML &  "<td><b>Search Page:</b></td>"
@@ -4894,6 +4892,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	End If
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""yearonlydate"" title=""If checked only the Year will be saved (e.g. 14.01.1982 -> 1982)"" >Only Year Of Date</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""titlefeaturing"" title=""If checked the feat. Artist appears in the title tag (e.g. Aaliyah (ft. Timbaland) - We Need a Resolution  ->  Aaliyah - We Need a Resolution (ft. Timbaland) )"" >feat. Artist behind Title</td></tr>"
+	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""TheBehindArtist"" title=""If checked the ArtistName will be 'Beatles, The' instead of 'The Beatles'"" >Move 'The' in Artist to the end</td></tr>"
 
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""FeaturingName"" title=""Rename 'feat.' to the given word"" >Rename 'feat.' to:</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=text id=""TxtFeaturingName"" ></td></tr>"
@@ -5300,6 +5299,9 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Set checkBox = templateHTMLDoc.getElementById("involvedpeoplesingle")
 	checkBox.Checked = CheckInvolvedPeopleSingleLine
 	Script.RegisterEvent checkBox, "onclick", "Update"
+	Set checkBox = templateHTMLDoc.getElementById("TheBehindArtist")
+	checkBox.Checked = CheckTheBehindArtist
+	Script.RegisterEvent checkBox, "onclick", "Update"
 
 	Set listBox = templateHTMLDoc.getElementById("filtermediatype")
 	Script.RegisterEvent listBox, "onchange", "Filter"
@@ -5344,6 +5346,9 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 
 	Set listBox = templateHTMLDoc.getElementById("searchpage")
 	Script.RegisterEvent listBox, "onchange", "Filter"
+
+	Set submitButton = templateHTMLDoc.getElementById("showadvancedsearch")
+	Script.RegisterEvent submitButton, "onclick", "ShowAdvancedSearch"
 
 End Sub
 
@@ -5444,6 +5449,8 @@ Sub Update()
 	CheckTurnOffSubTrack = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("involvedpeoplesingle")
 	CheckInvolvedPeopleSingleLine = checkBox.Checked
+	Set checkBox = templateHTMLDoc.getElementById("TheBehindArtist")
+	CheckTheBehindArtist = checkBox.Checked
 
 	OptionsChanged = True
 
@@ -5591,6 +5598,7 @@ Sub SaveOptions()
 		ini.BoolValue("DiscogsAutoTagWeb","CheckTurnOffSubTrack") = CheckTurnOffSubTrack
 		ini.BoolValue("DiscogsAutoTagWeb","CheckInvolvedPeopleSingleLine") = CheckInvolvedPeopleSingleLine
 		ini.StringValue("DiscogsAutoTagWeb","QueryPage") = QueryPage
+		ini.BoolValue("DiscogsAutoTagWeb","CheckTheBehindArtist") = CheckTheBehindArtist
 
 		tmp = CountryFilterList.Item(0)
 		For a = 1 To CountryList.Count - 1
@@ -5660,6 +5668,8 @@ Sub FormatErrorMessage(ErrorMessage)
 	Script.RegisterEvent submitButton, "onclick", "ShowMediaFormatFilter"
 	Set submitButton = templateHTMLDoc.getElementById("showyearfilter")
 	Script.RegisterEvent submitButton, "onclick", "ShowYearFilter"
+	Set submitButton = templateHTMLDoc.getElementById("showadvancedsearch")
+	Script.RegisterEvent submitButton, "onclick", "ShowAdvancedSearch"
 
 	SDB.Tools.WebSearch.ClearTracksData
 	
@@ -5678,7 +5688,7 @@ Sub FormatErrorMessage(ErrorMessage)
 End Sub
 
 
-Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, QueryPage, useOAuth)
+Function JSONParser_find_result(searchURL, ArrayName, SendArtist, SendAlbum, SendTrack, SendType, SendDBSearch, SendPerPage, QueryPage, useOAuth)
 
 	'useOAuth = True -> OAuth needed
 	Dim oXMLHTTP, r, f, a, currentArtist, media
@@ -5905,15 +5915,14 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 
 	If QueryPage = "Discogs" Then
 
-		WriteLog "Complete searchURL=" & searchURL_F & searchURL & searchURL_L
 		' use json api with vbsjson class at start of file now
 
 		If useOAuth = True Then
-			oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
+			oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new_v2.php", False
 			oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
 			oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
-			WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L & "%26page=1"
-			oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L & "%26page=1")
+			WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&artist=" & SendArtist & "&album=" & SendAlbum & "&track=" & SendTrack & "&type=" & SendType & "&dbsearch=" & SendDBSearch & "&perpage=" & SendPerPage & "&querypage=" & QueryPage & "&page=1"
+			oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&artist=" & SendArtist & "&album=" & SendAlbum & "&track=" & SendTrack & "&type=" & SendType & "&dbsearch=" & SendDBSearch & "&perpage=" & SendPerPage & "&querypage=" & QueryPage & "&page=1")
 
 			If oXMLHTTP.Status = 200 Then
 				If InStr(oXMLHTTP.responseText, "OAuth client error") <> 0 Then
@@ -5931,7 +5940,7 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 			End If
 		Else
 
-			oXMLHTTP.Open "GET", searchURL_F & searchURL & searchURL_L, False
+			oXMLHTTP.Open "GET", searchURL, False
 			oXMLHTTP.setRequestHeader "Content-Type","application/json"
 			oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
 			oXMLHTTP.send()
@@ -5961,11 +5970,11 @@ Function JSONParser_find_result(searchURL, ArrayName, searchURL_F, searchURL_L, 
 				WriteLog "SongPages=" & SongPages
 				For Page = 1 to SongPages
 					If Page <> 1 Then
-						oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
+						oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new_v2.php", False
 						oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"  
 						oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
-						WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L & "%26page=" & Page
-						oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L & "%26page=" & Page)
+						WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&artist=" & SendArtist & "&album=" & SendAlbum & "&track=" & SendTrack & "&type=" & SendType & "&dbsearch=" & SendDBSearch & "&perpage=" & SendPerPage & "&querypage=" & QueryPage & "&page=" & Page
+						oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&artist=" & SendArtist & "&album=" & SendAlbum & "&track=" & SendTrack & "&type=" & SendType & "&dbsearch=" & SendDBSearch & "&perpage=" & SendPerPage & "&querypage=" & QueryPage & "&page=" & Page)
 						If oXMLHTTP.Status = 200 Then
 							If InStr(oXMLHTTP.responseText, "OAuth client error") <> 0 Then
 								WriteLog "responseText=" & oXMLHTTP.responseText
@@ -6964,6 +6973,7 @@ Sub WriteOptions()
 	WriteLog "SubTrackNameSelection=" & SubTrackNameSelection
 	WriteLog "CheckTurnOffSubTrack=" & CheckTurnOffSubTrack
 	WriteLog "CheckInvolvedPeopleSingleLine=" & CheckInvolvedPeopleSingleLine
+	WriteLog "CheckTheBehindArtist=" & CheckTheBehindArtist
 	WriteLog "ArtistSeparator=" & ArtistSeparator
 	WriteLog "QueryPage=" & QueryPage
 	WriteLog "CheckDontFillEmptyFields=" & CheckDontFillEmptyFields
@@ -7819,9 +7829,11 @@ Function getArtistsName(Current, Role, QueryPage)
 				Else
 					artistName = CleanArtistName(currentArtist("name"))
 				End If
+				If CheckTheBehindArtist And Left(artistName, 4) = "The " Then artistName = Mid(artistName, 5) & ", The"
 				If SavedArtistID = "" Then SavedArtistID = currentArtist("id")
 			Else
 				artistName = CleanArtistName(currentArtist("name"))
+				If CheckTheBehindArtist And Left(artistName, 4) = "The " Then artistName = Mid(artistName, 5) & ", The"
 				If SavedArtistID = "" Then SavedArtistID = currentArtist("artist")("id")
 			End If
 
@@ -7924,6 +7936,119 @@ Function ShowSearchFor
 
 	ShowSearchFor = Form.ShowModal
 	SDB.Objects("ShowSearchForForm") = Nothing
+	SDB.ProcessMessages
+
+End Function
+
+
+Function ShowAdvancedSearch()
+
+	WriteLog "Start AdvancedSearch"
+	Dim Form, Label, At, Btn, Btn2, edt, searchURL
+	Dim SendArtist, SendAlbum, SendTrack, SendType, SendPerPage
+
+	Set Form = UI.NewForm
+	Form.Common.Width = 320
+	Form.Common.Height = 240
+	Form.FormPosition = 4
+	Form.Caption = "Advanced Search"
+	Form.BorderStyle = 3
+	Form.StayOnTop = True
+	SDB.Objects("ShowAdvancedSearchForm") = Form
+
+	Set Label = UI.NewLabel(Form)
+	Label.Common.SetRect 10, 10, 80, 25
+	Label.Caption = "Please enter at least one field"
+
+	Set Label = UI.NewLabel(Form)
+	Label.Common.SetRect 10, 45, 60, 25
+	Label.Caption = SDB.Localize("Artist")
+
+	Set At = UI.NewEdit(Form)
+	At.Common.SetRect 80, 40, 175, 35
+	At.Common.ControlName = "Artist"
+	At.Text = NewSearchArtist
+
+	Set Label = UI.NewLabel(Form)
+	Label.Common.SetRect 10, 80, 60, 25
+	Label.Caption = SDB.Localize("Album")
+
+	Set At = UI.NewEdit(Form)
+	At.Common.SetRect 80, 75, 175, 35
+	At.Common.ControlName = "Album"
+	At.Text = NewSearchAlbum
+
+	Set Label = UI.NewLabel(Form)
+	Label.Common.SetRect 10, 120, 60, 25
+	Label.Caption = SDB.Localize("Title")
+
+	Set At = UI.NewEdit(Form)
+	At.Common.SetRect 80, 115, 175, 35
+	At.Common.ControlName = "Title"
+	At.Text = NewSearchTrack
+
+	Set Btn = SDB.UI.NewButton(Form)
+	Btn.Caption = SDB.Localize("Search")
+	Btn.Common.Width = 95
+	Btn.Common.Height = 25
+	Btn.Common.Left = 30
+	Btn.Common.Top = 160
+	Btn.Common.Anchors = 2+4
+	Btn.ModalResult = 1
+
+	Set Btn2 = SDB.UI.NewButton(Form)
+	Btn2.Caption = SDB.Localize("Cancel")
+	Btn2.Common.Width = 95
+	Btn2.Common.Height = 25
+	Btn2.Common.Left = 140
+	Btn2.Common.Top = 160
+	Btn2.Common.Anchors = 2+4
+	Btn2.ModalResult = 2
+
+	WriteLog "ShowForm"
+
+	If Form.ShowModal = 1 Then
+		Set edt = Form.Common.ChildControl("Artist")
+		NewSearchArtist = edt.Text
+		Set edt = Form.Common.ChildControl("Album")
+		NewSearchAlbum = edt.Text
+		Set edt = Form.Common.ChildControl("Title")
+		NewSearchTrack = edt.Text
+
+		WriteLog "NewSearchArtist=" & NewSearchArtist
+		WriteLog "NewSearchAlbum=" & NewSearchAlbum
+		WriteLog "NewSearchTrack=" & NewSearchTrack
+
+
+		If NewSearchArtist <> "" Or NewSearchAlbum <> "" Or NewSearchTrack <> "" Then
+
+			Set Results = SDB.NewStringList
+			Set ResultsReleaseID = SDB.NewStringList
+
+			SDB.Tools.WebSearch.ClearTracksData
+
+			If QueryPage = "Discogs" Then
+				SendType = "release"
+				SendPerPage = "100"
+				SendArtist = URLEncodeUTF8(CleanSearchString(NewSearchArtist))
+				SendAlbum = URLEncodeUTF8(CleanSearchString(NewSearchAlbum))
+				SendTrack = URLEncodeUTF8(CleanSearchString(NewSearchTrack))
+				JSONParser_find_result "", "results", SendArtist, SendAlbum, SendTrack, SendType, "", SendPerPage, QueryPage, True
+			End If
+
+			If QueryPage = "MusicBrainz" Then
+				searchURL = "http://musicbrainz.org/ws/2/release?query=artist:" & Chr(34) & CleanSearchString(URLEncodeUTF8(NewSearchArtist)) & Chr(34) & " AND release:" & Chr(34) & URLEncodeUTF8(CleanSearchString(NewSearchAlbum)) & Chr(34) & "&limit=50&offset=0&fmt=json"
+				JSONParser_find_result searchURL, "releases", "", "", "", "", "", "", "MusicBrainz", False
+			End If
+	
+			SDB.Tools.WebSearch.SetSearchResults Results
+			SDB.Tools.WebSearch.ResultIndex = 0
+		End If
+	Else
+		WriteLog "Advanced Search canceled"
+	End If
+
+	SDB.Objects("ShowAdvancedSearchForm") = Nothing
 	SDB.ProcessMessages
 
 End Function
