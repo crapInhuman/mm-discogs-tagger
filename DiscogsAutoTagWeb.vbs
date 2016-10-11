@@ -2,7 +2,12 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.34"
+Const VersionStr = "v5.35"
+
+'Changes from 5.34 to 5.35 by crap_inhuman in 01.2016
+'	Changed feat. Artist function: Now you can use ";" for separator
+'	Fixed some Artist-Separator bugs
+
 
 'Changes from 5.33 to 5.34 by crap_inhuman in 01.2016
 '	Artist search now use discogs artist-id
@@ -2073,7 +2078,7 @@ Sub ReloadResults
 
 	Dim Tracks, TracksNum, DiscogsTracksNum, TracksCD, ArtistTitles, InvolvedArtists, Lyricists, Composers, Conductors, Producers, Durations
 	Dim AlbumArtist, AlbumArtistTitle, AlbumLyricist, AlbumComposer, AlbumConductor, AlbumProducer, AlbumInvolved, AlbumFeaturing, AlbumTitle
-	Dim track, currentTrack, position, artist, currentArtist, artistName, extraArtist, extra, tmpArtistSeparator
+	Dim track, currentTrack, position, artist, currentArtist, artistName, extraArtist, extra
 	Dim currentImage, currentLabel, currentFormat, theMaster, i, g, l, s, f, d, currentMedia, m, t
 	Dim ReleaseDate, ReleaseSplit, theLabels, theCatalogs, theCountry, theFormat
 	Dim rTrackPosition, rSubPosition
@@ -2125,7 +2130,7 @@ Sub ReloadResults
 
 		Dim iTrackNum, cSubTrack, subTrackTitle, aSubtrack
 		Dim trackName, pos
-		Dim role, role2, rolea, currentRole, NoSplit, zahl, zahltemp, zahl2, zahltemp2, type1
+		Dim role, role2, rolea, currentRole, NoSplit, zahl, zahltemp, zahl2, zahltemp2
 		Dim CharSeparatorSubTrack
 		ReDim Involved_R(0)
 		Dim tmp, tmp2, tmp3, tmp4, tmp5
@@ -2259,7 +2264,7 @@ Sub ReloadResults
 											AlbumFeaturing = currentRole & " " & artistName
 										End If
 									Else
-										AlbumFeaturing = AlbumFeaturing & Separator & artistName
+										AlbumFeaturing = AlbumFeaturing & ArtistSeparator & artistName
 									End If
 								End If
 							Else
@@ -2309,7 +2314,7 @@ Sub ReloadResults
 										WriteLog "New Role: " & currentRole & ": " & artistName
 									Else
 										If InStr(Involved_R(tmp2), artistName) = 0 Then
-											Involved_R(tmp2) = Involved_R(tmp2) & ", " & artistName
+											Involved_R(tmp2) = Involved_R(tmp2) & ArtistSeparator & artistName
 											WriteLog "Role updated: " & Involved_R(tmp2)
 										Else
 											WriteLog "artist already inside role"
@@ -2619,7 +2624,7 @@ Sub ReloadResults
 										TrackFeaturing = involvedRole & " " & involvedArtist
 									End If
 								Else
-									TrackFeaturing = TrackFeaturing & Separator & involvedArtist
+									TrackFeaturing = TrackFeaturing & ArtistSeparator & involvedArtist
 								End If
 							End If
 							WriteLog "TrackFeaturing=" & TrackFeaturing
@@ -2670,7 +2675,7 @@ Sub ReloadResults
 									WriteLog "New Role: " & involvedRole & ": " & TrackArtist2(tmp)
 								Else
 									If InStr(Involved_R_T(tmp2), TrackArtist2(tmp)) = 0 Then
-										Involved_R_T(tmp2) = Involved_R_T(tmp2) & ", " & TrackArtist2(tmp)
+										Involved_R_T(tmp2) = Involved_R_T(tmp2) & ArtistSeparator & TrackArtist2(tmp)
 										WriteLog "Role updated: " & Involved_R_T(tmp2)
 									Else
 										WriteLog "artist already inside role"
@@ -2731,7 +2736,7 @@ Sub ReloadResults
 											End If
 										Else
 											If InStr(TrackFeaturing, involvedArtist) = 0 Then
-												TrackFeaturing = TrackFeaturing & ", " & involvedArtist
+												TrackFeaturing = TrackFeaturing & ArtistSeparator & involvedArtist
 											End If
 										End If
 									End If
@@ -2782,7 +2787,7 @@ Sub ReloadResults
 											WriteLog "New Role: " & involvedRole & ": " & involvedArtist
 										Else
 											If InStr(Involved_R_T(tmp2), involvedArtist) = 0 Then
-												Involved_R_T(tmp2) = Involved_R_T(tmp2) & ", " & involvedArtist
+												Involved_R_T(tmp2) = Involved_R_T(tmp2) & ArtistSeparator & involvedArtist
 												WriteLog "Role updated: " & Involved_R_T(tmp2)
 											Else
 												WriteLog "artist already inside role"
@@ -2800,18 +2805,22 @@ Sub ReloadResults
 
 				If TrackFeaturing <> "" Then
 					If CheckTitleFeaturing = True Then
-						tmp = InStrRev(TrackFeaturing, ", ")
+						tmp = InStrRev(TrackFeaturing, ArtistSeparator)
 						If tmp = 0 Or ArtistLastSeparator = False Then
 							trackName = trackName & " (" & TrackFeaturing & ")"
 						Else
-							trackName = trackName & " (" &  Left(TrackFeaturing, tmp-1) & " & " & Mid(TrackFeaturing, tmp+2) & ")"
+							trackName = trackName & " (" &  Left(TrackFeaturing, tmp-1) & " & " & Mid(TrackFeaturing, tmp+Len(ArtistSeparator)) & ")"
 						End If
 					Else
-						tmp = InStrRev(TrackFeaturing, ", ")
+						tmp = InStrRev(TrackFeaturing, ArtistSeparator)
 						If tmp = 0 Or ArtistLastSeparator = False Then
-							artistList = artistList & " " & TrackFeaturing
+							If Left(TrackFeaturing, 1) = "," Or Left(TrackFeaturing, 1) = ";" Then
+								artistList = artistList & TrackFeaturing
+							Else
+								artistList = artistList & " " & TrackFeaturing
+							End If
 						Else
-							artistList = artistList & " " & Left(TrackFeaturing, tmp-1) & " & " & Mid(TrackFeaturing, tmp+2)
+							artistList = artistList & " " & Left(TrackFeaturing, tmp-1) & " & " & Mid(TrackFeaturing, tmp+Len(ArtistSeparator))
 						End If
 					End If
 				End If
@@ -2819,45 +2828,39 @@ Sub ReloadResults
 				If InStr(artistList, " & ") <> 0 And ArtistLastSeparator = False Then
 					artistList = Replace(artistList, " & ", ArtistSeparator)
 				End If
-				If ArtistSeparator <> ", " Then
-					artistList = Replace(artistList, ", ", ArtistSeparator)
-					artistList = Replace(artistList, " " & ArtistSeparator, ArtistSeparator)
-				Else
-					artistList = Replace(artistList, " , ", ", ")
-				End If
 				ArtistTitles.Add artistList
 
 				TrackLyricists = FindArtist(TrackLyricists, AlbumLyricist)
 				If AlbumLyricist <> "" and TrackLyricists <> "" Then
-					Lyricists.Add AlbumLyricist & "; " & TrackLyricists
+					Lyricists.Add AlbumLyricist & ArtistSeparator & TrackLyricists
 				Else
 					Lyricists.Add AlbumLyricist & TrackLyricists
 				End If
 				TrackComposers = FindArtist(TrackComposers, AlbumComposer)
 				If AlbumComposer <> "" and TrackComposers <> "" Then
-					Composers.Add AlbumComposer & "; " & TrackComposers
+					Composers.Add AlbumComposer & ArtistSeparator & TrackComposers
 				Else
 					Composers.Add AlbumComposer & TrackComposers
 				End If
 				TrackConductors = FindArtist(TrackConductors, AlbumConductor)
 				If AlbumConductor <> "" and TrackConductors <> "" Then
-					Conductors.Add AlbumConductor & "; " & TrackConductors
+					Conductors.Add AlbumConductor & ArtistSeparator & TrackConductors
 				Else
 					Conductors.Add AlbumConductor & TrackConductors
 				End If
 
 				TrackProducers = FindArtist(TrackProducers, AlbumProducer)
 				If AlbumProducer <> "" and TrackProducers <> "" Then
-					Producers.Add AlbumProducer & "; " & TrackProducers
+					Producers.Add AlbumProducer & ArtistSeparator & TrackProducers
 				Else
 					Producers.Add AlbumProducer & TrackProducers
 				End If
 
 				If UBound(Involved_R_T) > 0 Then
 					For tmp = 1 To UBound(involved_R_T)
-						TrackInvolvedPeople = TrackInvolvedPeople & Involved_R_T(tmp) & "; "
+						TrackInvolvedPeople = TrackInvolvedPeople & Involved_R_T(tmp) & Separator
 					Next
-					TrackInvolvedPeople = Left(TrackInvolvedPeople, Len(TrackInvolvedPeople)-2)
+					TrackInvolvedPeople = Left(TrackInvolvedPeople, Len(TrackInvolvedPeople)-Len(Separator))
 				Else
 					TrackInvolvedPeople = ""
 				End If
@@ -3145,7 +3148,7 @@ Sub ReloadResults
 										WriteLog "New Role: " & currentRole & ": " & artistName
 									Else
 										If InStr(Involved_R(tmp2), artistName) = 0 Then
-											Involved_R(tmp2) = Involved_R(tmp2) & ", " & artistName
+											Involved_R(tmp2) = Involved_R(tmp2) & ArtistSeparator & artistName
 											WriteLog "Role updated: " & Involved_R(tmp2)
 										Else
 											WriteLog "artist already inside role"
@@ -3276,7 +3279,7 @@ Sub ReloadResults
 											TrackFeaturing = involvedRole & " " & involvedArtist
 										End If
 									Else
-										TrackFeaturing = TrackFeaturing & Separator & involvedArtist
+										TrackFeaturing = TrackFeaturing & ArtistSeparator & involvedArtist
 									End If
 								End If
 								WriteLog "TrackFeaturing=" & TrackFeaturing
@@ -3327,7 +3330,7 @@ Sub ReloadResults
 										WriteLog "New Role: " & involvedRole & ": " & TrackArtist2(tmp)
 									Else
 										If InStr(Involved_R_T(tmp2), TrackArtist2(tmp)) = 0 Then
-											Involved_R_T(tmp2) = Involved_R_T(tmp2) & ", " & TrackArtist2(tmp)
+											Involved_R_T(tmp2) = Involved_R_T(tmp2) & ArtistSeparator & TrackArtist2(tmp)
 											WriteLog "Role updated: " & Involved_R_T(tmp2)
 										Else
 											WriteLog "artist already inside role"
@@ -3394,18 +3397,22 @@ Sub ReloadResults
 
 					If TrackFeaturing <> "" Then
 						If CheckTitleFeaturing = True Then
-							tmp = InStrRev(TrackFeaturing, ", ")
+							tmp = InStrRev(TrackFeaturing, ArtistSeparator)
 							If tmp = 0 Or ArtistLastSeparator = False Then
 								trackName = trackName & " (" & TrackFeaturing & ")"
 							Else
-								trackName = trackName & " (" &  Left(TrackFeaturing, tmp-1) & " & " & Mid(TrackFeaturing, tmp+2) & ")"
+								trackName = trackName & " (" &  Left(TrackFeaturing, tmp-1) & " & " & Mid(TrackFeaturing, tmp+Len(ArtistSeparator)) & ")"
 							End If
 						Else
-							tmp = InStrRev(TrackFeaturing, ", ")
+							tmp = InStrRev(TrackFeaturing, ArtistSeparator)
 							If tmp = 0 Or ArtistLastSeparator = False Then
-								artistList = artistList & " " & TrackFeaturing
+								If Left(TrackFeaturing, 1) = "," Or Left(TrackFeaturing, 1) = ";" Then
+									artistList = artistList & TrackFeaturing
+								Else
+									artistList = artistList & " " & TrackFeaturing
+								End If
 							Else
-								artistList = artistList & " " & Left(TrackFeaturing, tmp-1) & " & " & Mid(TrackFeaturing, tmp+2)
+								artistList = artistList & " " & Left(TrackFeaturing, tmp-1) & " & " & Mid(TrackFeaturing, tmp+Len(ArtistSeparator))
 							End If
 						End If
 					End If
@@ -3413,44 +3420,38 @@ Sub ReloadResults
 					If InStr(artistList, " & ") <> 0 And ArtistLastSeparator = False Then
 						artistList = Replace(artistList, " & ", ArtistSeparator)
 					End If
-					If ArtistSeparator <> ", " Then
-						artistList = Replace(artistList, ", ", ArtistSeparator)
-						artistList = Replace(artistList, " " & ArtistSeparator, ArtistSeparator)
-					Else
-						artistList = Replace(artistList, " , ", ", ")
-					End If
 					ArtistTitles.Add artistList
 		
 					TrackLyricists = FindArtist(TrackLyricists, AlbumLyricist)
 					If AlbumLyricist <> "" and TrackLyricists <> "" Then
-						Lyricists.Add AlbumLyricist & "; " & TrackLyricists
+						Lyricists.Add AlbumLyricist & ArtistSeparator & TrackLyricists
 					Else
 						Lyricists.Add AlbumLyricist & TrackLyricists
 					End If
 					TrackComposers = FindArtist(TrackComposers, AlbumComposer)
 					If AlbumComposer <> "" and TrackComposers <> "" Then
-						Composers.Add AlbumComposer & "; " & TrackComposers
+						Composers.Add AlbumComposer & ArtistSeparator & TrackComposers
 					Else
 						Composers.Add AlbumComposer & TrackComposers
 					End If
 					TrackConductors = FindArtist(TrackConductors, AlbumConductor)
 					If AlbumConductor <> "" and TrackConductors <> "" Then
-						Conductors.Add AlbumConductor & "; " & TrackConductors
+						Conductors.Add AlbumConductor & ArtistSeparator & TrackConductors
 					Else
 						Conductors.Add AlbumConductor & TrackConductors
 					End If
 					TrackProducers = FindArtist(TrackProducers, AlbumProducer)
 					If AlbumProducer <> "" and TrackProducers <> "" Then
-						Producers.Add AlbumProducer & "; " & TrackProducers
+						Producers.Add AlbumProducer & ArtistSeparator & TrackProducers
 					Else
 						Producers.Add AlbumProducer & TrackProducers
 					End If
 		
 					If UBound(Involved_R_T) > 0 Then
 						For tmp = 1 To UBound(involved_R_T)
-							TrackInvolvedPeople = TrackInvolvedPeople & Involved_R_T(tmp) & "; "
+							TrackInvolvedPeople = TrackInvolvedPeople & Involved_R_T(tmp) & Separator
 						Next
-						TrackInvolvedPeople = Left(TrackInvolvedPeople, Len(TrackInvolvedPeople)-2)
+						TrackInvolvedPeople = Left(TrackInvolvedPeople, Len(TrackInvolvedPeople)- Len(Separator))
 					Else
 						TrackInvolvedPeople = ""
 					End If
@@ -4122,7 +4123,7 @@ Function getinvolvedRole(involvedArtist, involvedRole, byRef artistList, byRef T
 				End If
 			Else
 				If InStr(TrackFeaturing, involvedArtist) = 0 Then
-					TrackFeaturing = TrackFeaturing & ", " & involvedArtist
+					TrackFeaturing = TrackFeaturing & ArtistSeparator & involvedArtist
 				End If
 			End If
 		End If
@@ -4173,7 +4174,7 @@ Function getinvolvedRole(involvedArtist, involvedRole, byRef artistList, byRef T
 				WriteLog "New Role: " & involvedRole & ": " & involvedArtist
 			Else
 				If InStr(Involved_R_T(tmp2), involvedArtist) = 0 Then
-					Involved_R_T(tmp2) = Involved_R_T(tmp2) & ", " & involvedArtist
+					Involved_R_T(tmp2) = Involved_R_T(tmp2) & ArtistSeparator & involvedArtist
 					WriteLog "Role updated: " & Involved_R_T(tmp2)
 				Else
 					WriteLog "artist already inside role"
@@ -4244,7 +4245,7 @@ Function FindArtist(ArtistList1, ArtistList2)
 
 	Dim tmpArtist, i
 	ReDim newArtistList1(0)
-	tmpArtist = Split(ArtistList1, "; ")
+	tmpArtist = Split(ArtistList1, ArtistSeparator)
 	For i = 0 To UBound(tmpArtist)
 		If InStr(ArtistList2,tmpArtist(i)) = 0 Then
 			ReDim Preserve newArtistList1(UBound(newArtistList1)+1)
@@ -4255,7 +4256,7 @@ Function FindArtist(ArtistList1, ArtistList2)
 		If FindArtist = "" Then
 			FindArtist = newArtistList1(i)
 		Else
-			FindArtist = FindArtist & "; " & newArtistList1(i)
+			FindArtist = FindArtist & ArtistSeparator & newArtistList1(i)
 		End If
 	Next
 
@@ -4497,7 +4498,7 @@ Sub ShowResult(ResultID)
 		ReleaseID = ResultsReleaseID.Item(ResultID)
 		WriteLog "ReleaseID=" & ReleaseID
 		If InStr(Results.Item(ResultID), "search returned no results") = 0 Then
-			If Right(Results.Item(ResultID), 1) = "*" Or Right(Results.Item(ResultID), 8) = "(Master)" Then  'Master-Release
+			If InStr(Results.Item(ResultID), " * ") <> 0 Or Right(Results.Item(ResultID), 8) = "(Master)" Then  'Master-Release
 				searchURL_F = "http://api.discogs.com/masters/"
 				WriteLog "Show Master-Release"
 			Else
@@ -4961,7 +4962,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = templateHTML &  "<tr>"
 	templateHTML = templateHTML &  "<td><input type=checkbox id=""releaseid"" ></td>"
 	templateHTML = templateHTML &  "<td>Release:</td>"
-	If Right(Results.Item(CurrentResultId), 1) = "*" Or Right(Results.Item(CurrentResultID), 8) = "(Master)" Then
+	If InStr(Results.Item(CurrentResultId), " * ") <> 0 Or Right(Results.Item(CurrentResultID), 8) = "(Master)" Then
 		templateHTML = templateHTML &  "<td>N/A</a> (Master: <a href=""http://www.discogs.com/master/<!RELEASEID!>"" target=""_blank""><!RELEASEID!></a>)</td>"
 	ElseIf (theMaster <> "") Then
 		templateHTML = templateHTML &  "<td><a href=""http://www.discogs.com/release/<!RELEASEID!>"" target=""_blank""><!RELEASEID!></a> (Master: <a href=""http://www.discogs.com/master/<!MASTERID!>"" target=""_blank""><!MASTERID!></a>)</td>"
@@ -5004,9 +5005,9 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = templateHTML &  "<td><input type=checkbox id=""label"" ></td>"
 	templateHTML = templateHTML &  "<td>Label:</td>"
 	If QueryPage = "Discogs" Then
-		templateHTML = templateHTML &  "<td><a href=""http://www.discogs.com/label/<!LABEL!>"" target=""_blank""><!LABEL!></a></td>"
-	ElseIf QueryPage = "MusicBrainz" Then
 		templateHTML = templateHTML &  "<td><a href=""http://www.discogs.com/label/" & SavedLabelID & """ target=""_blank""><!LABEL!></a></td>"
+	ElseIf QueryPage = "MusicBrainz" Then
+		templateHTML = templateHTML &  "<td><a href=""http://www.musicbrainz.org/label/" & SavedLabelID & """ target=""_blank""><!LABEL!></a></td>"
 	End If
 	templateHTML = templateHTML &  "</tr>"
 	templateHTML = templateHTML &  "<tr>"
@@ -5108,9 +5109,9 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 		If(CheckInvolved and InvolvedArtists.Item(i) <> "") Then
 			templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left><b>Involved People:</b></td></tr>"
 			'SDB.Localize("Involved People")
-			If CheckInvolvedPeopleSingleLine = True And InStr(InvolvedArtists.Item(i), ";") <> 0 Then
+			If CheckInvolvedPeopleSingleLine = True And InStr(InvolvedArtists.Item(i), Separator) <> 0 Then
 				Dim x
-				tmp = Split(InvolvedArtists.Item(i), "; ")
+				tmp = Split(InvolvedArtists.Item(i), Separator)
 				For each x in tmp
 					templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left>"& x &"</td></tr>"
 				Next
@@ -7048,7 +7049,7 @@ Function searchKeyword(Keywords, Role, AlbumRole, artistName)
 					If AlbumRole = "" Then
 						AlbumRole = artistName
 					Else
-						AlbumRole = AlbumRole & Separator & artistName
+						AlbumRole = AlbumRole & ArtistSeparator & artistName
 					End If
 					searchKeyword = AlbumRole
 				Else
@@ -7063,7 +7064,7 @@ Function searchKeyword(Keywords, Role, AlbumRole, artistName)
 					If AlbumRole = "" Then
 						AlbumRole = artistName
 					Else
-						AlbumRole = AlbumRole & Separator & artistName
+						AlbumRole = AlbumRole & ArtistSeparator & artistName
 					End If
 					searchKeyword = AlbumRole
 				Else
@@ -7821,7 +7822,7 @@ Function getArtistsName(Current, Role, QueryPage)
 
 	Dim Artists(2)
 
-	SavedArtistID = ""
+	REM SavedArtistID = ""
 	FoundFeaturing = False
 
 	If current.Exists(Role) Then
@@ -7834,13 +7835,18 @@ Function getArtistsName(Current, Role, QueryPage)
 					artistName = CleanArtistName(currentArtist("name"))
 				End If
 				If CheckTheBehindArtist And Left(artistName, 4) = "The " Then artistName = Mid(artistName, 5) & ", The"
-				If SavedArtistID = "" Then SavedArtistID = currentArtist("id")
+				If SavedArtistID = "" Then
+					SavedArtistID = currentArtist("id")
+					WriteLog "SavedArtistID=" & SavedArtistID
+				End If
 			Else
 				artistName = CleanArtistName(currentArtist("name"))
 				If CheckTheBehindArtist And Left(artistName, 4) = "The " Then artistName = Mid(artistName, 5) & ", The"
-				If SavedArtistID = "" Then SavedArtistID = currentArtist("artist")("id")
+				If SavedArtistID = "" Then
+					SavedArtistID = currentArtist("artist")("id")
+					WriteLog "SavedArtistID=" & SavedArtistID
+				End If
 			End If
-			WriteLog "SavedArtistID=" & SavedArtistID
 
 			If Artists(0) = "" Then
 				Artists(0) = artistName
@@ -7852,7 +7858,7 @@ Function getArtistsName(Current, Role, QueryPage)
 					If Artists(1) = "" Then
 						Artists(1) = tmpArtistSeparator & artistName
 					Else
-						Artists(1) = Artists(1) & ", " & artistName
+						Artists(1) = Artists(1) & ArtistSeparator & artistName
 					End If
 				End If
 			End If
@@ -7872,7 +7878,11 @@ Function getArtistsName(Current, Role, QueryPage)
 				If tmp = "," Then
 					tmpArtistSeparator = ArtistSeparator
 				ElseIf LookForFeaturing(tmp) And CheckFeaturingName Then
-					tmpArtistSeparator = " " & TxtFeaturingName & " "
+					If Left(TxtFeaturingName, 1) = "," Or Left(TxtFeaturingName, 1) = ";" Then
+						tmpArtistSeparator = TxtFeaturingName & " "
+					Else
+						tmpArtistSeparator = " " & TxtFeaturingName & " "
+					End If
 				Else
 					tmpArtistSeparator = " " & tmp & " "
 				End If
@@ -7882,7 +7892,7 @@ Function getArtistsName(Current, Role, QueryPage)
 			End If
 		Next
 
-		If Right(Artists(0), 2) = ", " Then Artists(0) = Left(Artists(0), Len(Artists(0))-2)
+		If Right(Artists(0), Len(ArtistSeparator)) = ArtistSeparator Then Artists(0) = Left(Artists(0), Len(Artists(0))-Len(ArtistSeparator))
 		Artists(0) = Trim(Artists(0))
 		getArtistsName = Artists
 	Else
