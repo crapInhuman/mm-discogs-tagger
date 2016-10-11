@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.22"
+Const VersionStr = "v5.23"
+
+'Changes from 5.22 to 5.23 by crap_inhuman in 03.2015
+'	Again a saving cover-image bug removed
+
 
 'Changes from 5.21 to 5.22 by crap_inhuman in 03.2015
 '	Bug removed: mm hangs while downloading covers
@@ -4682,9 +4686,6 @@ Sub SaveCoverImage()
 		If res <> 7 Then 'don't overwrite file
 			Set SongList = SDB.SelectedSongList
 			For j = 0 To SongList.Count - 1
-				WriteLog "J=" & j
-				WriteLog "dd2.ItemIndex=" & dd2.ItemIndex
-				WriteLog "count=" & SongList.Count
 				Set itm = SongList.item(j)
 				Dim pics : Set pics = itm.AlbumArt
 				If pics Is Nothing Then
@@ -4736,6 +4737,7 @@ Sub SaveCoverImage()
 		Form.Common.ControlName = ""
 		Set Form = Nothing  
 	End If
+	WriteLog "Stop SaveCoverImage"
 	
 End Sub
 
