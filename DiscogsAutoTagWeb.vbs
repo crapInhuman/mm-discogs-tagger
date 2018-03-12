@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.53"
+Const VersionStr = "v5.54"
+
+'Changes from 5.53 to 5.54 by crap_inhuman in 12.2017
+'	Discogs Tagger use the title-name of the first selected track for search at Discogs, if no album name was found
+
 
 'Changes from 5.52 to 5.53 by crap_inhuman in 12.2017
 '	Improved identification of Release/Master/Label/Artist Discogs Numbers e.g. [r12345], [m12345], [l12345], [a12345]
@@ -1709,6 +1713,7 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		Set tmp = SDB.Tools.WebSearch.NewTracks.item(a)
 		Set itmAlbum = tmp.Album
 		WriteLog "Disc=" & tmp.DiscNumberStr & " / Track=" & tmp.TrackOrderStr & " / AlbumID=" & itmAlbum.ID & " / Artist=" & tmp.ArtistName & " / Album=" & tmp.AlbumName & " / Title=" & tmp.Title
+		If a = 0 Then NewSearchTrack = tmp.Title
 	Next
 	WriteLog " "
 
