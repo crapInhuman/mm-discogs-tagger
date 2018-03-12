@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.46"
+Const VersionStr = "v5.47"
+
+'Changes from 5.46 to 5.47 by crap_inhuman in 06.2017
+'	Added the feature "Add leading zero (Disc#)"
+
 
 'Changes from 5.45 to 5.46 by crap_inhuman in 05.2017
 '	Skip Extra-Artists without artistname in musicbrainz-tagger
@@ -412,7 +416,7 @@ Dim ini
 Dim CheckAlbum, CheckArtist, CheckAlbumArtist, CheckAlbumArtistFirst, CheckLabel, CheckDate, CheckOrigDate, CheckGenre
 Dim CheckCountry, CheckCover, CheckSmallCover, SmallCover, CheckStyle, CheckCatalog, CheckRelease, CheckInvolved, CheckLyricist
 Dim CheckComposer, CheckConductor, CheckProducer, CheckDiscNum, CheckTrackNum, CheckFormat, CheckUseAnv, CheckYearOnlyDate
-Dim CheckForceNumeric, CheckSidesToDisc, CheckForceDisc, CheckNoDisc, CheckLeadingZero, CheckVarious, TxtVarious
+Dim CheckForceNumeric, CheckSidesToDisc, CheckForceDisc, CheckNoDisc, CheckLeadingZero, CheckLeadingZeroDisc, CheckVarious, TxtVarious
 Dim CheckTitleFeaturing, CheckComment, CheckFeaturingName, TxtFeaturingName, CheckOriginalDiscogsTrack, CheckSaveImage, CheckLimitReleases
 Dim CheckStyleField, CheckTurnOffSubTrack, CheckInvolvedPeopleSingleLine, CheckDontFillEmptyFields, CheckTheBehindArtist
 Dim CheckDiscogsCollectionOff, CheckDeleteDuplicatedEntry, StoreDate, StoreOrgDate, OriginalDateRead, ReleaseDateRead
@@ -616,6 +620,9 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		If ini.StringValue("DiscogsAutoTagWeb","CheckLeadingZero") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","CheckLeadingZero") = True
 		End If
+		If ini.StringValue("DiscogsAutoTagWeb","CheckLeadingZeroDisc") = "" Then
+			ini.BoolValue("DiscogsAutoTagWeb","CheckLeadingZeroDisc") = False
+		End If
 		If ini.StringValue("DiscogsAutoTagWeb","CheckVarious") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","CheckVarious") = False
 		End If
@@ -799,6 +806,7 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	CountryTag = ini.StringValue("DiscogsAutoTagWeb","CountryTag")
 	FormatTag = ini.StringValue("DiscogsAutoTagWeb","FormatTag")
 	CheckLeadingZero = ini.BoolValue("DiscogsAutoTagWeb","CheckLeadingZero")
+	CheckLeadingZeroDisc = ini.BoolValue("DiscogsAutoTagWeb","CheckLeadingZeroDisc")
 	CheckVarious = ini.BoolValue("DiscogsAutoTagWeb","CheckVarious")
 	TxtVarious = ini.StringValue("DiscogsAutoTagWeb","TxtVarious")
 	CheckTitleFeaturing = ini.BoolValue("DiscogsAutoTagWeb","CheckTitleFeaturing")
@@ -3355,11 +3363,11 @@ Sub ReloadResults
 							If CheckNoDisc = True Then 
 								TracksCD.Add ""
 							Else
-								TracksCD.Add CurrentMedia("position")
+								TracksCD.Add LeadingZeroDisc(CurrentMedia("position"))
 							End If
 						Else
 							If CheckForceDisc = True Then
-								TracksCD.Add "1"
+								TracksCD.Add LeadingZeroDisc("1")
 							Else
 								TracksCD.Add ""
 							End If
@@ -3391,7 +3399,7 @@ Sub ReloadResults
 							tracksNum.Add ""
 						End If
 						If CheckForceDisc Then
-							tracksCD.Add iAutoDiscNumber
+							tracksCD.Add LeadingZeroDisc(iAutoDiscNumber)
 						Else
 							tracksCD.Add ""
 						End If
@@ -4104,7 +4112,7 @@ Function trackNumbering(byRef pos, byRef position, byRef TracksNum, byRef Tracks
 			End If
 		End If
 		If Left(position,2) <> "CD" And Left(position,3) <> "DVD" Then iAutoDiscNumber = Left(position,pos-1)
-		tracksCD.Add iAutoDiscNumber
+		tracksCD.Add LeadingZeroDisc(iAutoDiscNumber)
 	Else ' Apply Track Numbering Schemes
 		WriteLog "Track Numbering Schemes"
 		If Not CheckSidesToDisc Or IsInteger(Left(position,1)) Then
@@ -4138,7 +4146,7 @@ Function trackNumbering(byRef pos, byRef position, byRef TracksNum, byRef Tracks
 				End If
 			End If
 			If CheckForceDisc Then
-				tracksCD.Add iAutoDiscNumber
+				tracksCD.Add LeadingZeroDisc(iAutoDiscNumber)
 			Else
 				tracksCD.Add ""
 			End If
@@ -4156,9 +4164,9 @@ Function trackNumbering(byRef pos, byRef position, byRef TracksNum, byRef Tracks
 					LastDisc = position
 				End If
 				If CheckForceNumeric Then
-					tracksCD.Add iAutoDiscNumber
+					tracksCD.Add LeadingZeroDisc(iAutoDiscNumber)
 				Else
-					tracksCD.Add position
+					tracksCD.AddLeadingZeroDisc(position)
 				End If
 			ElseIf Len(position) = 2 Then
 				If IsInteger(Mid(position,2,1)) And Not IsInteger(Mid(position,1,1)) Then
@@ -4175,9 +4183,9 @@ Function trackNumbering(byRef pos, byRef position, byRef TracksNum, byRef Tracks
 						LastDisc = Left(position,1)
 					End If
 					If CheckForceNumeric Then
-						tracksCD.Add iAutoDiscNumber
+						tracksCD.Add LeadingZeroDisc(iAutoDiscNumber)
 					Else
-						tracksCD.Add Left(position,1)
+						tracksCD.Add LeadingZeroDisc(Left(position,1))
 					End If
 				Else ' Two byte side
 					tracksNum.Add "1"
@@ -4188,9 +4196,9 @@ Function trackNumbering(byRef pos, byRef position, byRef TracksNum, byRef Tracks
 						LastDisc = position
 					End If
 					If CheckForceNumeric Then
-						tracksCD.Add iAutoDiscNumber
+						tracksCD.Add LeadingZeroDisc(iAutoDiscNumber)
 					Else
-						tracksCD.Add position
+						tracksCD.Add LeadingZeroDisc(position)
 					End If
 				End If
 			Else ' More than 2 bytes
@@ -4204,9 +4212,9 @@ Function trackNumbering(byRef pos, byRef position, byRef TracksNum, byRef Tracks
 						LastDisc = Left(position,1)
 					End If
 					If CheckForceNumeric Then
-						tracksCD.Add iAutoDiscNumber
+						tracksCD.Add LeadingZeroDisc(iAutoDiscNumber)
 					Else
-						tracksCD.Add Left(position,1)
+						tracksCD.Add LeadingZeroDisc(Left(position,1))
 					End If
 				ElseIf IsInteger(Mid(position,3)) And CheckNoDisc = False Then
 					' Two Byte Side, Latter is Track
@@ -4218,9 +4226,9 @@ Function trackNumbering(byRef pos, byRef position, byRef TracksNum, byRef Tracks
 						LastDisc = Left(position,2)
 					End If
 					If CheckForceNumeric Then
-						tracksCD.Add iAutoDiscNumber
+						tracksCD.Add LeadingZeroDisc(iAutoDiscNumber)
 					Else
-						tracksCD.Add Left(position,2)
+						tracksCD.Add LeadingZeroDisc(Left(position,2))
 					End If
 				Else ' More than two non numeric bytes!
 					If CheckNoDisc = False Then
@@ -5120,7 +5128,8 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	End If
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""forcedisc"" title=""Always add a disc-number"" >Force Disc Usage</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""nodisc"" title=""Prevent the script from interpret sub tracks as disc-numbers"" >Force NO Disc Usage</td></tr>"
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""leadingzero"" title=""Track Position: 1 -> 01   2 -> 02 ..."" >Add Leading Zero</td></tr>"
+	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""leadingzero"" title=""Track Position: 1 -> 01   2 -> 02 ..."" >Add Leading Zero (Track#)</td></tr>"
+	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""leadingzeroDisc"" title=""Disc-number: 1 -> 01   2 -> 02 ..."" >Add Leading Zero (Disc#)</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=center><br></td></tr>"
 
 	templateHTML = templateHTML &  "</table>"
@@ -5479,6 +5488,9 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Set checkBox = templateHTMLDoc.getElementById("leadingzero")
 	checkBox.Checked = CheckLeadingZero
 	Script.RegisterEvent checkBox, "onclick", "Update"
+	Set checkBox = templateHTMLDoc.getElementById("leadingzeroDisc")
+	checkBox.Checked = CheckLeadingZeroDisc
+	Script.RegisterEvent checkBox, "onclick", "Update"
 	Set checkBox = templateHTMLDoc.getElementById("titlefeaturing")
 	checkBox.Checked = CheckTitleFeaturing
 	Script.RegisterEvent checkBox, "onclick", "Update"
@@ -5646,6 +5658,8 @@ Sub Update()
 	End If
 	Set checkBox = templateHTMLDoc.getElementById("leadingzero")
 	CheckLeadingZero = checkBox.Checked
+	Set checkBox = templateHTMLDoc.getElementById("leadingzeroDisc")
+	CheckLeadingZeroDisc = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("titlefeaturing")
 	CheckTitleFeaturing = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("deleteduplicatedentry")
@@ -5802,6 +5816,7 @@ Sub SaveOptions()
 		ini.BoolValue("DiscogsAutoTagWeb","CheckForceDisc") = CheckForceDisc
 		ini.BoolValue("DiscogsAutoTagWeb","CheckNoDisc") = CheckNoDisc
 		ini.BoolValue("DiscogsAutoTagWeb","CheckLeadingZero") = CheckLeadingZero
+		ini.BoolValue("DiscogsAutoTagWeb","CheckLeadingZeroDisc") = CheckLeadingZeroDisc
 		REM ini.BoolValue("DiscogsAutoTagWeb","CheckUserCollection") = CheckUserCollection
 		ini.StringValue("DiscogsAutoTagWeb","DiscogsUsername") = DiscogsUsername
 		ini.StringValue("DiscogsAutoTagWeb","ReleaseTag") = ReleaseTag
@@ -7194,6 +7209,7 @@ Sub WriteOptions()
 	WriteLog "CheckForceDisc=" & CheckForceDisc
 	WriteLog "CheckNoDisc=" & CheckNoDisc
 	WriteLog "CheckLeadingZero=" & CheckLeadingZero
+	WriteLog "CheckLeadingZeroDisc=" & CheckLeadingZeroDisc
 	REM WriteLog "CheckUserCollection=" & CheckUserCollection
 	WriteLog "ReleaseTag=" & ReleaseTag
 	WriteLog "CatalogTag=" & CatalogTag
@@ -7282,7 +7298,7 @@ Function searchKeyword(Keywords, Role, AlbumRole, artistName)
 					If AlbumRole = "" Then
 						AlbumRole = artistName
 					Else
-						AlbumRole = AlbumRole & ArtistSeparator & artistName
+						AlbumRole = AlbumRole & Separator & artistName
 					End If
 					searchKeyword = AlbumRole
 				Else
@@ -7297,7 +7313,7 @@ Function searchKeyword(Keywords, Role, AlbumRole, artistName)
 					If AlbumRole = "" Then
 						AlbumRole = artistName
 					Else
-						AlbumRole = AlbumRole & ArtistSeparator & artistName
+						AlbumRole = AlbumRole & Separator & artistName
 					End If
 					searchKeyword = AlbumRole
 				Else
@@ -8472,3 +8488,21 @@ Sub ReportRelease()
 
 End Sub
 
+
+Function LeadingZeroDisc(TestNumber)
+
+	If CheckLeadingZeroDisc = False Then
+		LeadingZeroDisc = TestNumber
+	Else
+		If IsInteger(TestNumber) Then
+			If Left(cStr(TestNumber), 1) <> "0" And TestNumber < 10 Then
+				LeadingZeroDisc = "0" & TestNumber
+			Else
+				LeadingZeroDisc = TestNumber
+			End If
+		Else
+			LeadingZeroDisc = TestNumber
+		End If
+	End If
+
+End Function

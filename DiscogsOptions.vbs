@@ -531,13 +531,13 @@ Sub InitSheet(Sheet)
 	Set Label2 = UI.NewLabel(GroupBox2)
 	Label2.Common.SetRect 20, 90, 50, 25
 	Label2.Caption = SDB.Localize("Artist Separator")
-	Label2.Common.Hint = "Standard is ', ' without apostrophe"
+	Label2.Common.Hint = "Standard is ', ' without apostrophe" & vbCrLf & "The artist separator will only be used in the artist tag and the involved people tag"
 
 	Set EditArtistSep = UI.NewEdit(GroupBox2)
 	EditArtistSep.Common.SetRect 20, 105, 50, 35
 	EditArtistSep.Common.ControlName = "ArtistSeparator"
 	EditArtistSep.Text = ArtistSeparator
-	EditArtistSep.Common.Hint = "Standard is ', ' without apostrophe"
+	EditArtistSep.Common.Hint = "Standard is ', ' without apostrophe" & vbCrLf & "The artist separator will only be used in the artist tag and the involved people tag"
 
 	Set Label2 = UI.NewLabel(GroupBox2)
 	Label2.Common.SetRect 165, 107, 125, 25
