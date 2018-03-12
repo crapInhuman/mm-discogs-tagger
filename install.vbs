@@ -1,5 +1,16 @@
 Dim inip, inif, scriptName
 
+Set inif = SDB.IniFile
+scriptname = inif.StringValue( "AlbumBrowser","RunningScriptName")
+If scriptname = "DiscogsAutoTagWeb.vbs" Then
+	inif.StringValue("AlbumBrowser","RunningScriptName") = "DiscogsWebTag.vbs"
+End If
+If inif.StringValue("DiscogsAutoTagWeb","AccessToken") = "" Then
+	inif.StringValue("AlbumBrowser","RunningScriptName") = "MusicBrainzWebTag.vbs"
+End If
+inif.Apply
+
+
 inip = SDB.ApplicationPath&"Scripts\Scripts.ini"
 Set inif = SDB.Tools.IniFileByPath(inip)
 

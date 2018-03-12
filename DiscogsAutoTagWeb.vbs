@@ -2,7 +2,15 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.55"
+Const VersionStr = "v5.56"
+
+'Changes from 5.55 to 5.56 by crap_inhuman in 02.2018
+'	Changed some visual things to be more user-friendly
+'	Authorize the Discogs Tagger should now be more user-friendly
+'	Every individual genre and style can now selected
+'	Bug removed: if last track is a sub-track, it didn't recognized as sub-track
+'	Updating the track titles can now be turned off
+
 
 'Changes from 5.54 to 5.55 by crap_inhuman in 01.2018
 '	Now choose your favourite tagger (Discogs or MusicBrainz) from options in the right upper corner
@@ -471,6 +479,7 @@ Dim SavedSearchArtist, SavedSearchAlbum
 Dim SavedMasterID, SavedArtistID, SavedLabelID
 
 Dim FilterMediaType, FilterCountry, FilterYear, FilterMediaFormat, CurrentLoadType
+Dim NewGenre, GenresList, GenresSelect
 Dim MediaTypeList, MediaFormatList, CountryList, CountryCode, YearList, AlternativeList, LoadList, RelationAttrList
 Dim ArtistSeparator, ArtistLastSeparator, LimitReleases
 
@@ -481,6 +490,7 @@ Dim iAutoTrackNumber, iAutoDiscNumber, iAutoDiscFormat
 Dim LastDisc
 Dim SelectAll
 Dim UnselectedTracks(1000)
+Dim UnselectedTrackNames(1000)
 Dim CheckNewVersion, LastCheck
 
 Dim ReleaseTag, CountryTag, CatalogTag, FormatTag
@@ -567,7 +577,7 @@ Sub StartSearchType(Panel, SearchTerm, SearchArtist, SearchAlbum, SearchType)
 			ini.BoolValue("DiscogsAutoTagWeb","CheckAlbumArtist") = True
 		End If
 		If ini.StringValue("DiscogsAutoTagWeb","CheckAlbumArtistFirst") = "" Then
-			ini.BoolValue("DiscogsAutoTagWeb","CheckAlbumArtistFirst") = True
+			ini.BoolValue("DiscogsAutoTagWeb","CheckAlbumArtistFirst") = False
 		End If
 		If ini.StringValue("DiscogsAutoTagWeb","CheckLabel") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","CheckLabel") = True
@@ -903,6 +913,8 @@ Sub StartSearchType(Panel, SearchTerm, SearchArtist, SearchAlbum, SearchType)
 
 	Separator = Left(Separator, Len(Separator)-1)
 	Separator = Right(Separator, Len(Separator)-1)
+
+	CheckAlbumArtistFirst = False
 
 	SelectAll = True
 
@@ -1594,6 +1606,7 @@ Sub StartSearchType(Panel, SearchTerm, SearchArtist, SearchAlbum, SearchType)
 
 	For i = 0 to 999
 		UnselectedTracks(i) = ""
+		UnselectedTrackNames(i) = ""
 	Next
 
 
@@ -1736,13 +1749,11 @@ Sub StartSearchType(Panel, SearchTerm, SearchArtist, SearchAlbum, SearchType)
 	WebBrowser.Common.BringToFront
 
 	If QueryPage = "Discogs" Then
-		ret = authorize_script
+		ret = authorize_script(False)
 	End If
 
-	If (AccessToken <> "" And AccessTokenSecret <> "") Or QueryPage <> "Discogs" Then
+	If ret = True Or QueryPage <> "Discogs" Then
 		FindResults NewSearchTerm, QueryPage
-	Else
-		FormatErrorMessage "Authorize failed ! You have to authorize Discogs Tagger to use it with your Discogs account !"
 	End If
 
 End Sub
@@ -2109,42 +2120,47 @@ Sub LoadMasterResults(MasterID)
 
 			If oXMLHTTP.Status = 200 Then
 				WriteLog "responseText=" & oXMLHTTP.responseText
-				Set currentRelease = json.Decode(oXMLHTTP.responseText)
+				
+				If InStr(oXMLHTTP.responseText, "OAuth client error") <> 0 Then
+					ErrorMessage = oXMLHTTP.responseText
+				Else
+					Set currentRelease = json.Decode(oXMLHTTP.responseText)
 
-				Set Results = SDB.NewStringList
-				Set ResultsReleaseID = SDB.NewStringList
+					Set Results = SDB.NewStringList
+					Set ResultsReleaseID = SDB.NewStringList
 
-				title = ""
-				v_year = ""
-				artist = ""
-				main_release = ""
+					title = ""
+					v_year = ""
+					artist = ""
+					main_release = ""
 
-				SDB.ProcessMessages
+					SDB.ProcessMessages
 
-				title = CurrentRelease("title")
-				tmp = getArtistsName(CurrentRelease, "artists", QueryPage)
-				AlbumArtistTitle = tmp(0)
+					title = CurrentRelease("title")
+					tmp = getArtistsName(CurrentRelease, "artists", QueryPage)
+					AlbumArtistTitle = tmp(0)
 
-				If CurrentRelease.Exists("main_release") Then
-					main_release = CurrentRelease("main_release")
+					If CurrentRelease.Exists("main_release") Then
+						main_release = CurrentRelease("main_release")
+					End If
+					If CurrentRelease.Exists("year") Then
+						v_year = CurrentRelease("year")
+					End If
+
+					If AlbumArtistTitle <> "" Then ReleaseDesc = AlbumArtistTitle End If
+					If AlbumArtistTitle <> "" and title <> "" Then ReleaseDesc = ReleaseDesc & " -" End If
+					If title <> "" Then ReleaseDesc = ReleaseDesc & " " & title End If
+					If v_year <> "" Then ReleaseDesc = ReleaseDesc & " (" & v_year & ")" End If
+					ReleaseDesc = ReleaseDesc & " (Master)"
+
+					Results.Add ReleaseDesc
+					ResultsReleaseID.Add CurrentRelease("id")
+
+					SDB.Tools.WebSearch.SetSearchResults Results
+					SDB.Tools.WebSearch.ResultIndex = 0
+
+					ReloadResults
 				End If
-				If CurrentRelease.Exists("year") Then
-					v_year = CurrentRelease("year")
-				End If
-
-				If AlbumArtistTitle <> "" Then ReleaseDesc = AlbumArtistTitle End If
-				If AlbumArtistTitle <> "" and title <> "" Then ReleaseDesc = ReleaseDesc & " -" End If
-				If title <> "" Then ReleaseDesc = ReleaseDesc & " " & title End If
-				If v_year <> "" Then ReleaseDesc = ReleaseDesc & " (" & v_year & ")" End If
-				ReleaseDesc = ReleaseDesc & " (Master)"
-
-				Results.Add ReleaseDesc
-				ResultsReleaseID.Add CurrentRelease("id")
-
-				SDB.Tools.WebSearch.SetSearchResults Results
-				SDB.Tools.WebSearch.ResultIndex = 0
-
-				ReloadResults
 			Else
 				ErrorMessage = "Try loading Master returns ErrorCode: " & oXMLHTTP.Status
 				WriteLog "Try loading Master returns ErrorCode: " & oXMLHTTP.Status
@@ -2262,7 +2278,7 @@ Sub ReloadResults
 	Dim Tracks, TracksNum, DiscogsTracksNum, TracksCD, ArtistTitles, InvolvedArtists, Lyricists, Composers, Conductors, Producers, Durations
 	Dim AlbumArtist, AlbumArtistTitle, AlbumLyricist, AlbumComposer, AlbumConductor, AlbumProducer, AlbumInvolved, AlbumFeaturing, AlbumTitle
 	Dim track, currentTrack, position, artist, currentArtist, artistName, extraArtist, extra
-	Dim currentImage, currentLabel, currentFormat, theMaster, i, g, l, s, f, d, currentMedia, m, t
+	Dim currentImage, currentLabel, currentFormat, theMaster, i, g, l, s, f, d, currentMedia, m, t, x
 	Dim ReleaseDate, ReleaseSplit, theLabels, theCatalogs, theCountry, theFormat
 	Dim rTrackPosition, rSubPosition
 	Dim oXMLHTTP, searchURL
@@ -2282,6 +2298,8 @@ Sub ReloadResults
 	Set Durations = SDB.NewStringList
 	Set rTrackPosition = SDB.NewStringList
 	Set rSubPosition = SDB.NewStringList
+	Set GenresList = SDB.NewStringList
+	REM Set GenresSelect = SDB.NewStringList
 
 	'----------------------------------DiscogsImages----------------------------------------
 	Set SaveImage = SDB.NewStringList
@@ -2583,6 +2601,8 @@ Sub ReloadResults
 			End If
 			' Get track titles and track artists
 
+			WriteLog " "
+			WriteLog "--------------------------------------------------------------"
 			iAutoTrackNumber = 1
 			iAutoDiscNumber = 1
 			iAutoDiscFormat = ""
@@ -2645,6 +2665,7 @@ Sub ReloadResults
 						End If
 						If NewResult = True Then
 							UnselectedTracks(iTrackNum) = "x"
+							UnselectedTrackNames(iTrackNum) = "x"
 						End If
 						NewSubTrackFound = True
 						WriteLog "New Subtrack"
@@ -2656,14 +2677,27 @@ Sub ReloadResults
 						End If
 						If NewResult = True Then
 							UnselectedTracks(iTrackNum) = "x"
+							UnselectedTrackNames(iTrackNum) = "x"
 						End If
 						WriteLog "More Subtrack"
 					End If
+					If  t = (UBound(Title_Position) - 1) Then	'if last track and subtrack then add to subtrack songlist
+						If SubTrackNameSelection = False Then
+							Tracks.Item(cNewSubTrack) = Tracks.Item(cNewSubTrack) & " (" & subTrackTitle & ")"
+						Else
+							Tracks.Item(cNewSubTrack) = subTrackTitle
+						End If
+					End If
 				Else
 					If NewSubTrackFound = True Then
-						Tracks.Item(cNewSubTrack) = Tracks.Item(cNewSubTrack) & " (" & subTrackTitle & ")"
+						If SubTrackNameSelection = False Then
+							Tracks.Item(cNewSubTrack) = Tracks.Item(cNewSubTrack) & " (" & subTrackTitle & ")"
+						Else
+							Tracks.Item(cNewSubTrack) = subTrackTitle
+						End If
 						If NewResult = True Then
 							UnselectedTracks(cNewSubTrack) = ""
+							UnselectedTrackNames(cNewSubTrack) = ""
 						End If
 						NewSubTrackFound = False
 						cNewSubTrack = -1
@@ -2754,12 +2788,20 @@ Sub ReloadResults
 											If NewResult = True Then
 												UnselectedTracks(iTrackNum-1) = ""
 												UnselectedTracks(iTrackNum) = "x"
+												UnselectedTrackNames(iTrackNum-1) = ""
+												UnselectedTrackNames(iTrackNum) = "x"
 											End If
 										Else
-											If NewResult = True Then UnselectedTracks(iTrackNum) = ""
+											If NewResult = True Then
+												UnselectedTracks(iTrackNum) = ""
+												UnselectedTrackNames(iTrackNum) = ""
+											End If
 										End If
 									Else
-										If NewResult = True Then UnselectedTracks(iTrackNum) = ""
+										If NewResult = True Then
+											UnselectedTracks(iTrackNum) = ""
+											UnselectedTrackNames(iTrackNum) = ""
+										End If
 									End If
 								Else
 									If ArtistsList(t) <> "" Then
@@ -2767,7 +2809,10 @@ Sub ReloadResults
 									Else
 										subTrackTitle = subTrackTitle & ", " & trackName
 									End If
-									If NewResult = True Then UnselectedTracks(iTrackNum) = "x"
+									If NewResult = True Then
+										UnselectedTracks(iTrackNum) = "x"
+										UnselectedTrackNames(iTrackNum) = "x"
+									End If
 								End If
 
 								'SubTrack Function ---------------------------------------------------------
@@ -2780,11 +2825,15 @@ Sub ReloadResults
 				ElseIf (trackName = "-" And rSubPosition.Item(t) <> "NewSubTrack") Then
 					tracksNum.Add ""
 					tracksCD.Add ""
-					If NewResult = True Then UnselectedTracks(iTrackNum) = "x"
+					If NewResult = True Then
+						UnselectedTracks(iTrackNum) = "x"
+						UnselectedTrackNames(iTrackNum) = "x"
+					End If
 				ElseIf currentTrack("type_") = "heading" Then
 					WriteLog "Heading-Track erkannt"
 					If NewResult = True Or UnselectedTracks(iTrackNum) = "x" Then
 						UnselectedTracks(iTrackNum) = "x"
+						UnselectedTrackNames(iTrackNum) = "x"
 						tracksNum.Add ""
 						tracksCD.Add ""
 					End If
@@ -3202,16 +3251,46 @@ Sub ReloadResults
 			WriteLog "OriginalDate=" & OriginalDate
 
 			' Get genres
+			If GenresSelect.Count > 0 Then
+				tmp2 = true
+			Else
+				tmp2 = false
+			End If
 			For Each g In CurrentRelease("genres")
-				AddToField Genres, CurrentRelease("genres")(g)
+				REM AddToField Genres, CurrentRelease("genres")(g)
+				tmp = false
+				If GenresList.Count > 0 Then
+					For x = 0 to GenresList.Count -1
+						If LCase(GenresList.Item(x)) = LCase(CurrentRelease("genres")(g)) Then tmp = true
+					Next
+				End If
+				If tmp = false Then 
+					GenresList.Add CurrentRelease("genres")(g)
+					If tmp2 = false Then
+						GenresSelect.Add True
+					End If
+				End If
 			Next
 
 			' Get styles/moods/themes
 			If CurrentRelease.Exists("styles") Then
 				For Each s In CurrentRelease("styles")
-					AddToField Styles, CurrentRelease("styles")(s)
+					REM AddToField Styles, CurrentRelease("styles")(s)
+					tmp = false
+					If GenresList.Count > 0 Then
+						For x = 0 to GenresList.Count -1
+							If LCase(GenresList.Item(x)) = LCase(CurrentRelease("styles")(s)) Then tmp = true
+						Next
+					End If
+					If tmp = false Then 
+						GenresList.Add CurrentRelease("styles")(s)
+						If tmp2 = false Then
+							GenresSelect.Add True
+						End If
+					End If
 				Next
 			End If
+
 
 			' Get Label
 			If CurrentRelease.Exists("labels") Then
@@ -3462,6 +3541,7 @@ Sub ReloadResults
 						tracksNum.Add ""
 						tracksCD.Add ""
 						UnselectedTracks(iTrackNum) = "x"
+						UnselectedTrackNames(iTrackNum) = "x"
 					Else ' Nothing specified
 						If CheckForceNumeric And UnselectedTracks(iTrackNum) <> "x" Then
 							If CheckLeadingZero = True And iAutoTrackNumber < 10 Then
@@ -3869,7 +3949,7 @@ Sub ReloadResults
 		End If
 	End If
 
-	FormatSearchResultsViewer Tracks, TracksNum, TracksCD, Durations, AlbumArtist, AlbumArtistTitle, ArtistTitles, AlbumTitle, ReleaseDate, OriginalDate, Genres, Styles, theLabels, theCountry, AlbumArtThumbNail, CurrentReleaseId, theCatalogs, Lyricists, Composers, Conductors, Producers, InvolvedArtists, theFormat, theMaster, comment, DiscogsTracksNum, DataQuality
+	FormatSearchResultsViewer Tracks, TracksNum, TracksCD, Durations, AlbumArtist, AlbumArtistTitle, ArtistTitles, AlbumTitle, ReleaseDate, OriginalDate, GenresList, theLabels, theCountry, AlbumArtThumbNail, CurrentReleaseId, theCatalogs, Lyricists, Composers, Conductors, Producers, InvolvedArtists, theFormat, theMaster, comment, DiscogsTracksNum, DataQuality
 
 	Dim SelectedTracks, j
 	Set SelectedTracks = SDB.NewStringList
@@ -3877,11 +3957,19 @@ Sub ReloadResults
 
 	For i = 0 To Tracks.Count - 1
 		If UnselectedTracks(i) = "" Then
-			SelectedTracks.Add Tracks.Item(i)
+			If UnselectedTrackNames(i) = "" Then
+				SelectedTracks.Add Tracks.Item(i)
+			Else
+				If SDB.Tools.WebSearch.NewTracks.Count - 1 < i Then
+					SelectedTracks.Add Tracks.Item(i)
+				Else
+					SelectedTracks.Add SDB.Tools.WebSearch.NewTracks.Item(i).Title
+				End If
+			End If
 		End If
 	Next
 	For i = 0 To SDB.Tools.WebSearch.NewTracks.Count -1
-		SelectedSongsGlobal.Add SDB.Tools.WebSearch.NewTracks.item(i)
+		SelectedSongsGlobal.Add SDB.Tools.WebSearch.NewTracks.Item(i)
 	Next
 
 	SDB.Tools.WebSearch.SmartUpdateTracks SelectedTracks
@@ -3896,11 +3984,16 @@ Sub ReloadResults
 
 	For i = 0 To SDB.Tools.WebSearch.NewTracks.Count - 1
 
-		If CheckArtist Then SDB.Tools.WebSearch.NewTracks.Item(i).ArtistName = AlbumArtistTitle
+		REM If CheckArtist Then SDB.Tools.WebSearch.NewTracks.Item(i).ArtistName = AlbumArtistTitle
 		For j = 0 To Tracks.Count - 1
 			If Tracks.Item(j) = SDB.Tools.WebSearch.NewTracks.Item(i).Title Then
 				If UnselectedTracks(j) = "" Then
-					If CheckArtist And ((CheckDontFillEmptyFields = True And ArtistTitles.Item(j) <> "") Or CheckDontFillEmptyFields = False) Then SDB.Tools.WebSearch.NewTracks.Item(i).ArtistName = ArtistTitles.Item(j)
+					If UnselectedTrackNames(j) = "" Then
+						SDB.Tools.WebSearch.NewTracks.Item(i).Title = Tracks.Item(j)
+					Else
+						SDB.Tools.WebSearch.NewTracks.Item(i).Title = SDB.Tools.WebSearch.NewTracks.Item(i).Title
+					End If
+					REM If CheckArtist And ((CheckDontFillEmptyFields = True And ArtistTitles.Item(j) <> "") Or CheckDontFillEmptyFields = False) Then SDB.Tools.WebSearch.NewTracks.Item(i).ArtistName = ArtistTitles.Item(j)
 					If CheckTrackNum And ((CheckDontFillEmptyFields = True And TracksNum.Item(j) <> "") Or CheckDontFillEmptyFields = False) Then SDB.Tools.WebSearch.NewTracks.Item(i).TrackOrderStr = TracksNum.Item(j)
 					If CheckDiscNum And ((CheckDontFillEmptyFields = True And TracksCD.Item(j) <> "") Or CheckDontFillEmptyFields = False) Then SDB.Tools.WebSearch.NewTracks.Item(i).DiscNumberStr = TracksCD.Item(j)
 					If CheckInvolved And ((CheckDontFillEmptyFields = True And InvolvedArtists.Item(j) <> "") Or CheckDontFillEmptyFields = False) Then SDB.Tools.WebSearch.NewTracks.Item(i).InvolvedPeople = InvolvedArtists.Item(j)
@@ -3942,36 +4035,42 @@ Sub ReloadResults
 		End If
 
 		If CheckStyleField = "Default (stored with Genre)" Then
-			If CheckGenre And CheckStyle Then
-				If Not(Genres = "" And Styles = "" And CheckDontFillEmptyFields = True) Then
-					SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Genres & Separator & Styles
-					If Genres = "" Then SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Styles
-					If Styles = "" Then SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Genres
-				End If
-			ElseIf CheckGenre Then
-				If Not(Genres = "" And CheckDontFillEmptyFields = True) Then
-					SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Genres
-				End If
-			ElseIf CheckStyle Then
-				If Not(Styles = "" And CheckDontFillEmptyFields = True) Then
-					SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Styles
-				End If
-			End If
-		Else
 			If CheckGenre Then
-				If Not(Genres = "" And CheckDontFillEmptyFields = True) Then
-					SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Genres
+				If Not(NewGenre = "" And CheckDontFillEmptyFields = True) Then
+					SDB.Tools.WebSearch.NewTracks.Item(i).Genre = NewGenre
 				End If
 			End If
-			If CheckStyle Then
-				If Not(Styles = "" And CheckDontFillEmptyFields = True) Then
-					If CheckStyleField = "Custom1" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom1 = Styles
-					If CheckStyleField = "Custom2" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom2 = Styles
-					If CheckStyleField = "Custom3" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom3 = Styles
-					If CheckStyleField = "Custom4" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom4 = Styles
-					If CheckStyleField = "Custom5" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom5 = Styles
-				End If
-			End If
+			
+			REM If CheckGenre And CheckStyle Then
+				REM If Not(Genres = "" And Styles = "" And CheckDontFillEmptyFields = True) Then
+					REM SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Genres & Separator & Styles
+					REM If Genres = "" Then SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Styles
+					REM If Styles = "" Then SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Genres
+				REM End If
+			REM ElseIf CheckGenre Then
+				REM If Not(Genres = "" And CheckDontFillEmptyFields = True) Then
+					REM SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Genres
+				REM End If
+			REM ElseIf CheckStyle Then
+				REM If Not(Styles = "" And CheckDontFillEmptyFields = True) Then
+					REM SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Styles
+				REM End If
+			REM End If
+		REM Else
+			REM If CheckGenre Then
+				REM If Not(Genres = "" And CheckDontFillEmptyFields = True) Then
+					REM SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Genres
+				REM End If
+			REM End If
+			REM If CheckStyle Then
+				REM If Not(Styles = "" And CheckDontFillEmptyFields = True) Then
+					REM If CheckStyleField = "Custom1" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom1 = Styles
+					REM If CheckStyleField = "Custom2" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom2 = Styles
+					REM If CheckStyleField = "Custom3" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom3 = Styles
+					REM If CheckStyleField = "Custom4" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom4 = Styles
+					REM If CheckStyleField = "Custom5" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom5 = Styles
+				REM End If
+			REM End If
 		End If
 		If CheckLabel And ((CheckDontFillEmptyFields = True And theLabels <> "") Or CheckDontFillEmptyFields = False) Then SDB.Tools.WebSearch.NewTracks.Item(i).Publisher = theLabels
 
@@ -4515,13 +4614,15 @@ Sub Track_from_to (currentTrack, currentArtist, involvedRole, Title_Position, Tr
 			currentTrack = Replace(currentTrack, "  ", " ")
 		Loop While True
 	End If
-	tmp = Split(currentTrack, " ")
+	tmp = Split(currentTrack, " to ")
 	StartSide = ""
 	EndSide = ""
 	TrackSeparator = ""
+	WriteLog "StartTrack=" & tmp(0)
+	WriteLog "EndTrack=" & tmp(1)
 
 	StartTrack = exchange_roman_numbers(tmp(0))
-	EndTrack = exchange_roman_numbers(tmp(2))
+	EndTrack = exchange_roman_numbers(tmp(1))
 
 	If InStr(StartTrack, "-") <> 0 Then
 		tmp4 = Split(StartTrack, "-")
@@ -4567,6 +4668,24 @@ Sub Track_from_to (currentTrack, currentArtist, involvedRole, Title_Position, Tr
 		EndSide = "DVD"
 		EndTrack = Mid(EndTrack, 4)
 	End If
+	If UCase(Left(StartTrack, 6)) = "VIDEO " Then
+		StartSide = "VIDEO "
+		StartTrack = Mid(StartTrack, 7)
+	End If
+	If UCase(Left(EndTrack, 6)) = "VIDEO " Then
+		EndSide = "VIDEO "
+		EndTrack = Mid(EndTrack, 7)
+	End If
+	If UCase(Left(StartTrack, 5)) = "VIDEO" Then
+		StartSide = "VIDEO"
+		StartTrack = Mid(StartTrack, 6)
+	End If
+	If UCase(Left(EndTrack, 5)) = "VIDEO" Then
+		EndSide = "VIDEO"
+		EndTrack = Mid(EndTrack, 6)
+	End If
+	WriteLog "StartTrack=" & StartTrack
+	WriteLog "EndTrack=" & EndTrack
 	If IsNumeric(Right(StartTrack,1)) = False And Len(StartTrack) > 1 Then
 		StartTrack = Left(StartTrack, Len(StartTrack)-1)
 	End If
@@ -4574,6 +4693,7 @@ Sub Track_from_to (currentTrack, currentArtist, involvedRole, Title_Position, Tr
 		EndTrack = Left(EndTrack, Len(EndTrack)-1)
 	End If
 	If IsNumeric(StartTrack) = False Then
+		WriteLog "isnotnumeric"
 		If Len(StartTrack) > 1 Then
 			StartSide = Left(StartTrack, 1)
 			StartTrack = Mid(StartTrack, 2)
@@ -4685,6 +4805,7 @@ Sub ShowResult(ResultID)
 	Dim ReleaseID, searchURL, oXMLHTTP, ResponseHTML, TXTBegin, TXTEnd, Title, SelectedTracks, searchURL_F, searchURL_L, i
 	For i = 0 to 999
 		UnselectedTracks(i) = ""
+		UnselectedTrackNames(i) = ""
 	Next
 	NewResult = True
 	WebBrowser.SetHTMLDocument ""                 ' Deletes visible search result
@@ -4776,6 +4897,9 @@ Sub ShowResult(ResultID)
 		WriteLog "Start ShowResult Discogs"
 		ReleaseID = ResultsReleaseID.Item(ResultID)
 		WriteLog "ReleaseID=" & ReleaseID
+		
+		Set GenresSelect = SDB.NewStringList
+		
 		If InStr(Results.Item(ResultID), "search returned no results") = 0 And InStr(Results.Item(ResultID), "No Release found") = 0 Then
 			If InStr(Results.Item(ResultID), " * ") <> 0 Or Right(Results.Item(ResultID), 8) = "(Master)" Then  'Master-Release
 				searchURL_F = "https://api.discogs.com/masters/"
@@ -4790,13 +4914,13 @@ Sub ShowResult(ResultID)
 			oXMLHTTP.open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
 			oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
 			oXMLHTTP.setRequestHeader "User-Agent",UserAgent
-			WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L
-			oXMLHTTP.send("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L)
+			WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L & "&version=" & VersionStr
+			oXMLHTTP.send("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L & "&version=" & VersionStr)
 
 			If oXMLHTTP.Status = 200 Then
 				WriteLog "responseText=" & oXMLHTTP.responseText
 				If InStr(oXMLHTTP.responseText, "OAuth client error") <> 0 Then
-					ErrorMessage = "OAuth Server error / Please try again"
+					ErrorMessage = oXMLHTTP.responseText
 					FormatErrorMessage ErrorMessage
 				Else
 					Set CurrentRelease = json.Decode(oXMLHTTP.responseText)
@@ -4947,7 +5071,7 @@ Function GetHeader()
 
 	templateHTML = templateHTML &  "<table border=0 cellspacing=0 cellpadding=2 class=tabletext>"
 	REM templateHTML = templateHTML &  "<tr><td colspan=5></td><td><b>Filter Results: </b></td><td colspan=3> </td></tr>"
-	templateHTML = templateHTML &  "<tr><td colspan=3></td><td><button type=button class=tabletext id=""showadvancedsearch"">Advanced Search</button></td><td></td><td><b>Filter Results: </b></td><td colspan=3> </td></tr>"
+	templateHTML = templateHTML &  "<tr><td colspan=4></td><td><button type=button class=tabletext id=""showadvancedsearch"">Manual Search</button></td><td><b>Filter Results: </b></td><td colspan=3> </td></tr>"
 	REM templateHTML = templateHTML &  "<tr><td colspan=3></td><td colspan=2>Search for:<input type=radio id=""searchartist"" name=""SearchFor"" title=""Enter search string in upper dropdown-field and choose what to search for"" value=""Artist"">Artist<input type=radio id=""searchalbum"" name=""SearchFor"" title=""Enter search string in upper dropdown-field and choose what to search for"" value=""Album"">Album<input type=radio id=""searchrelease"" name=""SearchFor"" title=""Enter search string in upper drop-down field and choose what to search for"" value=""Release"">Release</td><td><b>Filter Results: </b></td><td colspan=3> </td></tr>"
 	templateHTML = templateHTML &  "<tr>"
 	templateHTML = templateHTML &  "<td><b></b></td>"
@@ -5127,7 +5251,7 @@ End Function
 
 
 ' We use this procedure to reformat results as soon as they are downloaded
-Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtist, AlbumArtistTitle, ArtistTitles, AlbumTitle, ReleaseDate, OriginalDate, Genres, Styles, theLabels, theCountry, AlbumArtThumbNail, releaseID, Catalog, Lyricists, Composers, Conductors, Producers, InvolvedArtists, theFormat, theMaster, comment, DiscogsTracksNum, DataQuality)
+Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtist, AlbumArtistTitle, ArtistTitles, AlbumTitle, ReleaseDate, OriginalDate, GenresList, theLabels, theCountry, AlbumArtThumbNail, releaseID, Catalog, Lyricists, Composers, Conductors, Producers, InvolvedArtists, theFormat, theMaster, comment, DiscogsTracksNum, DataQuality)
 
 	Dim templateHTML, checkBox, radio, text, listBox, submitButton, tmp
 	Dim SelectedTracksCount, UnSelectedTracksCount
@@ -5158,57 +5282,29 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	End If
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""checkcover"" >Save Cover</td></tr>"
 	If ImagesCount > 1 Then
-		templateHTML = templateHTML &  "<tr><td colspan=2 align=center><button type=button class=tabletext id=""moreimages"">More Images</button></td></tr>"
+		templateHTML = templateHTML &  "<tr><td colspan=2 align=center><button type=button class=tabletext id=""moreimages"" title=""Use this button if you like to store more images (leaflet page, media label)"">More Images</button></td></tr>"
 	End If
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=center><br></td></tr>"
 	' Release Cover End
 
 	' Options Begin
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=center><button type=button class=tabletext id=""saveoptions"">Save Options</button></td></tr>"
+	templateHTML = templateHTML &  "<tr><td colspan=2 align=center><button type=button class=tabletext id=""saveoptions"" title=""Use this button to save the options you set"" >Save Options</button></td></tr>"
+	
+	templateHTML = templateHTML &  "<tr><td colspan=2 align=center><button type=button class=tabletext id=""optionsform"" title=""Use this button to set tagging options"" >Tagging Options</button></td></tr>"
+	
 	templateHTML = templateHTML &  "<tr><td align=center colspan=2><b>Options:</b></td></tr>"
 	
 	REM templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""usercollection"" title=""If checked the tagged album will be added to the User Collection at Discogs"" >Add album to User Collection</td></tr>"
 	If QueryPage = "Discogs" Then
-		templateHTML = templateHTML &  "<tr><td colspan=2 align=center><button type=button class=tabletext id=""usercollection"" title=""Use this button to add the selected album to the User Collection at Discogs"">Add to User Collection</button></td></tr>"
+		templateHTML = templateHTML &  "<tr><td colspan=2 align=center><button type=button class=tabletext id=""usercollection"" title=""Use this button to add the selected album to your collection at Discogs"">Add to User Collection</button></td></tr>"
 	End If
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""lyricist"" >Save Lyricist</td></tr>"
+	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""lyricist"" title=""If a lyricist was named in the release, it will be written into the lyricist tag"" >Save Lyricist</td></tr>"
 	Rem " & SDB.Localize("Save") & " Lyricist</td></tr>"
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""composer"" >Save Composer</td></tr>"
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""conductor"" >Save Conductor</td></tr>"
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""producer"" >Save Producer</td></tr>"
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""involved"" >Save Involved People</td></tr>"
-	If QueryPage = "Discogs" Then
-		Rem templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""comments"" >Save Comment</td></tr>"
-		templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""useanv"" title=""Artist Name Variation - Using no name variation (e.g. nickname)"" >Don't Use ANV's</td></tr>"
-	End If
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""yearonlydate"" title=""If checked only the Year will be saved (e.g. 14.01.1982 -> 1982)"" >Only Year Of Date</td></tr>"
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""deleteduplicatedentry"" title=""If checked the duplicated entries in the label-tag or the catalog-tag will be deleted (e.g. Label-tag: Roadrunner Records; Roadrunner Records  ->  Roadrunner Records"" >Delete duplicated Entries</td></tr>"
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""titlefeaturing"" title=""If checked the feat. artist appears in the title tag (e.g. Aaliyah ft. Timbaland - We Need a Resolution  ->  Aaliyah - We Need a Resolution (ft. Timbaland) )"" >feat. Artist behind Title</td></tr>"
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""ignorefeaturing"" title=""If checked the feat. artist will be ignored"" >Ignore feat. artist</td></tr>"
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""TheBehindArtist"" title=""If checked the ArtistName will be 'Beatles, The' instead of 'The Beatles'"" >Move 'The' in Artist to the end</td></tr>"
-
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""FeaturingName"" title=""Rename 'feat.' to the given word"" >Rename 'feat.' to:</td></tr>"
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=text id=""TxtFeaturingName"" ></td></tr>"
-
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""various"" title=""Rename 'Various' Artist to the given word"" >Rename 'Various' Artist to:</td></tr>"
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=text id=""txtvarious"" ></td></tr>"
-
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""involvedpeoplesingle"" title=""Print every involved people on individual lines"" >Involved people on individual lines</td></tr>"
-
-	templateHTML = templateHTML &  "<tr><td align=center colspan=2><br></td></tr>"
-	templateHTML = templateHTML &  "<tr><td align=center colspan=2><b>Disc/Track Numbering:</b></td></tr>"
-
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""TurnOffSubTrack"" title=""If checked the Sub-Track detection is turned off"" >No Sub-Track detection</td></tr>"
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""SubTrackNameSelection"" title=""If checked the Sub-Track will be named like 'Sub-Track 1, Sub-Track 2, Sub Track 3'  if not checked the Sub-Tracks will be named like 'Track Name (Sub-Track 1, Sub-Track 2, Sub Track 3)'"" >Other Sub-Track Naming</td></tr>"
-
-	If QueryPage = "Discogs" Then
-		templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""forcenumeric"" title=""Always use numbers instead of letters (Vinyl-releases use A1, A2,..., B1, B2 as track numbering)"" >Force To Numeric</td></tr>"
-		templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""sidestodisc"" title=""Save the Vinyl sides to the disc tag"" >Sides To Disc</td></tr>"
-	End If
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""forcedisc"" title=""Always add a disc-number"" >Force Disc Usage</td></tr>"
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""nodisc"" title=""Prevent the script from interpret sub tracks as disc-numbers"" >Force NO Disc Usage</td></tr>"
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""leadingzero"" title=""Track Position: 1 -> 01   2 -> 02 ..."" >Add Leading Zero (Track#)</td></tr>"
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""leadingzeroDisc"" title=""Disc-number: 1 -> 01   2 -> 02 ..."" >Add Leading Zero (Disc#)</td></tr>"
+	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""composer"" title=""If a composer was named in the release, it will be written into the composer tag"" >Save Composer</td></tr>"
+	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""conductor"" title=""If a conductor was named in the release, it will be written into the conductor tag"" >Save Conductor</td></tr>"
+	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""producer"" title=""If a producer was named in the release, it will be written into the producer tag"" >Save Producer</td></tr>"
+	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""involved"" title=""If other involved people were named in the release, their will be written into the involved people tag"" >Save Involved People</td></tr>"
+	
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=center><br></td></tr>"
 
 	templateHTML = templateHTML &  "</table>"
@@ -5249,7 +5345,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	End If
 
 	templateHTML = templateHTML &  "<tr>"
-	templateHTML = templateHTML &  "<td><input type=checkbox id=""releaseid"" ></td>"
+	templateHTML = templateHTML &  "<td><input type=checkbox id=""releaseid"" title=""if set, the release number will be written in a custom tag. You can change the target tag in Tools->Options->Discogs Tagger. If Release-Number saved, the Tagger automatically load next time this release from discogs for the selected files"" ></td>"
 	templateHTML = templateHTML &  "<td>Release:</td>"
 	If InStr(Results.Item(CurrentResultId), " * ") <> 0 Or Right(Results.Item(CurrentResultId), 8) = "(Master)" Then
 		templateHTML = templateHTML &  "<td>N/A</a> (Master: <a href=""https://www.discogs.com/master/<!RELEASEID!>"" target=""_blank""><!RELEASEID!></a>)</td>"
@@ -5264,16 +5360,16 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	End If
 	templateHTML = templateHTML &  "</tr>"
 	templateHTML = templateHTML &  "<tr>"
-	templateHTML = templateHTML &  "<td><input type=checkbox id=""artist"" ></td>"
-	templateHTML = templateHTML &  "<td>Artist:</td>"
-	If QueryPage = "Discogs" Then
-		templateHTML = templateHTML &  "<td><a href=""https://www.discogs.com/artist/" & SavedArtistID & """ target=""_blank""><!ARTIST!></a></td>"
-	ElseIf QueryPage = "MusicBrainz" Then
-		templateHTML = templateHTML &  "<td><a href=""http://www.musicbrainz.org/artist/" & SavedArtistID & """ target=""_blank""><!ARTIST!></a></td>"
-	End If
-	templateHTML = templateHTML &  "</tr>"
-	templateHTML = templateHTML &  "<tr>"
-	templateHTML = templateHTML &  "<td><input type=checkbox id=""album"" ></td>"
+	REM templateHTML = templateHTML &  "<td><input type=checkbox id=""artist"" ></td>"
+	REM templateHTML = templateHTML &  "<td>Artist:</td>"
+	REM If QueryPage = "Discogs" Then
+		REM templateHTML = templateHTML &  "<td><a href=""https://www.discogs.com/artist/" & SavedArtistID & """ target=""_blank""><!ARTIST!></a></td>"
+	REM ElseIf QueryPage = "MusicBrainz" Then
+		REM templateHTML = templateHTML &  "<td><a href=""http://www.musicbrainz.org/artist/" & SavedArtistID & """ target=""_blank""><!ARTIST!></a></td>"
+	REM End If
+	REM templateHTML = templateHTML &  "</tr>"
+	REM templateHTML = templateHTML &  "<tr>"
+	templateHTML = templateHTML &  "<td><input type=checkbox id=""album"" title=""Store the album name in the album-tag"" ></td>"
 	templateHTML = templateHTML &  "<td>Album:</td>"
 	If QueryPage = "Discogs" Then
 		templateHTML = templateHTML &  "<td><a href=""https://www.discogs.com/release/<!RELEASEID!>"" target=""_blank""><!ALBUMTITLE!></a></td>"
@@ -5282,7 +5378,8 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	End If
 	templateHTML = templateHTML &  "</tr>"
 	templateHTML = templateHTML &  "<tr>"
-	templateHTML = templateHTML &  "<td><input type=checkbox id=""albumartist"" ><input type=checkbox title=""If option set, only the name of the first artist will be assumed"" id=""albumartistfirst"" ></td>"
+	templateHTML = templateHTML &  "<td><input type=checkbox id=""albumartist"" title=""Store the name of the albumartist in the albumartist-tag""></td>"
+	REM <input type=checkbox title=""If option set, only the name of the first artist will be assumed"" id=""albumartistfirst"" ></td>"
 	templateHTML = templateHTML &  "<td>Album Artist:</td>"
 	If QueryPage = "Discogs" Then
 		templateHTML = templateHTML &  "<td><a href=""https://www.discogs.com/artist/" & SavedArtistID & """ target=""_blank""><!ALBUMARTIST!></a></td>"
@@ -5291,7 +5388,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	End If
 	templateHTML = templateHTML &  "</tr>"
 	templateHTML = templateHTML &  "<tr>"
-	templateHTML = templateHTML &  "<td><input type=checkbox id=""label"" ></td>"
+	templateHTML = templateHTML &  "<td><input type=checkbox id=""label"" title=""Store the name of the label in the label-tag"" ></td>"
 	templateHTML = templateHTML &  "<td>Label:</td>"
 	If QueryPage = "Discogs" Then
 		templateHTML = templateHTML &  "<td><a href=""https://www.discogs.com/label/" & SavedLabelID & """ target=""_blank""><!LABEL!></a></td>"
@@ -5300,39 +5397,49 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	End If
 	templateHTML = templateHTML &  "</tr>"
 	templateHTML = templateHTML &  "<tr>"
-	templateHTML = templateHTML &  "<td><input type=checkbox id=""catalog"" ></td>"
+	templateHTML = templateHTML &  "<td><input type=checkbox id=""catalog"" title=""if set, the catalog number will be written in a custom tag. You can change the target tag in Tools->Options->Discogs Tagger.""></td>"
 	templateHTML = templateHTML &  "<td>Catalog#:</td>"
 	templateHTML = templateHTML &  "<td><!CATALOG!></td>"
 	templateHTML = templateHTML &  "</tr>"
 	templateHTML = templateHTML &  "<tr>"
-	templateHTML = templateHTML &  "<td><input type=checkbox id=""format"" ></td>"
+	templateHTML = templateHTML &  "<td><input type=checkbox id=""format"" title=""if set, the format will be written in a custom tag. You can change the target tag in Tools->Options->Discogs Tagger.""></td>"
 	templateHTML = templateHTML &  "<td>Format:</td>"
 	templateHTML = templateHTML &  "<td><!FORMAT!></td>"
 	templateHTML = templateHTML &  "</tr>"
 	templateHTML = templateHTML &  "<tr>"
-	templateHTML = templateHTML &  "<td><input type=checkbox id=""country"" ></td>"
+	templateHTML = templateHTML &  "<td><input type=checkbox id=""country"" title=""if set, the country will be written in a custom tag. You can change the target tag in Tools->Options->Discogs Tagger.""></td>"
 	templateHTML = templateHTML &  "<td>Country:</td>"
 	templateHTML = templateHTML &  "<td><!COUNTRY!></td>"
 	templateHTML = templateHTML &  "</tr>"
 	templateHTML = templateHTML &  "<tr>"
-	templateHTML = templateHTML &  "<td><input type=checkbox title=""If option set, the release date of this Discogs release will be saved"" id=""date"" ></td>"
+	templateHTML = templateHTML &  "<td><input type=checkbox title=""If option set, the release date of this Discogs release will be saved in the date tag"" id=""date"" ></td>"
 	templateHTML = templateHTML &  "<td>Date:</td>"
 	templateHTML = templateHTML &  "<td><!RELEASEDATE!></td>"
 	templateHTML = templateHTML &  "</tr>"
 	templateHTML = templateHTML &  "<tr>"
-	templateHTML = templateHTML &  "<td><input type=checkbox title=""If option set, the release date of the Discogs master release will be saved"" id=""origdate"" ></td>"
+	templateHTML = templateHTML &  "<td><input type=checkbox title=""If option set, the release date of the Discogs master release will be saved in the original date tag"" id=""origdate"" ></td>"
 	templateHTML = templateHTML &  "<td>Original Date:</td>"
 	templateHTML = templateHTML &  "<td><!ORIGDATE!></td>"
 	templateHTML = templateHTML &  "</tr>"
 	If QueryPage = "Discogs" Then
 		templateHTML = templateHTML &  "<tr>"
-		templateHTML = templateHTML &  "<td><input type=checkbox id=""genre"" ><input type=checkbox id=""style"" ></td>"
+		templateHTML = templateHTML &  "<td><input type=checkbox id=""genre"" title=""If set, the selected genres will be written in the genre-tag""></td>"
+		REM <input type=checkbox id=""style"" ></td>"
 		templateHTML = templateHTML &  "<td>Genre:</td>"
-		templateHTML = templateHTML &  "<td><!GENRE!></td>"
-		templateHTML = templateHTML &  "</tr>"
-
+		If GenresList.Count > 0 Then
+			templateHTML = templateHTML & "<td><input type=checkbox id=""genre0"" >" & GenresList.Item(0) & "</td>"
+			templateHTML = templateHTML &  "</tr>"
+		End If
+		If GenresList.Count > 1 Then
+			For i = 1 To GenresList.Count-1
+				templateHTML = templateHTML &  "<tr><td></td><td></td>"
+				templateHTML = templateHTML & "<td><input type=checkbox id=""genre" & i & """ >" & GenresList.Item(i) & "</td>"
+			REM templateHTML = templateHTML &  "<td><!GENRE!></td>"
+				templateHTML = templateHTML &  "</tr>"
+			Next
+		End If
 		templateHTML = templateHTML &  "<tr>"
-		templateHTML = templateHTML &  "<td><input type=checkbox id=""comments"" ></td>"
+		templateHTML = templateHTML &  "<td><input type=checkbox id=""comments"" title=""Store the comment in the comment-tag"" ></td>"
 		templateHTML = templateHTML &  "<td>Comment:</td>"
 		templateHTML = templateHTML &  "<td style=""width: 250px"">" & Comment & "</td>"
 		templateHTML = templateHTML &  "</tr>"
@@ -5361,9 +5468,12 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Else
 		templateHTML = templateHTML & "<td> </td>"
 	End If
-	templateHTML = templateHTML & "<td><input type=checkbox id=""selectall""></td>"
-	templateHTML = templateHTML & "<td align=center><input type=checkbox id=""discnum""></td>"
-	templateHTML = templateHTML & "<td align=center><input type=checkbox id=""tracknum"" title=""If option NOT set, track numbers will not set automatically (useful when you didn't select all tracks from a release""></td>"
+
+	templateHTML = templateHTML & "<td><input type=checkbox id=""selectall"" title=""Select/Deselect all tracks""></td>"
+	REM templateHTML = templateHTML & "<td align=center><input type=checkbox id=""discnum""></td>"
+	templateHTML = templateHTML & "<td><b>Disc#</b></td>"
+	REM templateHTML = templateHTML & "<td align=center><input type=checkbox id=""tracknum"" title=""If option NOT set, track numbers will not set automatically (useful when you didn't select all tracks from a release""></td>"
+	templateHTML = templateHTML & "<td><b>Track#</b></td>"
 	templateHTML = templateHTML & "<td align=right><b>Artist</b></td>"
 	templateHTML = templateHTML & "<td> </td>"
 	templateHTML = templateHTML & "<td align=left><b>Title</b></td>"
@@ -5379,15 +5489,20 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 			templateHTML = templateHTML & "<td> </td>"
 		End If
 		If(UnselectedTracks(i) = "") Then
-			templateHTML = templateHTML & "<td><input type=checkbox id=""unselected["&i&"]"" checked></td>"
+			templateHTML = templateHTML & "<td><input type=checkbox title=""if set, the track will be used for tagging"" id=""unselected["&i&"]"" checked></td>"
 		Else
-			templateHTML = templateHTML & "<td><input type=checkbox id=""unselected["&i&"]""></td>"
+			templateHTML = templateHTML & "<td><input type=checkbox title=""if set, the track will be used for tagging"" id=""unselected["&i&"]""></td>"
 		End If
 		templateHTML = templateHTML & "<td align=center>" & TracksCD.Item(i) & "</td>"
 		templateHTML = templateHTML & "<td align=center>" & TracksNum.Item(i) & "</td>"
 		templateHTML = templateHTML & "<td align=right>" & ArtistTitles.Item(i) & "</td>"
 		templateHTML = templateHTML & "<td align=center><b>-</b></td>"
-		templateHTML = templateHTML & "<td align=left>" & Tracks.Item(i) & "</td>"
+		templateHTML = templateHTML & "<td align=left>"
+		If(UnselectedTrackNames(i) = "") Then
+			templateHTML = templateHTML & "<input type=checkbox title=""if set, the track title will be updated"" id=""unselectedtrackname["&i&"]"" checked>" & Tracks.Item(i) & "</td>"
+		Else
+			templateHTML = templateHTML & "<input type=checkbox title=""if set, the track title will be updated"" id=""unselectedtrackname["&i&"]"">" & Tracks.Item(i) & "</td>"
+		End If
 		templateHTML = templateHTML & "<td align=right>" & Durations.Item(i) & "</td>"
 		templateHTML = templateHTML & "</tr>"
 		If(CheckLyricist and Lyricists.Item(i) <> "") Then templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left>Lyrics: "& Lyricists.Item(i) &"</td></tr>"
@@ -5433,31 +5548,31 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 		templateHTML = Replace(templateHTML, "<!DATAQUALITY!>", DataQuality)
 		REM templateHTML = Replace(templateHTML, "<!COMMENT!>", Comment)
 	
-		theGenres = ""
+		REM theGenres = ""
 
-		If Genres <> "" Then
-			If CheckGenre Then
-				theGenres = Genres
-			Else
-				theGenres = "<s>" + Genres + "</s>"
-			End If
-		End If
+		REM If Genres <> "" Then
+			REM If CheckGenre Then
+				REM theGenres = Genres
+			REM Else
+				REM theGenres = "<s>" + Genres + "</s>"
+			REM End If
+		REM End If
 
-		If Styles <> "" Then
-			If theGenres <> "" Then
-				If CheckGenre Then
-					theGenres = theGenres & Separator
-				Else
-					theGenres = theGenres & "<s>" & Separator & "</s>"
-				End If
-			End If
-			If CheckStyle Then
-				theGenres = theGenres & Styles
-			Else
-				theGenres = theGenres & "<s>" & Styles & "</s>"
-			End If
-		End If
-		templateHTML = Replace(templateHTML, "<!GENRE!>", theGenres)
+		REM If Styles <> "" Then
+			REM If theGenres <> "" Then
+				REM If CheckGenre Then
+					REM theGenres = theGenres & Separator
+				REM Else
+					REM theGenres = theGenres & "<s>" & Separator & "</s>"
+				REM End If
+			REM End If
+			REM If CheckStyle Then
+				REM theGenres = theGenres & Styles
+			REM Else
+				REM theGenres = theGenres & "<s>" & Styles & "</s>"
+			REM End If
+		REM End If
+		REM templateHTML = Replace(templateHTML, "<!GENRE!>", theGenres)
 	End If
 
 	
@@ -5477,15 +5592,15 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Set checkBox = templateHTMLDoc.getElementById("album")
 	checkBox.Checked = CheckAlbum
 	Script.RegisterEvent checkBox, "onclick", "Update"
-	Set checkBox = templateHTMLDoc.getElementById("artist")
-	checkBox.Checked = CheckArtist
-	Script.RegisterEvent checkBox, "onclick", "Update"
+	REM Set checkBox = templateHTMLDoc.getElementById("artist")
+	REM checkBox.Checked = CheckArtist
+	REM Script.RegisterEvent checkBox, "onclick", "Update"
 	Set checkBox = templateHTMLDoc.getElementById("albumartist")
 	checkBox.Checked = CheckAlbumArtist
 	Script.RegisterEvent checkBox, "onclick", "Update"
-	Set checkBox = templateHTMLDoc.getElementById("albumartistfirst")
-	checkBox.Checked = CheckAlbumArtistFirst
-	Script.RegisterEvent checkBox, "onclick", "Update"
+	REM Set checkBox = templateHTMLDoc.getElementById("albumartistfirst")
+	REM checkBox.Checked = CheckAlbumArtistFirst
+	REM Script.RegisterEvent checkBox, "onclick", "Update"
 	Set checkBox = templateHTMLDoc.getElementById("date")
 	checkBox.Checked = CheckDate
 	Script.RegisterEvent checkBox, "onclick", "Update"
@@ -5502,9 +5617,20 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 		Set checkBox = templateHTMLDoc.getElementById("genre")
 		checkBox.Checked = CheckGenre
 		Script.RegisterEvent checkBox, "onclick", "Update"
-		Set checkBox = templateHTMLDoc.getElementById("style")
-		checkBox.Checked = CheckStyle
-		Script.RegisterEvent checkBox, "onclick", "Update"
+		REM Set checkBox = templateHTMLDoc.getElementById("style")
+		REM checkBox.Checked = CheckStyle
+		REM Script.RegisterEvent checkBox, "onclick", "Update"
+		NewGenre = ""
+		If GenresList.Count > 0 Then
+			For i = 0 To GenresList.Count-1
+				Set checkBox = templateHTMLDoc.getElementById("genre" & i)
+				checkBox.Checked = GenresSelect.Item(i)
+				Script.RegisterEvent checkBox, "onclick", "Update"
+				If GenresSelect.Item(i) = "True" Then
+					AddToField NewGenre, GenresList.Item(i)
+				End If
+			Next
+		End If
 	End If
 	Set checkBox = templateHTMLDoc.getElementById("checkcover")
 	checkBox.Checked = CheckCover
@@ -5533,78 +5659,72 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Set checkBox = templateHTMLDoc.getElementById("producer")
 	checkBox.Checked = CheckProducer
 	Script.RegisterEvent checkBox, "onclick", "Update"
-	Set checkBox = templateHTMLDoc.getElementById("discnum")
-	checkBox.Checked = CheckDiscNum
-	Script.RegisterEvent checkBox, "onclick", "Update"
-	Set checkBox = templateHTMLDoc.getElementById("tracknum")
-	checkBox.Checked = CheckTrackNum
-	Script.RegisterEvent checkBox, "onclick", "Update"
 	Set checkBox = templateHTMLDoc.getElementById("format")
 	checkBox.Checked = CheckFormat
 	Script.RegisterEvent checkBox, "onclick", "Update"
-	If QueryPage = "Discogs" Then
-		Set checkBox = templateHTMLDoc.getElementById("useanv")
-		checkBox.Checked = CheckUseAnv
-		Script.RegisterEvent checkBox, "onclick", "Update"
-	End If
-	Set checkBox = templateHTMLDoc.getElementById("yearonlydate")
-	checkBox.Checked = CheckYearOnlyDate
-	Script.RegisterEvent checkBox, "onclick", "Update"
-	If QueryPage = "Discogs" Then
-		Set checkBox = templateHTMLDoc.getElementById("forcenumeric")
-		checkBox.Checked = CheckForceNumeric
-		Script.RegisterEvent checkBox, "onclick", "Update"
-		Set checkBox = templateHTMLDoc.getElementById("sidestodisc")
-		checkBox.Checked = CheckSidesToDisc
-		Script.RegisterEvent checkBox, "onclick", "Update"
-	End If
-	Set checkBox = templateHTMLDoc.getElementById("forcedisc")
-	checkBox.Checked = CheckForceDisc
-	Script.RegisterEvent checkBox, "onclick", "Update"
-	Set checkBox = templateHTMLDoc.getElementById("nodisc")
-	checkBox.Checked = CheckNoDisc
-	Script.RegisterEvent checkBox, "onclick", "Update"
-	Set checkBox = templateHTMLDoc.getElementById("leadingzero")
-	checkBox.Checked = CheckLeadingZero
-	Script.RegisterEvent checkBox, "onclick", "Update"
-	Set checkBox = templateHTMLDoc.getElementById("leadingzeroDisc")
-	checkBox.Checked = CheckLeadingZeroDisc
-	Script.RegisterEvent checkBox, "onclick", "Update"
-	Set checkBox = templateHTMLDoc.getElementById("titlefeaturing")
-	checkBox.Checked = CheckTitleFeaturing
-	Script.RegisterEvent checkBox, "onclick", "Update"
-	Set checkBox = templateHTMLDoc.getElementById("deleteduplicatedentry")
-	checkBox.Checked = CheckDeleteDuplicatedEntry
-	Script.RegisterEvent checkBox, "onclick", "Update"
-	Set text = templateHTMLDoc.getElementById("TxtFeaturingName")
-	text.value = TxtFeaturingName
-	Script.RegisterEvent text, "onchange", "Update"
-	Set checkbox = templateHTMLDoc.getElementById("FeaturingName")
-	checkBox.Checked = CheckFeaturingName
-	Script.RegisterEvent checkBox, "onclick", "Update"
+	REM If QueryPage = "Discogs" Then
+		REM Set checkBox = templateHTMLDoc.getElementById("useanv")
+		REM checkBox.Checked = CheckUseAnv
+		REM Script.RegisterEvent checkBox, "onclick", "Update"
+	REM End If
+	REM Set checkBox = templateHTMLDoc.getElementById("yearonlydate")
+	REM checkBox.Checked = CheckYearOnlyDate
+	REM Script.RegisterEvent checkBox, "onclick", "Update"
+	REM If QueryPage = "Discogs" Then
+		REM Set checkBox = templateHTMLDoc.getElementById("forcenumeric")
+		REM checkBox.Checked = CheckForceNumeric
+		REM Script.RegisterEvent checkBox, "onclick", "Update"
+		REM Set checkBox = templateHTMLDoc.getElementById("sidestodisc")
+		REM checkBox.Checked = CheckSidesToDisc
+		REM Script.RegisterEvent checkBox, "onclick", "Update"
+	REM End If
+	REM Set checkBox = templateHTMLDoc.getElementById("forcedisc")
+	REM checkBox.Checked = CheckForceDisc
+	REM Script.RegisterEvent checkBox, "onclick", "Update"
+	REM Set checkBox = templateHTMLDoc.getElementById("nodisc")
+	REM checkBox.Checked = CheckNoDisc
+	REM Script.RegisterEvent checkBox, "onclick", "Update"
+	REM Set checkBox = templateHTMLDoc.getElementById("leadingzero")
+	REM checkBox.Checked = CheckLeadingZero
+	REM Script.RegisterEvent checkBox, "onclick", "Update"
+	REM Set checkBox = templateHTMLDoc.getElementById("leadingzeroDisc")
+	REM checkBox.Checked = CheckLeadingZeroDisc
+	REM Script.RegisterEvent checkBox, "onclick", "Update"
+	REM Set checkBox = templateHTMLDoc.getElementById("titlefeaturing")
+	REM checkBox.Checked = CheckTitleFeaturing
+	REM Script.RegisterEvent checkBox, "onclick", "Update"
+	REM Set checkBox = templateHTMLDoc.getElementById("deleteduplicatedentry")
+	REM checkBox.Checked = CheckDeleteDuplicatedEntry
+	REM Script.RegisterEvent checkBox, "onclick", "Update"
+	REM Set text = templateHTMLDoc.getElementById("TxtFeaturingName")
+	REM text.value = TxtFeaturingName
+	REM Script.RegisterEvent text, "onchange", "Update"
+	REM Set checkbox = templateHTMLDoc.getElementById("FeaturingName")
+	REM checkBox.Checked = CheckFeaturingName
+	REM Script.RegisterEvent checkBox, "onclick", "Update"
 	If QueryPage = "Discogs" Then
 		Set checkBox = templateHTMLDoc.getElementById("comments")
 		checkBox.Checked = CheckComment
 		Script.RegisterEvent checkBox, "onclick", "Update"
 	End If
-	Set text = templateHTMLDoc.getElementById("txtvarious")
-	text.value = TxtVarious
-	Script.RegisterEvent text, "onchange", "Update"
-	Set checkBox = templateHTMLDoc.getElementById("various")
-	checkBox.Checked = CheckVarious
-	Script.RegisterEvent checkBox, "onclick", "Update"
-	Set checkBox = templateHTMLDoc.getElementById("SubTrackNameSelection")
-	checkBox.Checked = SubTrackNameSelection
-	Script.RegisterEvent checkBox, "onclick", "Update"
-	Set checkBox = templateHTMLDoc.getElementById("TurnOffSubTrack")
-	checkBox.Checked = CheckTurnOffSubTrack
-	Script.RegisterEvent checkBox, "onclick", "Update"
-	Set checkBox = templateHTMLDoc.getElementById("involvedpeoplesingle")
-	checkBox.Checked = CheckInvolvedPeopleSingleLine
-	Script.RegisterEvent checkBox, "onclick", "Update"
-	Set checkBox = templateHTMLDoc.getElementById("TheBehindArtist")
-	checkBox.Checked = CheckTheBehindArtist
-	Script.RegisterEvent checkBox, "onclick", "Update"
+	REM Set text = templateHTMLDoc.getElementById("txtvarious")
+	REM text.value = TxtVarious
+	REM Script.RegisterEvent text, "onchange", "Update"
+	REM Set checkBox = templateHTMLDoc.getElementById("various")
+	REM checkBox.Checked = CheckVarious
+	REM Script.RegisterEvent checkBox, "onclick", "Update"
+	REM Set checkBox = templateHTMLDoc.getElementById("SubTrackNameSelection")
+	REM checkBox.Checked = SubTrackNameSelection
+	REM Script.RegisterEvent checkBox, "onclick", "Update"
+	REM Set checkBox = templateHTMLDoc.getElementById("TurnOffSubTrack")
+	REM checkBox.Checked = CheckTurnOffSubTrack
+	REM Script.RegisterEvent checkBox, "onclick", "Update"
+	REM Set checkBox = templateHTMLDoc.getElementById("involvedpeoplesingle")
+	REM checkBox.Checked = CheckInvolvedPeopleSingleLine
+	REM Script.RegisterEvent checkBox, "onclick", "Update"
+	REM Set checkBox = templateHTMLDoc.getElementById("TheBehindArtist")
+	REM checkBox.Checked = CheckTheBehindArtist
+	REM Script.RegisterEvent checkBox, "onclick", "Update"
 
 	Set listBox = templateHTMLDoc.getElementById("filtermediatype")
 	Script.RegisterEvent listBox, "onchange", "Filter"
@@ -5620,6 +5740,8 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	For i=0 To iMaxTracks - 1
 		Set checkBox = templateHTMLDoc.getElementById("unselected["&i&"]")
 		Script.RegisterEvent checkBox, "onclick", "Unselect"
+		Set checkBox = templateHTMLDoc.getElementById("unselectedtrackname["&i&"]")
+		Script.RegisterEvent checkBox, "onclick", "Unselect"
 	Next
 
 	Set checkBox = templateHTMLDoc.getElementById("selectall")
@@ -5631,6 +5753,9 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 
 	Set submitButton = templateHTMLDoc.getElementById("saveoptions")
 	Script.RegisterEvent submitButton, "onclick", "SaveOptions"
+	
+	Set submitButton = templateHTMLDoc.getElementById("optionsform")
+	Script.RegisterEvent submitButton, "onclick", "ShowOptions"
 
 	Set submitButton = templateHTMLDoc.getElementById("showcountryfilter")
 	Script.RegisterEvent submitButton, "onclick", "ShowCountryFilter"
@@ -5656,27 +5781,25 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Set submitButton = templateHTMLDoc.getElementById("usercollection")
 	Script.RegisterEvent submitButton, "onclick", "UserCollection"
 
-	Set checkBox = templateHTMLDoc.getElementById("ignorefeaturing")
-	checkBox.Checked = CheckIgnoreFeatArtist
-	Script.RegisterEvent checkBox, "onclick", "Update"
 
 End Sub
 
 
 Sub Update()
 
-	Dim templateHTMLDoc, checkBox, text, radio
+	Dim templateHTMLDoc, checkBox, text, radio, i
 	Set WebBrowser = SDB.Objects("WebBrowser")
 	Set templateHTMLDoc = WebBrowser.Interf.Document
 
 	Set checkBox = templateHTMLDoc.getElementById("album")
 	CheckAlbum = checkBox.Checked
-	Set checkBox = templateHTMLDoc.getElementById("artist")
-	CheckArtist = checkBox.Checked
+	REM Set checkBox = templateHTMLDoc.getElementById("artist")
+	REM CheckArtist = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("albumartist")
 	CheckAlbumArtist = checkBox.Checked
-	Set checkBox = templateHTMLDoc.getElementById("albumartistfirst")
-	CheckAlbumArtistFirst = checkBox.Checked
+	REM Set checkBox = templateHTMLDoc.getElementById("albumartistfirst")
+	REM CheckAlbumArtistFirst = checkBox.Checked
+	
 	Set checkBox = templateHTMLDoc.getElementById("date")
 	CheckDate = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("origdate")
@@ -5686,8 +5809,14 @@ Sub Update()
 	If QueryPage = "Discogs" Then
 		Set checkBox = templateHTMLDoc.getElementById("genre")
 		CheckGenre = checkBox.Checked
-		Set checkBox = templateHTMLDoc.getElementById("style")
-		CheckStyle = checkBox.Checked
+		REM Set checkBox = templateHTMLDoc.getElementById("style")
+		REM CheckStyle = checkBox.Checked
+		If GenresList.Count > 0 Then
+			For i = 0 To GenresList.Count-1
+				Set checkBox = templateHTMLDoc.getElementById("genre" & i)
+				GenresSelect.Item(i) = checkBox.Checked
+			Next
+		End If
 	End If
 	Set checkBox = templateHTMLDoc.getElementById("country")
 	CheckCountry = checkBox.Checked
@@ -5709,66 +5838,10 @@ Sub Update()
 	CheckConductor = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("producer")
 	CheckProducer = checkBox.Checked
-	Set checkBox = templateHTMLDoc.getElementById("discnum")
-	CheckDiscNum = checkBox.Checked
-	Set checkBox = templateHTMLDoc.getElementById("tracknum")
-	CheckTrackNum = checkBox.Checked
-	Set checkBox = templateHTMLDoc.getElementById("format")
-	CheckFormat = checkBox.Checked
-	If QueryPage = "Discogs" Then
-		Set checkBox = templateHTMLDoc.getElementById("useanv")
-		CheckUseAnv = checkBox.Checked
-	End If
-	Set checkBox = templateHTMLDoc.getElementById("yearonlydate")
-	CheckYearOnlyDate = checkBox.Checked
-	If QueryPage = "Discogs" Then
-		Set checkBox = templateHTMLDoc.getElementById("forcenumeric")
-		CheckForceNumeric = checkBox.Checked
-		Set checkBox = templateHTMLDoc.getElementById("sidestodisc")
-		CheckSidesToDisc = checkBox.Checked
-	End If
-	Set checkBox = templateHTMLDoc.getElementById("forcedisc")
-	If Not CheckForceDisc And checkBox.Checked Then
-		CheckNoDisc = False
-		CheckForceDisc = checkBox.Checked
-	Else
-		CheckForceDisc = checkBox.Checked
-		Set checkBox = templateHTMLDoc.getElementById("nodisc")
-		If Not CheckNoDisc And checkBox.Checked Then
-			CheckForceDisc = False
-		End If
-		CheckNoDisc = checkBox.Checked
-	End If
-	Set checkBox = templateHTMLDoc.getElementById("leadingzero")
-	CheckLeadingZero = checkBox.Checked
-	Set checkBox = templateHTMLDoc.getElementById("leadingzeroDisc")
-	CheckLeadingZeroDisc = checkBox.Checked
-	Set checkBox = templateHTMLDoc.getElementById("titlefeaturing")
-	CheckTitleFeaturing = checkBox.Checked
-	Set checkBox = templateHTMLDoc.getElementById("deleteduplicatedentry")
-	CheckDeleteDuplicatedEntry = checkBox.Checked
-	Set checkBox = templateHTMLDoc.getElementById("FeaturingName")
-	CheckFeaturingName = checkBox.Checked
-	Set text = templateHTMLDoc.getElementById("TxtFeaturingName")
-	TxtFeaturingName = text.Value
 	If QueryPage = "Discogs" Then
 		Set checkBox = templateHTMLDoc.getElementById("comments")
 		CheckComment = checkBox.Checked
-	End If
-	Set checkBox = templateHTMLDoc.getElementById("various")
-	CheckVarious = checkBox.Checked
-	Set text = templateHTMLDoc.getElementById("txtvarious")
-	TxtVarious = text.Value
-	Set checkBox = templateHTMLDoc.getElementById("SubTrackNameSelection")
-	SubTrackNameSelection = checkBox.Checked
-	Set checkBox = templateHTMLDoc.getElementById("TurnOffSubTrack")
-	CheckTurnOffSubTrack = checkBox.Checked
-	Set checkBox = templateHTMLDoc.getElementById("involvedpeoplesingle")
-	CheckInvolvedPeopleSingleLine = checkBox.Checked
-	Set checkBox = templateHTMLDoc.getElementById("TheBehindArtist")
-	CheckTheBehindArtist = checkBox.Checked
-	Set checkBox = templateHTMLDoc.getElementById("ignorefeaturing")
-	CheckIgnoreFeatArtist = checkBox.Checked
+	End If	
 
 	OptionsChanged = True
 
@@ -5950,11 +6023,22 @@ End Sub
 ' Format Error Message
 Sub FormatErrorMessage(ErrorMessage)
 
+	Dim templateHTML, listBox, templateHTMLDoc, submitButton, res, ret, tmp
+	
 	WriteLog "Show ErrorMessage"
-	WriteLog "Errormessage=" & Errormessage
-	Dim templateHTML, listBox, templateHTMLDoc, submitButton, res, ret
+	
+	If InStr(ErrorMessage, "{") > 0 Then
+		tmp = InStr(ErrorMessage, "{")
+		ErrorMessage = Mid(ErrorMessage, tmp + 28)
+		tmp = InStr(ErrorMessage, "}")
+		ErrorMessage = Left(ErrorMessage, tmp - 7)
+	End If
+	WriteLog "Errormessage=" & ErrorMessage
+	
 	templateHTML = ""
 	templateHTML = templateHTML &  GetHeader()
+	templateHTML = templateHTML &  "<tr></tr>"
+	templateHTML = templateHTML &  "<tr></tr>"
 	templateHTML = templateHTML &  "<tr>"
 	templateHTML = templateHTML &  "<td colspan=4 align=center><p><b>" & ErrorMessage & "</b></p></td>"
 	templateHTML = templateHTML &  "</tr>"
@@ -5996,12 +6080,12 @@ Sub FormatErrorMessage(ErrorMessage)
 
 	SDB.Tools.WebSearch.ClearTracksData
 	
-	If ErrorMessage = "OAuth client error" Then
+	If InStr(ErrorMessage, "You must authenticate to access this resource") > 0 Then
 		res = SDB.MessageBox("OAuth Client Authentication Error. Do you want to re-authenticate Discogs Tagger ?", mtConfirmation, Array(mbYes, mbNo))
 		If res = 6 Then
 			AccessToken = ""
 			AccessTokenSecret = ""
-			ret = authorize_script()
+			ret = authorize_script(True)
 			If ret = True Then
 				FindResults NewSearchTerm, QueryPage
 			End If
@@ -6260,7 +6344,7 @@ Function JSONParser_find_result(searchURL, ArrayName, SendArtist, SendAlbum, Sen
 			If oXMLHTTP.Status = 200 Then
 				If InStr(oXMLHTTP.responseText, "OAuth client error") <> 0 Then
 					WriteLog "responseText=" & oXMLHTTP.responseText
-					ErrorMessage = "OAuth client error"
+					ErrorMessage = oXMLHTTP.responseText
 					Exit Function
 				Else
 					WriteLog "responseText=" & oXMLHTTP.responseText
@@ -6296,7 +6380,7 @@ Function JSONParser_find_result(searchURL, ArrayName, SendArtist, SendAlbum, Sen
 
 			If Int(SongCountMax) = 0 Then
 				WriteLog "No Release found at Discogs !!"
-				Results.Add "No Release found at Discogs !! Please change the search parameter."
+				Results.Add "No Release found at Discogs !! Please change the search parameter in 'Manual search'."
 				ResultsReleaseID.Add 0
 			Else
 				isRelease = False
@@ -6313,7 +6397,7 @@ Function JSONParser_find_result(searchURL, ArrayName, SendArtist, SendAlbum, Sen
 						If oXMLHTTP.Status = 200 Then
 							If InStr(oXMLHTTP.responseText, "OAuth client error") <> 0 Then
 								WriteLog "responseText=" & oXMLHTTP.responseText
-								ErrorMessage = "OAuth client error"
+								ErrorMessage = oXMLHTTP.responseText
 								Exit Function
 							Else
 								Set response = json.Decode(oXMLHTTP.responseText)
@@ -6488,11 +6572,17 @@ Function ReloadMaster(SavedMasterID)
 	oXMLHTTP.send()
 
 	If oXMLHTTP.Status = 200 Then
-		Set response = json.Decode(oXMLHTTP.responseText)
-		If response.Exists("year") Then
-			OriginalDate = response("year")
+		WriteLog "responseText=" & oXMLHTTP.responseText
+		If InStr(oXMLHTTP.responseText, "OAuth client error") <> 0 Then	
+			ErrorMessage = oXMLHTTP.responseText
+			Exit Function
 		Else
-			OriginalDate = ""
+			Set response = json.Decode(oXMLHTTP.responseText)
+			If response.Exists("year") Then
+				OriginalDate = response("year")
+			Else
+				OriginalDate = ""
+			End If
 		End If
 	End If
 	Set oXMLHTTP = Nothing
@@ -6535,6 +6625,12 @@ Sub Unselect()
 			UnselectedTracks(i) = ""
 		Else
 			UnselectedTracks(i) = "x"
+		End If
+		Set checkBox = templateHTMLDoc.getElementById("unselectedtrackname["&i&"]")
+		If checkBox.Checked Then
+			UnselectedTrackNames(i) = ""
+		Else
+			UnselectedTrackNames(i) = "x"
 		End If
 	Next
 
@@ -8130,68 +8226,6 @@ Sub SwitchAll()
 End Sub
 
 
-Function authorize_script()
-
-	WriteLog "Start Authorize Script"
-
-	Dim IEobj, oXMLHTTP, TypeLib, GUID
-	Dim retIE, retryCnt, start, a
-
-	If AccessToken = "" Or AccessTokenSecret = "" Then
-		SDB.MessageBox "Access to discogs database require authentication." & vbNewLine & "This is part of an ongoing effort to improve API uptime and response times" & vbNewLine & vbNewLine & "You need an account at discogs in order to use Discogs Tagger.", mtInformation, Array(mbOk)
-
-		Set TypeLib = CreateObject("Scriptlet.TypeLib")
-
-		set IEobj = CreateObject("InternetExplorer.Application")
-		
-		GUID = Mid(TypeLib.Guid, 2, 36)
-		WriteLog "GUID=" & GUID
-
-		IEobj.visible = true
-
-		IEobj.navigate ("http://www.germanc64.de/mm/oauth/oauth_guid.php?f=" & GUID)
-
-		WriteLog "IE started"
-		SDB.MessageBox "Press Ok AFTER you have authorize the Discogs Tagger", mtInformation, Array(mbOk)
-		
-		Set oXMLHTTP = Nothing
-		Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
-		oXMLHTTP.open "GET", "http://www.germanc64.de/mm/oauth/get_oauth_guid.php?f=" & GUID, false
-		oXMLHTTP.send()
-		If oXMLHTTP.Status = 200 Then
-			retIE = oXMLHTTP.responseText
-
-			If InStr(retIE, "AccessToken=") <> 0 Then
-				start = InStr(retIE, "AccessToken=")
-				retIE = Mid(retIE, start + 12)
-				AccessToken = Left(retIE, 40)
-				ini.StringValue("DiscogsAutoTagWeb","AccessToken") = AccessToken
-				WriteLog "AccessToken=" & AccessToken
-				start = InStr(retIE, "AccessTokenSecret=")
-				retIE = Mid(retIE, start + 18)
-				AccessTokenSecret = Left(retIE, 40)
-				ini.StringValue("DiscogsAutoTagWeb","AccessTokenSecret") = AccessTokenSecret
-				WriteLog "AccessTokenSecret=" & AccessTokenSecret
-				SDB.MessageBox "The Access Token was stored on your Computer. Now you can use Discogs Tagger till you revoke the permission", mtInformation, Array(mbOk)
-				authorize_script = True
-			End If
-		Else
-			WriteLog "Authorize failed (Err=1)!"
-			SDB.MessageBox "Authorize failed (Err=1)! You have to authorize Discogs Tagger to use it with your Discogs account !" & vbNewLine & "Please restart Discogs Tagger to authorize it !", mtError, Array(mbOk)
-			authorize_script = False
-		End If
-
-		Set oXMLHTTP = Nothing
-	Else
-		WriteLog "AccessToken found in ini = " & AccessToken
-		WriteLog "AccessTokenSecret found in ini = " & AccessTokenSecret
-		authorize_script = True
-	End If
-	WriteLog "End Authorize Script"
-
-End Function
-
-
 Function getArtistsName(Current, Role, QueryPage)
 
 	REM Current = CurrentReleae
@@ -8492,7 +8526,7 @@ Function UserCollection()
 		If oXMLHTTP.Status = 200 Then
 			If InStr(oXMLHTTP.responseText, "OAuth client error") <> 0 Then
 				WriteLog "responseText=" & oXMLHTTP.responseText
-				ErrorMessage = "OAuth client error"
+				ErrorMessage = oXMLHTTP.responseText
 				Exit Function
 			Else
 				WriteLog "responseText=" & oXMLHTTP.responseText
@@ -8625,3 +8659,353 @@ Function LeadingZeroDisc(TestNumber)
 	End If
 
 End Function
+
+
+
+
+
+
+Function authorize_script(AuthFailed)
+
+	WriteLog "Start Authorize Function"
+
+	Dim authHTML, GUID, TypeLib
+	Dim IEobj, oXMLHTTP
+	Dim retIE, retryCnt, start, a
+	Dim Form, WebBrowser2
+	
+	If AuthFailed = False And AccessToken <> "" And AccessTokenSecret <> "" Then
+		authorize_script = True
+		Exit Function
+	End If
+	
+	If AuthFailed = True Then
+		SDB.MessageBox "Authorize failed (Err=1)! You have to authorize Discogs Tagger with your Discogs account !", mtError, Array(mbOk)
+	End If
+	
+	Set Form = UI.NewForm
+	Form.Common.Width = 550
+	Form.Common.Height = 260
+	Form.FormPosition = 4
+	Form.Caption = "Authorize Discogs Tagger"
+	Form.BorderStyle = 3
+	Form.StayOnTop = True
+
+	Set TypeLib = CreateObject("Scriptlet.TypeLib")
+	
+	GUID = Mid(TypeLib.Guid, 2, 36)
+	WriteLog "GUID=" & GUID
+
+	
+	authHTML = "<HTML>"
+	authHTML = authHTML & "<HEAD>"
+	authHTML = authHTML & "<meta content=""text/html; charset=utf-8"" http-equiv=""Content-Type"" />"
+	authHTML = authHTML & "<title>Authorize Discogs Tagger</title>"
+	authHTML = authHTML & "<style type=""text/css"">"
+	authHTML = authHTML & ".auto-style1 {"
+	authHTML = authHTML & "	font-family: Verdana;"
+	authHTML = authHTML & "}"
+	authHTML = authHTML & "</style>"
+	authHTML = authHTML & "</HEAD>"
+	authHTML = authHTML & "<body>"
+	authHTML = authHTML & "<p><span class=""auto-style1"">In order to use the Discogs"
+	authHTML = authHTML & "Tagger, you must</span><br class=""auto-style1"" /><br />"
+	authHTML = authHTML & "<span class=""auto-style1""><a href=""https://www.discogs.com"" target=""_blank"">"
+	authHTML = authHTML & "1. Create an account on the Discogs website</a>,<br /><br />"
+	authHTML = authHTML & "<a href=""http://www.germanc64.de/mm/oauth/oauth_guid.php?f=" & GUID & """ target=""_blank"">2. Authorize the Discogs"
+	authHTML = authHTML & "Tagger"
+	authHTML = authHTML & " to use your newly-created account.</a><br /></span><br class=""auto-style1"" />"
+	authHTML = authHTML & "<br class=""auto-style1"" />"
+	authHTML = authHTML & "<span class=""auto-style1"">Press 'OK', once you've authorized the Discogs Tagger.</span><br class=""auto-style1"" />"
+	authHTML = authHTML & "</p>"
+	authHTML = authHTML & "</body>"
+	authHTML = authHTML & "</html>"
+
+	Dim Foot : Set Foot = SDB.UI.NewPanel(Form)
+	Foot.Common.Align = 2
+	Foot.Common.Height = 35
+
+	Dim Btn2 : Set Btn2 = SDB.UI.NewButton(Foot)
+	Btn2.Caption = SDB.Localize("Ok")
+	Btn2.Common.Width = 75
+	Btn2.Common.Height = 25
+	Btn2.Common.Left = 237
+	Btn2.Common.Top = 6
+	Btn2.Common.Anchors = 2+4
+	Btn2.UseScript = Script.ScriptPath
+	Btn2.ModalResult = 1
+	Btn2.Default = True
+	
+	Set WebBrowser2 = UI.NewActiveX(Form, "Shell.Explorer")
+	WebBrowser2.Common.Align = 5
+	WebBrowser2.Common.ControlName = "WebBrowser2"
+	WebBrowser2.Common.Top = 100
+	WebBrowser2.Common.Left = 100
+
+	SDB.Objects("WebBrowser2") = WebBrowser2
+	WebBrowser2.Interf.Visible = True
+	WebBrowser2.Common.BringToFront
+
+	WebBrowser2.SetHTMLDocument authHTML
+
+	If Form.ShowModal = 1 Then
+		SDB.Objects("WebBrowser2") = Nothing
+		Set oXMLHTTP = Nothing
+		Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
+		oXMLHTTP.open "GET", "http://www.germanc64.de/mm/oauth/get_oauth_guid.php?f=" & GUID, false
+		oXMLHTTP.send()
+		If oXMLHTTP.Status = 200 Then
+			retIE = oXMLHTTP.responseText
+
+			If InStr(retIE, "AccessToken=") <> 0 Then
+				start = InStr(retIE, "AccessToken=")
+				retIE = Mid(retIE, start + 12)
+				AccessToken = Left(retIE, 40)
+				ini.StringValue("DiscogsAutoTagWeb","AccessToken") = AccessToken
+				WriteLog "AccessToken=" & AccessToken
+				start = InStr(retIE, "AccessTokenSecret=")
+				retIE = Mid(retIE, start + 18)
+				AccessTokenSecret = Left(retIE, 40)
+				ini.StringValue("DiscogsAutoTagWeb","AccessTokenSecret") = AccessTokenSecret
+				WriteLog "AccessTokenSecret=" & AccessTokenSecret
+				SDB.MessageBox "Congratulations! You can now use Discogs Tagger!", mtInformation, Array(mbOk)
+				authorize_script = True
+			End If
+		Else
+			WriteLog "Authorize failed (Err=1)!"
+			Set oXMLHTTP = Nothing
+			authorize_script(False)
+		End If
+
+		Set oXMLHTTP = Nothing
+	Else
+		WriteLog "AccessToken found in ini = " & AccessToken
+		WriteLog "AccessTokenSecret found in ini = " & AccessTokenSecret
+		SDB.Objects("WebBrowser2") = Nothing
+		authorize_script = True
+	End If
+	WriteLog "End Authorize Function"
+	
+
+End Function
+
+
+Sub showOptions()
+
+	WriteLog "Start OptionsForm"
+
+	Dim Form, WebBrowser2, optionsHTML, optionsHTMLDoc, checkbox, text
+	Dim i, a
+	Set Form = UI.NewForm
+	Form.Common.Width = 275
+	Form.Common.Height = 620
+	Form.FormPosition = 4
+	Form.Caption = "Tagging Options"
+	Form.BorderStyle = 3
+	Form.StayOnTop = True
+	
+	Dim Foot : Set Foot = SDB.UI.NewPanel(Form)
+	Foot.Common.Align = 2
+	Foot.Common.Height = 35
+
+	Dim Btn : Set Btn = SDB.UI.NewButton(Foot)
+	Btn.Caption = SDB.Localize("Cancel")
+	Btn.Common.Width = 85
+	Btn.Common.Height = 25
+	Btn.Common.Left = 170
+	Btn.Common.Top = 6
+	Btn.Common.Anchors = 2+4
+	Btn.UseScript = Script.ScriptPath
+	Btn.ModalResult = 2
+	Btn.Cancel = True
+
+	Dim Btn2 : Set Btn2 = SDB.UI.NewButton(Foot)
+	Btn2.Caption = SDB.Localize("Ok")
+	Btn2.Common.Width = 85
+	Btn2.Common.Height = 25
+	Btn2.Common.Left = 15
+	Btn2.Common.Top = 6
+	Btn2.Common.Anchors = 2+4
+	Btn2.UseScript = Script.ScriptPath
+	Btn2.ModalResult = 1
+	Btn2.Default = True
+
+	optionsHTML = "<HTML>"
+	optionsHTML = optionsHTML &  "<HEAD>"
+	optionsHTML = optionsHTML &  "<style type=""text/css"" media=""screen"">"
+	optionsHTML = optionsHTML &  ".tabletext { font-family: Arial, Helvetica, sans-serif; font-size: 8pt;}"
+	optionsHTML = optionsHTML &  "option.tabletext{background-color:#3E7CBB;}"
+
+	optionsHTML = optionsHTML &  "</style>"
+	optionsHTML = optionsHTML &  "</HEAD>"
+	optionsHTML = optionsHTML &  "<table border=0 cellspacing=0 cellpadding=1 class=tabletext>"
+
+	optionsHTML = optionsHTML &  "<tr><td align=center><b>Tagging options:</b></td></tr>"
+	If QueryPage = "Discogs" Then
+		Rem optionsHTML = optionsHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""comments"" >Save Comment</td></tr>"
+		optionsHTML = optionsHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""useanv"" title=""Artist Name Variation - Using no name variation (e.g. nickname)"" >Don't Use ANV's</td></tr>"
+	End If
+	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""yearonlydate"" title=""If checked only the Year will be saved (e.g. 14.01.1982 -> 1982)"" >Only Year Of Date</td></tr>"
+	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""deleteduplicatedentry"" title=""If checked the duplicated entries in the label-tag or the catalog-tag will be deleted (e.g. Label-tag: Roadrunner Records; Roadrunner Records  ->  Roadrunner Records"" >Delete duplicated Entries</td></tr>"
+	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""titlefeaturing"" title=""If checked the feat. artist appears in the title tag (e.g. Aaliyah ft. Timbaland - We Need a Resolution  ->  Aaliyah - We Need a Resolution (ft. Timbaland) )"" >feat. Artist behind Title</td></tr>"
+	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""ignorefeaturing"" title=""If checked the feat. artist will be ignored"" >Ignore feat. artist</td></tr>"
+	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""TheBehindArtist"" title=""If checked the ArtistName will be 'Beatles, The' instead of 'The Beatles'"" >Move 'The' in Artist to the end</td></tr>"
+
+	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""FeaturingName"" title=""Rename 'feat.' to the given word"" >Rename 'feat.' to:</td></tr>"
+	optionsHTML = optionsHTML &  "<tr><td align=left><input type=text id=""TxtFeaturingName"" ></td></tr>"
+
+	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""various"" title=""Rename 'Various' Artist to the given word"" >Rename 'Various' Artist to:</td></tr>"
+	optionsHTML = optionsHTML &  "<tr><td align=left><input type=text id=""txtvarious"" ></td></tr>"
+
+	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""involvedpeoplesingle"" title=""Print every involved people on individual lines"" >Involved people on individual lines</td></tr>"
+
+	optionsHTML = optionsHTML &  "<tr><td align=center><br></td></tr>"
+	optionsHTML = optionsHTML &  "<tr><td align=center><b>Disc/Track Numbering:</b></td></tr>"
+
+	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""TurnOffSubTrack"" title=""If checked the Sub-Track detection is turned off"" >No Sub-Track detection</td></tr>"
+	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""SubTrackNameSelection"" title=""If checked the Sub-Track will be named like 'Sub-Track 1, Sub-Track 2, Sub Track 3'  if not checked the Sub-Tracks will be named like 'Track Name (Sub-Track 1, Sub-Track 2, Sub Track 3)'"" >Other Sub-Track Naming</td></tr>"
+
+	If QueryPage = "Discogs" Then
+		optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""forcenumeric"" title=""Always use numbers instead of letters (Vinyl-releases use A1, A2,..., B1, B2 as track numbering)"" >Force To Numeric</td></tr>"
+		optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""sidestodisc"" title=""Save the Vinyl sides to the disc tag"" >Sides To Disc</td></tr>"
+	End If
+	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""forcedisc"" title=""Always add a disc-number"" >Force Disc Usage</td></tr>"
+	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""nodisc"" title=""Prevent the script from interpret sub tracks as disc-numbers"" >Force NO Disc Usage</td></tr>"
+	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""leadingzero"" title=""Track Position: 1 -> 01   2 -> 02 ..."" >Add Leading Zero (Track#)</td></tr>"
+	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""leadingzeroDisc"" title=""Disc-number: 1 -> 01   2 -> 02 ..."" >Add Leading Zero (Disc#)</td></tr>"
+	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""tracknum"" title=""Save the track numbers"" >Save track numbers (Track#)</td></tr>"
+	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""discnum"" title=""Save the disc numbers"" >Save disc numbers (Disc#)</td></tr>"
+	optionsHTML = optionsHTML &  "</table>"
+	
+	optionsHTML = optionsHTML &  "</body>"
+	optionsHTML = optionsHTML &  "</HTML>"
+	
+	
+	Set WebBrowser2 = UI.NewActiveX(Form, "Shell.Explorer")
+	WebBrowser2.Common.Align = 5
+	WebBrowser2.Common.ControlName = "WebBrowser2"
+	WebBrowser2.Common.Top = 100
+	WebBrowser2.Common.Left = 100
+
+	SDB.Objects("WebBrowser2") = WebBrowser2
+	WebBrowser2.Interf.Visible = True
+	WebBrowser2.Common.BringToFront
+
+	WebBrowser2.SetHTMLDocument optionsHTML
+	Set optionsHTMLDoc = WebBrowser2.Interf.Document
+
+	If QueryPage = "Discogs" Then
+		Set checkBox = optionsHTMLDoc.getElementById("useanv")
+		checkBox.Checked = CheckUseAnv
+	End If
+	Set checkBox = optionsHTMLDoc.getElementById("yearonlydate")
+	checkBox.Checked = CheckYearOnlyDate
+	If QueryPage = "Discogs" Then
+		Set checkBox = optionsHTMLDoc.getElementById("forcenumeric")
+		checkBox.Checked = CheckForceNumeric
+		Set checkBox = optionsHTMLDoc.getElementById("sidestodisc")
+		checkBox.Checked = CheckSidesToDisc
+	End If
+	Set checkBox = optionsHTMLDoc.getElementById("forcedisc")
+	checkBox.Checked = CheckForceDisc
+	Set checkBox = optionsHTMLDoc.getElementById("nodisc")
+	checkBox.Checked = CheckNoDisc
+	Set checkBox = optionsHTMLDoc.getElementById("leadingzero")
+	checkBox.Checked = CheckLeadingZero
+	Set checkBox = optionsHTMLDoc.getElementById("leadingzeroDisc")
+	checkBox.Checked = CheckLeadingZeroDisc
+	Set checkBox = optionsHTMLDoc.getElementById("titlefeaturing")
+	checkBox.Checked = CheckTitleFeaturing
+	Set checkBox = optionsHTMLDoc.getElementById("deleteduplicatedentry")
+	checkBox.Checked = CheckDeleteDuplicatedEntry
+	Set text = optionsHTMLDoc.getElementById("TxtFeaturingName")
+	text.value = TxtFeaturingName
+	Set checkbox = optionsHTMLDoc.getElementById("FeaturingName")
+	checkBox.Checked = CheckFeaturingName
+	
+	Set text = optionsHTMLDoc.getElementById("txtvarious")
+	text.value = TxtVarious
+	Set checkBox = optionsHTMLDoc.getElementById("various")
+	checkBox.Checked = CheckVarious
+	Set checkBox = optionsHTMLDoc.getElementById("SubTrackNameSelection")
+	checkBox.Checked = SubTrackNameSelection
+	Set checkBox = optionsHTMLDoc.getElementById("TurnOffSubTrack")
+	checkBox.Checked = CheckTurnOffSubTrack
+	Set checkBox = optionsHTMLDoc.getElementById("involvedpeoplesingle")
+	checkBox.Checked = CheckInvolvedPeopleSingleLine
+	Set checkBox = optionsHTMLDoc.getElementById("TheBehindArtist")
+	checkBox.Checked = CheckTheBehindArtist
+	Set checkBox = optionsHTMLDoc.getElementById("tracknum")
+	checkBox.Checked = CheckTrackNum
+	Set checkBox = optionsHTMLDoc.getElementById("discnum")
+	checkBox.Checked = CheckDiscNum
+	
+	
+	If Form.ShowModal = 1 Then
+		
+		If QueryPage = "Discogs" Then
+			Set checkBox = optionsHTMLDoc.getElementById("useanv")
+			CheckUseAnv = checkBox.Checked
+		End If
+		Set checkBox = optionsHTMLDoc.getElementById("yearonlydate")
+		CheckYearOnlyDate = checkBox.Checked
+		If QueryPage = "Discogs" Then
+			Set checkBox = optionsHTMLDoc.getElementById("forcenumeric")
+			CheckForceNumeric = checkBox.Checked
+			Set checkBox = optionsHTMLDoc.getElementById("sidestodisc")
+			CheckSidesToDisc = checkBox.Checked
+		End If
+		Set checkBox = optionsHTMLDoc.getElementById("forcedisc")
+		If Not CheckForceDisc And checkBox.Checked Then
+			CheckNoDisc = False
+			CheckForceDisc = checkBox.Checked
+		Else
+			CheckForceDisc = checkBox.Checked
+			Set checkBox = optionsHTMLDoc.getElementById("nodisc")
+			If Not CheckNoDisc And checkBox.Checked Then
+				CheckForceDisc = False
+			End If
+			CheckNoDisc = checkBox.Checked
+		End If
+		Set checkBox = optionsHTMLDoc.getElementById("leadingzero")
+		CheckLeadingZero = checkBox.Checked
+		Set checkBox = optionsHTMLDoc.getElementById("leadingzeroDisc")
+		CheckLeadingZeroDisc = checkBox.Checked
+		Set checkBox = optionsHTMLDoc.getElementById("titlefeaturing")
+		CheckTitleFeaturing = checkBox.Checked
+		Set checkBox = optionsHTMLDoc.getElementById("deleteduplicatedentry")
+		CheckDeleteDuplicatedEntry = checkBox.Checked
+		Set checkBox = optionsHTMLDoc.getElementById("FeaturingName")
+		CheckFeaturingName = checkBox.Checked
+		Set text = optionsHTMLDoc.getElementById("TxtFeaturingName")
+		TxtFeaturingName = text.Value
+		
+		Set checkBox = optionsHTMLDoc.getElementById("various")
+		CheckVarious = checkBox.Checked
+		Set text = optionsHTMLDoc.getElementById("txtvarious")
+		TxtVarious = text.Value
+		Set checkBox = optionsHTMLDoc.getElementById("SubTrackNameSelection")
+		SubTrackNameSelection = checkBox.Checked
+		Set checkBox = optionsHTMLDoc.getElementById("TurnOffSubTrack")
+		CheckTurnOffSubTrack = checkBox.Checked
+		Set checkBox = optionsHTMLDoc.getElementById("involvedpeoplesingle")
+		CheckInvolvedPeopleSingleLine = checkBox.Checked
+		Set checkBox = optionsHTMLDoc.getElementById("TheBehindArtist")
+		CheckTheBehindArtist = checkBox.Checked
+		Set checkBox = optionsHTMLDoc.getElementById("ignorefeaturing")
+		CheckIgnoreFeatArtist = checkBox.Checked
+		Set checkBox = optionsHTMLDoc.getElementById("tracknum")
+		CheckTrackNum = checkBox.Checked
+		Set checkBox = optionsHTMLDoc.getElementById("discnum")
+		CheckDiscNum = checkBox.Checked
+		
+		
+		SDB.Objects("WebBrowser2") = Nothing
+		ReloadResults
+	Else
+		SDB.Objects("WebBrowser2") = Nothing
+	End If
+	
+	
+	
+End Sub
