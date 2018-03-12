@@ -2,7 +2,14 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.45"
+Const VersionStr = "v5.46"
+
+'Changes from 5.45 to 5.46 by crap_inhuman in 05.2017
+'	Skip Extra-Artists without artistname in musicbrainz-tagger
+'	Changed Musicbrainz logo
+'	"Feat."-Function repaired
+'	Searching at Musicbrainz should now be better
+
 
 'Changes from 5.44 to 5.45 by crap_inhuman in 11.2016
 '	Bug with leading zero removed
@@ -385,11 +392,10 @@ Const VersionStr = "v5.45"
 '	The Script now reads the saved Discogs Release-ID from the chosen Release-Tag
 
 ' ToDo: Add more tooltips to the html
-'		Erster und letzter Buchstabe in SearchArtist fehlt (wenn nächster Buchstabe blank ist e.g. "3 doors down", "Miss may i")
-'		Add option to limit release result for faster results
+'		Mediamonkey Bug: Erster und letzter Buchstabe in SearchArtist fehlt (wenn nächster Buchstabe blank ist e.g. "3 doors down", "Miss may i")
 '		Wrong Publisher, Producer, etc. in Subtracks. The script only take the info from the first subtrack..
 '		Adding Artist-Alias in Musicbrainz search
-'		Adding Artist-Alias in Musicbrainz search
+
 
 ' WebBrowser is visible browser object with display of discogs album info
 Dim WebBrowser
@@ -3504,12 +3510,15 @@ Sub ReloadResults
 						If tmp("relations").Count > 0 Then
 							For Each tmp2 in tmp("relations")
 								WriteLog " "
+								involvedArtist = ""
 								Set tmp3 = tmp("relations")(tmp2)
 								If tmp3.Exists("work") And tmp3("type") <> "other version" Then
 									Set tmp3 = tmp("relations")(tmp2)("work")
 									For Each tmp4 In tmp3("relations")
 										If tmp3("relations")(tmp4).Exists("artist") Then
 											involvedArtist = CleanArtistName(tmp3("relations")(tmp4)("artist")("name"))
+										Else
+											involvedArtist = ""
 										End If
 										involvedRole = ""
 										Set tmp5 = tmp3("relations")(tmp4)
@@ -3517,7 +3526,7 @@ Sub ReloadResults
 											ret = RelationshipTypes(tmp5)
 											If ret(0) > 0 Then
 												For i = 1 to ret(0)
-													getinvolvedRole involvedArtist, ret(i), artistList, TrackFeaturing, Involved_R_T, TrackComposers, TrackConductors, TrackProducers, TrackLyricists
+													If involvedArtist <> "" Then getinvolvedRole involvedArtist, ret(i), artistList, TrackFeaturing, Involved_R_T, TrackComposers, TrackConductors, TrackProducers, TrackLyricists
 												Next
 											End If
 										End If
@@ -3525,11 +3534,13 @@ Sub ReloadResults
 								Else
 									If tmp3.Exists("artist") Then
 										involvedArtist = CleanArtistName(tmp3("artist")("name"))
+									Else
+										involvedArtist = ""
 									End If
 									ret = RelationshipTypes(tmp3)
 									If ret(0) > 0 Then
 										For i = 1 to ret(0)
-											getinvolvedRole involvedArtist, ret(i), artistList, TrackFeaturing, Involved_R_T, TrackComposers, TrackConductors, TrackProducers, TrackLyricists
+											If involvedArtist <> "" Then getinvolvedRole involvedArtist, ret(i), artistList, TrackFeaturing, Involved_R_T, TrackComposers, TrackConductors, TrackProducers, TrackLyricists
 										Next
 									End If
 								End If
@@ -4325,6 +4336,7 @@ Function getinvolvedRole(involvedArtist, involvedRole, byRef artistList, byRef T
 			Exit Do
 		Loop While True
 	End If
+	WriteLog "Stop getinvolvedRole"
 
 End Function
 
@@ -4640,27 +4652,32 @@ Sub ShowResult(ResultID)
 		WriteLog "Start ShowResult MusicBrainz"
 		ReleaseID = ResultsReleaseID.Item(ResultID)
 		WriteLog "ReleaseID=" & ReleaseID
-		searchURL = "http://musicbrainz.org/ws/2/release/" & ReleaseID & "?inc=recordings+recording-level-rels+work-rels+work-level-rels+artist-rels+artist-credits+media+release-group-rels+release-groups+labels&fmt=json"
-		WriteLog "searchURL=" & searchURL
+		If InStr(Results.Item(ResultID), "No Release found") = 0 Then
+			searchURL = "http://musicbrainz.org/ws/2/release/" & ReleaseID & "?inc=recordings+recording-level-rels+work-rels+work-level-rels+artist-rels+artist-credits+media+release-group-rels+release-groups+labels&fmt=json"
+			WriteLog "searchURL=" & searchURL
 
-		Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")   
-		oXMLHTTP.Open "GET", searchURL, False
-		oXMLHTTP.setRequestHeader "Content-Type", "application/json"
-		oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
-		oXMLHTTP.send ()
+			Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")   
+			oXMLHTTP.Open "GET", searchURL, False
+			oXMLHTTP.setRequestHeader "Content-Type", "application/json"
+			oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
+			oXMLHTTP.send ()
 
-		If oXMLHTTP.Status = 200 Then
-			WriteLog "responseText=" & oXMLHTTP.responseText
-			Set CurrentRelease = json.Decode(oXMLHTTP.responseText)
-			CurrentReleaseId = ReleaseID
-			ReloadResults
-		ElseIf oXMLHTTP.Status = 503 Then
-			ErrorMessage = "Status:" & oXMLHTTP.Status & " - The number of requests exceeds the limit. Please try again later"
-			WriteLog "Status=" & oXMLHTTP.Status
-			FormatErrorMessage ErrorMessage
+			If oXMLHTTP.Status = 200 Then
+				WriteLog "responseText=" & oXMLHTTP.responseText
+				Set CurrentRelease = json.Decode(oXMLHTTP.responseText)
+				CurrentReleaseId = ReleaseID
+				ReloadResults
+			ElseIf oXMLHTTP.Status = 503 Then
+				ErrorMessage = "Status:" & oXMLHTTP.Status & " - The number of requests exceeds the limit. Please try again later"
+				WriteLog "Status=" & oXMLHTTP.Status
+				FormatErrorMessage ErrorMessage
+			Else
+				ErrorMessage = "Status:" & oXMLHTTP.Status & " - Please try again later"
+				WriteLog "Status=" & oXMLHTTP.Status
+				FormatErrorMessage ErrorMessage
+			End If
 		Else
-			ErrorMessage = "Status:" & oXMLHTTP.Status & " - Please try again later"
-			WriteLog "Status=" & oXMLHTTP.Status
+			ErrorMessage = "Search returned no results / No Release found"
 			FormatErrorMessage ErrorMessage
 		End If
 	End If
@@ -4838,7 +4855,7 @@ Function GetHeader()
 		templateHTML = templateHTML &  "<td align=left><a href=""https://www.discogs.com"" target=""_blank""><img src=""http://www.germanc64.de/mm/i-love-discogs.png"" width=""100"" height=""60"" border=""0"" alt=""Discogs Homepage""></a><b>" & VersionStr & "</b></td>"
 	End If
 	If QueryPage = "MusicBrainz" Then
-		templateHTML = templateHTML &  "<td align=left><a href=""http://www.musicbrainz.org"" target=""_blank""><img src=""http://wiki.musicbrainz.org/images/musicbrainz_logo.png"" border=""0""/ alt=""MusicBrainz Homepage""></a><b>" & VersionStr & "</b></td>"
+		templateHTML = templateHTML &  "<td align=left><a href=""http://www.musicbrainz.org"" target=""_blank""><img src=""https://wiki.musicbrainz.org/-/images/e/e4/MusicBrainz_Logo_White.png"" width=""100"" height=""70"" border=""0""/ alt=""MusicBrainz Homepage""></a><b>" & VersionStr & "</b></td>"
 	End If
 	templateHTML = templateHTML &  "<td colspan=3 align=right valign=top>"
 
@@ -5177,7 +5194,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	End If
 	templateHTML = templateHTML &  "</tr>"
 	templateHTML = templateHTML &  "<tr>"
-	templateHTML = templateHTML &  "<td><input type=checkbox id=""albumartist"" ><input type=checkbox id=""albumartistfirst"" ></td>"
+	templateHTML = templateHTML &  "<td><input type=checkbox id=""albumartist"" ><input type=checkbox title=""If option set, only the name of the first artist will be assumed"" id=""albumartistfirst"" ></td>"
 	templateHTML = templateHTML &  "<td>Album Artist:</td>"
 	If QueryPage = "Discogs" Then
 		templateHTML = templateHTML &  "<td><a href=""https://www.discogs.com/artist/" & SavedArtistID & """ target=""_blank""><!ALBUMARTIST!></a></td>"
@@ -5921,7 +5938,6 @@ Function JSONParser_find_result(searchURL, ArrayName, SendArtist, SendAlbum, Sen
 		oXMLHTTP.setRequestHeader "Content-Type", "application/json"
 		oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
 		oXMLHTTP.send ()
-		WriteLog "1"
 
 		If oXMLHTTP.Status = 200 Then
 			WriteLog "Musicbrainz"
@@ -8127,11 +8143,7 @@ Function getArtistsName(Current, Role, QueryPage)
 				If tmp = "," Then
 					tmpArtistSeparator = ArtistSeparator
 				ElseIf LookForFeaturing(tmp) And CheckFeaturingName Then
-					If Left(TxtFeaturingName, 1) = "," Or Left(TxtFeaturingName, 1) = ";" Then
-						tmpArtistSeparator = TxtFeaturingName & " "
-					Else
-						tmpArtistSeparator = " " & TxtFeaturingName & " "
-					End If
+					tmpArtistSeparator = TxtFeaturingName & " "
 				Else
 					tmpArtistSeparator = " " & tmp & " "
 				End If

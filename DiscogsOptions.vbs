@@ -1,7 +1,7 @@
 '
 ' MediaMonkey Script
 '
-' NAME: Discogs Tagger Options 3.1
+' NAME: Discogs Tagger Options 3.2
 '
 ' AUTHOR: crap_inhuman
 ' DATE : 04/04/2016
@@ -9,6 +9,9 @@
 '
 ' INSTALL: Automatic installation during Discogs Tagger install
 '
+'Changes from 3.1 to 3.2
+'Added/Changed tooltips
+
 'Changes from 3.0 to 3.1
 'Added option for limiting releases
 
@@ -522,7 +525,7 @@ Sub InitSheet(Sheet)
 	Set Checkbox2 = UI.NewCheckBox(GroupBox2)
 	Checkbox2.Common.SetRect 20, 60, 15, 15
 	Checkbox2.Common.ControlName = "CheckNewVersion"
-	Checkbox2.Common.Hint = "If checked, the script check for new version"
+	Checkbox2.Common.Hint = "If checked, the script check for new version once a day"
 	If CheckNewVersion = true Then Checkbox2.Checked = true
 
 	Set Label2 = UI.NewLabel(GroupBox2)
@@ -738,7 +741,7 @@ Sub InitSheet2(Sheet)
 	Dim GroupBox0
 	Set GroupBox0 = UI.NewGroupBox(Sheet)
 	GroupBox0.Caption = "Enter the keywords for linking with discogs"
-	GroupBox0.Common.Hint = "If you don't know what to enter here, let the keywords as is !!"
+	GroupBox0.Common.Hint = " - Separate the keywords with ','" & vbCrLf & " - You can use * as a wildcard" & vbCrLf & " - If you don't know what to enter here, let the keywords as is !!"
 	GroupBox0.Common.SetRect 10, 10, 500, 275
 
 	Set Label2 = UI.NewLabel(GroupBox0)
@@ -790,7 +793,7 @@ Sub InitSheet2(Sheet)
 	Set EditUnwanted = UI.NewEdit(GroupBox0)
 	EditUnwanted.Common.SetRect 20, 235, 450, 35
 	EditUnwanted.Common.ControlName = "UnwantedKeywords"
-	EditUnwanted.Common.Hint = "Enter the keywords you don't like to store in involved people"
+	EditUnwanted.Common.Hint = "Enter the keywords you don't like to store in involved people" & vbCrLf & "You can use * as a wildcard"
 	EditUnwanted.Text = UnwantedKeywords
 
 End Sub

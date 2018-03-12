@@ -7,7 +7,7 @@ If Not (inif Is Nothing) Then
 	inif.StringValue(scriptName,"Procname") = "DiscogsAutoTagWeb"
 	inif.StringValue(scriptName,"Order") = "10"
 	inif.StringValue(scriptName,"DisplayName") = "Discogs Tagger"
-	inif.StringValue(scriptName,"Description") = "Gets track/album information from discogs.com and musicbrainz.org"
+	inif.StringValue(scriptName,"Description") = "Gets track/album information from discogs.com or musicbrainz.org"
 	inif.StringValue(scriptName,"Language") = "VBScript"
 	inif.StringValue(scriptName,"ScriptType") = "3"
 	SDB.RefreshScriptItems
