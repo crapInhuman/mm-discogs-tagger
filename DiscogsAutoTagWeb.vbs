@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.48"
+Const VersionStr = "v5.49"
+
+'Changes from 5.48 to 5.49 by crap_inhuman in 08.2017
+'	Changed the 'where to store date' option
+
 
 'Changes from 5.47 to 5.48 by crap_inhuman in 06.2017
 '	Added forgotten blank
@@ -424,7 +428,7 @@ Dim CheckComposer, CheckConductor, CheckProducer, CheckDiscNum, CheckTrackNum, C
 Dim CheckForceNumeric, CheckSidesToDisc, CheckForceDisc, CheckNoDisc, CheckLeadingZero, CheckLeadingZeroDisc, CheckVarious, TxtVarious
 Dim CheckTitleFeaturing, CheckComment, CheckFeaturingName, TxtFeaturingName, CheckOriginalDiscogsTrack, CheckSaveImage, CheckLimitReleases
 Dim CheckStyleField, CheckTurnOffSubTrack, CheckInvolvedPeopleSingleLine, CheckDontFillEmptyFields, CheckTheBehindArtist
-Dim CheckDiscogsCollectionOff, CheckDeleteDuplicatedEntry, StoreDate, StoreOrgDate, OriginalDateRead, ReleaseDateRead
+Dim CheckDiscogsCollectionOff, CheckDeleteDuplicatedEntry, StoreDate, OriginalDateRead, ReleaseDateRead
 Dim CheckIgnoreFeatArtist
 REM Dim CheckUserCollection
 Dim DiscogsUsername
@@ -752,8 +756,11 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		If ini.StringValue("DiscogsAutoTagWeb","StoreDate") = "" Then
 			ini.StringValue("DiscogsAutoTagWeb","StoreDate") = 0
 		End If
-		If ini.StringValue("DiscogsAutoTagWeb","StoreOrgDate") = "" Then
-			ini.StringValue("DiscogsAutoTagWeb","StoreOrgDate") = 1
+		If ini.StringValue("DiscogsAutoTagWeb","StoreDate") = 2 Then
+			ini.StringValue("DiscogsAutoTagWeb","StoreDate") = 1
+		End If
+		If ini.ValueExists("DiscogsAutoTagWeb","StoreOrgDate") Then
+			ini.DeleteKey "DiscogsAutoTagWeb","StoreOrgDate"
 		End If
 		If ini.StringValue("DiscogsAutoTagWeb","LimitReleases") = "" Then
 			ini.StringValue("DiscogsAutoTagWeb","LimitReleases") = 0
@@ -863,7 +870,6 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	CheckDiscogsCollectionOff = ini.BoolValue("DiscogsAutoTagWeb","CheckDiscogsCollectionOff")
 	CheckDeleteDuplicatedEntry = ini.BoolValue("DiscogsAutoTagWeb","CheckDiscogsCollectionOff")
 	StoreDate = ini.StringValue("DiscogsAutoTagWeb","StoreDate")
-	StoreOrgDate = ini.StringValue("DiscogsAutoTagWeb","StoreOrgDate")
 	CheckLimitReleases = ini.StringValue("DiscogsAutoTagWeb","LimitReleases")
 	CheckIgnoreFeatArtist = ini.BoolValue("DiscogsAutoTagWeb","CheckIgnoreFeatArtist")
 
@@ -3126,21 +3132,12 @@ Sub ReloadResults
 			'Choose Date field saving
 			If StoreDate = 0 Then
 				ReleaseDate = ReleaseDateRead
+				OriginalDate = OriginalDateRead
 			ElseIf StoreDate = 1 Then
-				OriginalDate = ReleaseDateRead
-			ElseIf StoreDate = 2 Then
 				ReleaseDate = ReleaseDateRead
 				OriginalDate = ReleaseDateRead
 			End If
 
-			If StoreOrgDate = 0 Then
-				ReleaseDate = OriginalDateRead
-			ElseIf StoreOrgDate = 1 Then
-				OriginalDate = OriginalDateRead
-			ElseIf StoreOrgDate = 2 Then
-				ReleaseDate = OriginalDateRead
-				OriginalDate = OriginalDateRead
-			End If
 			WriteLog "ReleaseDate=" & ReleaseDate
 			WriteLog "OriginalDate=" & OriginalDate
 
@@ -7272,7 +7269,6 @@ Sub WriteOptions()
 	WriteLog "CheckStyleField=" & CheckStyleField
 	WriteLog "ArtistLastSeparator=" & ArtistLastSeparator
 	WriteLog "StoreDate=" & StoreDate
-	WriteLog "StoreOrgDate=" & StoreOrgDate
 	WriteLog "AccessToken=" & AccessToken
 	WriteLog "AccessTokenSecret=" & AccessTokenSecret
 	WriteLog "-+-+-+-+--+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-"

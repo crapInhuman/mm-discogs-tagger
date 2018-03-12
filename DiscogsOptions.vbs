@@ -1,14 +1,17 @@
 '
 ' MediaMonkey Script
 '
-' NAME: Discogs Tagger Options 3.2
+' NAME: Discogs Tagger Options 3.3
 '
 ' AUTHOR: crap_inhuman
-' DATE : 04/04/2016
+' DATE : 30/08/2017
 '
 '
 ' INSTALL: Automatic installation during Discogs Tagger install
 '
+'Changes from 3.2 to 3.3
+'Changed the 'where to store date' option
+
 'Changes from 3.1 to 3.2
 'Added/Changed tooltips
 
@@ -159,8 +162,8 @@ Sub InitSheet(Sheet)
 		If ini.StringValue("DiscogsAutoTagWeb","StoreDate") = "" Then
 			ini.StringValue("DiscogsAutoTagWeb","StoreDate") = 0
 		End If
-		If ini.StringValue("DiscogsAutoTagWeb","StoreOrgDate") = "" Then
-			ini.StringValue("DiscogsAutoTagWeb","StoreOrgDate") = 1
+		If ini.ValueExists("DiscogsAutoTagWeb","StoreOrgDate") Then
+			ini.DeleteKey "DiscogsAutoTagWeb","StoreOrgDate"
 		End If
 		If ini.StringValue("DiscogsAutoTagWeb","LimitReleases") = "" Then
 			ini.StringValue("DiscogsAutoTagWeb","LimitReleases") = 0
@@ -190,7 +193,6 @@ Sub InitSheet(Sheet)
 	CheckNewVersion = ini.BoolValue("DiscogsAutoTagWeb","CheckNewVersion")
 	CheckDiscogsCollectionOff = ini.BoolValue("DiscogsAutoTagWeb","CheckDiscogsCollectionOff")
 	StoreDate = ini.StringValue("DiscogsAutoTagWeb","StoreDate")
-	StoreOrgDate = ini.StringValue("DiscogsAutoTagWeb","StoreOrgDate")
 	CheckLimitReleases = ini.StringValue("DiscogsAutoTagWeb","LimitReleases")
 
 	CustomField1 = "Custom1 (" & ini.StringValue("CustomFields","Fld1Name") & ")"
@@ -407,40 +409,21 @@ Sub InitSheet(Sheet)
 	Label2.Common.Hint = "In brackets you see the name you choose for the custom tag"
 
 	Set Combo = UI.NewDropDown(GroupBox0)
-	Combo.Common.SetRect 240, 190, 200, 25
+	Combo.Common.SetRect 220, 220, 220, 25
 	Combo.Style = 2     ' List
 	Combo.Common.ControlName = "StoreDate"
 
-	Combo.AddItem ("Date")
-	Combo.AddItem ("Date (original)")
-	Combo.AddItem ("both Date Field")
-	Combo.AddItem ("Don't save")
+	Combo.AddItem ("No (Default)")
+	Combo.AddItem ("Yes, store release date into both date fields")
 
 	Combo.ItemIndex = StoreDate
 
 	Set Label2 = UI.NewLabel(GroupBox0)
-	Label2.Common.SetRect 20, 195, 50, 25
-	Label2.Caption = "Choose field for saving Release Date"
-	Label2.Common.Hint = "Choose where to store Release Date (only with Discogs)"
-
-	Set Combo = UI.NewDropDown(GroupBox0)
-	Combo.Common.SetRect 240, 220, 200, 25
-	Combo.Style = 2     ' List
-	Combo.Common.ControlName = "StoreOrgDate"
-
-	Combo.AddItem ("Date")
-	Combo.AddItem ("Date (original)")
-	Combo.AddItem ("both Date Field")
-	Combo.AddItem ("Don't save")
-
-	Combo.ItemIndex = StoreOrgDate
-
-	Set Label2 = UI.NewLabel(GroupBox0)
 	Label2.Common.SetRect 20, 225, 50, 25
-	Label2.Caption = "Choose field for saving Date (original)"
-	Label2.Common.Hint = "Choose where to store original Release Date (only with Discogs)"
+	Label2.Caption = "Use only one release date?"
+	Label2.Common.Hint = "If you choose yes, the release date will be stored in the date field and the master release date in the original date field (only with Discogs)" & vbCrLf & "If you choose no, the release date will be stored into both date fields in mm, ignoring the original release date from the master release."
 
-
+	
 	Dim GroupBox1
 	Set GroupBox1 = UI.NewGroupBox(Sheet)
 	GroupBox1.Caption = "Cover-Images"
@@ -635,9 +618,7 @@ Sub SaveSheet(Sheet)
 	ini.StringValue("DiscogsAutoTagWeb", "CheckStyleField") = GetCustom(edt.ItemIndex - 1)
 	Set edt = Sheet.Common.ChildControl("StoreDate")
 	ini.StringValue("DiscogsAutoTagWeb", "StoreDate") = edt.ItemIndex
-	Set edt = Sheet.Common.ChildControl("StoreOrgDate")
-	ini.StringValue("DiscogsAutoTagWeb", "StoreOrgDate") = edt.ItemIndex
-
+	
 	If Sheet.Common.ChildControl("ControlSaveImage1").Checked = False Then
 		ini.StringValue("DiscogsAutoTagWeb", "CheckSaveImage") = 2
 	Else
