@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.57"
+Const VersionStr = "v5.58"
+
+'Changes from 5.57 to 5.58 by crap_inhuman in 02.2018
+'	Repaired the artist tagging
+
 
 'Changes from 5.56 to 5.57 by crap_inhuman in 02.2018
 '	Choose artist for tagging back to his old place
@@ -5818,8 +5822,8 @@ Sub Update()
 
 	Set checkBox = templateHTMLDoc.getElementById("album")
 	CheckAlbum = checkBox.Checked
-	REM Set checkBox = templateHTMLDoc.getElementById("artist")
-	REM CheckArtist = checkBox.Checked
+	Set checkBox = templateHTMLDoc.getElementById("artist")
+	CheckArtist = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("albumartist")
 	CheckAlbumArtist = checkBox.Checked
 	REM Set checkBox = templateHTMLDoc.getElementById("albumartistfirst")
