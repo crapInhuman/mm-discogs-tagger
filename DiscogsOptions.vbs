@@ -1,7 +1,7 @@
 '
 ' MediaMonkey Script
 '
-' NAME: Discogs Tagger Options 3.0
+' NAME: Discogs Tagger Options 3.1
 '
 ' AUTHOR: crap_inhuman
 ' DATE : 04/04/2016
@@ -9,6 +9,9 @@
 '
 ' INSTALL: Automatic installation during Discogs Tagger install
 '
+'Changes from 3.0 to 3.1
+'Added option for limiting releases
+
 'Changes from 2.9 to 3.0
 'Added option for Date tag storing
 
@@ -156,6 +159,9 @@ Sub InitSheet(Sheet)
 		If ini.StringValue("DiscogsAutoTagWeb","StoreOrgDate") = "" Then
 			ini.StringValue("DiscogsAutoTagWeb","StoreOrgDate") = 1
 		End If
+		If ini.StringValue("DiscogsAutoTagWeb","LimitReleases") = "" Then
+			ini.StringValue("DiscogsAutoTagWeb","LimitReleases") = 0
+		End If
 		If ini.ValueExists("DiscogsAutoTagWeb","ImmedSaveImage") Then
 			ini.DeleteKey "DiscogsAutoTagWeb","ImmedSaveImage"
 		End If
@@ -182,6 +188,7 @@ Sub InitSheet(Sheet)
 	CheckDiscogsCollectionOff = ini.BoolValue("DiscogsAutoTagWeb","CheckDiscogsCollectionOff")
 	StoreDate = ini.StringValue("DiscogsAutoTagWeb","StoreDate")
 	StoreOrgDate = ini.StringValue("DiscogsAutoTagWeb","StoreOrgDate")
+	CheckLimitReleases = ini.StringValue("DiscogsAutoTagWeb","LimitReleases")
 
 	CustomField1 = "Custom1 (" & ini.StringValue("CustomFields","Fld1Name") & ")"
 	CustomField2 = "Custom2 (" & ini.StringValue("CustomFields","Fld2Name") & ")"
@@ -485,7 +492,7 @@ Sub InitSheet(Sheet)
 	Dim GroupBox2
 	Set GroupBox2 = UI.NewGroupBox(Sheet)
 	GroupBox2.Caption = "Misc"
-	GroupBox2.Common.SetRect 10, 380, 500, 170
+	GroupBox2.Common.SetRect 10, 380, 500, 200
 
 
 	Set Label2 = UI.NewLabel(GroupBox2)
@@ -543,7 +550,7 @@ Sub InitSheet(Sheet)
 
 	Set Label2 = UI.NewLabel(GroupBox2)
 	Label2.Common.SetRect 40, 145, 125, 25
-	Label2.Caption = "Turn check if it's already in Discogs Collection off"
+	Label2.Caption = "Don't check if it's already in Discogs Collection"
 	Label2.Common.Hint = "If checked the script will not check if the album is already in the Discogs Collection"
 
 	Dim Checkbox4
@@ -553,10 +560,28 @@ Sub InitSheet(Sheet)
 	Checkbox4.Common.Hint = "If checked the script will not check if the album is already in the Discogs Collection"
 	If CheckDiscogsCollectionOff = true Then Checkbox4.Checked = true
 
+	Set Label1 = UI.NewLabel(GroupBox2)
+	Label1.Common.SetRect 20, 170, 150, 25
+	Label1.Caption = "Limit amount of releases"
+	Label1.Common.Hint = "Limit the amount of fetched releases - The script need more time if you choose more releases!"
+
+	Set Combo = UI.NewDropDown(GroupBox2)
+	Combo.Common.SetRect 240, 165, 200, 25
+	Combo.Style = 2     ' List
+	Combo.Common.ControlName = "LimitReleases"
+
+	Combo.AddItem ("50")
+	Combo.AddItem ("100")
+	Combo.AddItem ("200")
+	Combo.AddItem ("400")
+
+	Combo.ItemIndex = CheckLimitReleases
+
+
 	Dim GroupBox4
 	Set GroupBox4 = UI.NewGroupBox(Sheet)
 	GroupBox4.Caption = "Discogs Access Token"
-	GroupBox4.Common.SetRect 10, 560, 500, 90
+	GroupBox4.Common.SetRect 10, 590, 500, 90
 
 	Set Label2 = UI.NewLabel(GroupBox4)
 	Label2.Common.SetRect 300, 25, 100, 25
@@ -669,6 +694,8 @@ Sub SaveSheet(Sheet)
 	Set edt = Sheet.Common.ChildControl("AccessTokenSecret")
 	ini.StringValue("DiscogsAutoTagWeb", "AccessTokenSecret") = edt.Text
 
+	Set edt = Sheet.Common.ChildControl("LimitReleases")
+	ini.StringValue("DiscogsAutoTagWeb", "LimitReleases") = edt.ItemIndex
 
 	Script.UnregisterAllEvents
 

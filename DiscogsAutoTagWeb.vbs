@@ -2,7 +2,12 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.44"
+Const VersionStr = "v5.45"
+
+'Changes from 5.44 to 5.45 by crap_inhuman in 11.2016
+'	Bug with leading zero removed
+'	Added option for limiting releases
+
 
 'Changes from 5.43 to 5.44 by crap_inhuman in 11.2016
 '	Bug with Release Date / Original Date removed
@@ -402,7 +407,7 @@ Dim CheckAlbum, CheckArtist, CheckAlbumArtist, CheckAlbumArtistFirst, CheckLabel
 Dim CheckCountry, CheckCover, CheckSmallCover, SmallCover, CheckStyle, CheckCatalog, CheckRelease, CheckInvolved, CheckLyricist
 Dim CheckComposer, CheckConductor, CheckProducer, CheckDiscNum, CheckTrackNum, CheckFormat, CheckUseAnv, CheckYearOnlyDate
 Dim CheckForceNumeric, CheckSidesToDisc, CheckForceDisc, CheckNoDisc, CheckLeadingZero, CheckVarious, TxtVarious
-Dim CheckTitleFeaturing, CheckComment, CheckFeaturingName, TxtFeaturingName, CheckOriginalDiscogsTrack, CheckSaveImage
+Dim CheckTitleFeaturing, CheckComment, CheckFeaturingName, TxtFeaturingName, CheckOriginalDiscogsTrack, CheckSaveImage, CheckLimitReleases
 Dim CheckStyleField, CheckTurnOffSubTrack, CheckInvolvedPeopleSingleLine, CheckDontFillEmptyFields, CheckTheBehindArtist
 Dim CheckDiscogsCollectionOff, CheckDeleteDuplicatedEntry, StoreDate, StoreOrgDate, OriginalDateRead, ReleaseDateRead
 REM Dim CheckUserCollection
@@ -418,7 +423,7 @@ Dim SavedMasterID, SavedArtistID, SavedLabelID
 
 Dim FilterMediaType, FilterCountry, FilterYear, FilterMediaFormat, CurrentLoadType
 Dim MediaTypeList, MediaFormatList, CountryList, CountryCode, YearList, AlternativeList, LoadList, RelationAttrList
-Dim ArtistSeparator, ArtistLastSeparator
+Dim ArtistSeparator, ArtistLastSeparator, LimitReleases
 
 Dim FirstTrack, Errormessage
 Dim AlbumArtURL, AlbumArtThumbNail
@@ -731,6 +736,9 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		If ini.StringValue("DiscogsAutoTagWeb","StoreOrgDate") = "" Then
 			ini.StringValue("DiscogsAutoTagWeb","StoreOrgDate") = 1
 		End If
+		If ini.StringValue("DiscogsAutoTagWeb","LimitReleases") = "" Then
+			ini.StringValue("DiscogsAutoTagWeb","LimitReleases") = 0
+		End If
 
 
 		'----------------------------------DiscogsImages----------------------------------------
@@ -833,6 +841,7 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	CheckDeleteDuplicatedEntry = ini.BoolValue("DiscogsAutoTagWeb","CheckDiscogsCollectionOff")
 	StoreDate = ini.StringValue("DiscogsAutoTagWeb","StoreDate")
 	StoreOrgDate = ini.StringValue("DiscogsAutoTagWeb","StoreOrgDate")
+	CheckLimitReleases = ini.StringValue("DiscogsAutoTagWeb","LimitReleases")
 
 	Separator = Left(Separator, Len(Separator)-1)
 	Separator = Right(Separator, Len(Separator)-1)
@@ -847,6 +856,16 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	Set AlternativeList = SDB.NewStringList
 	Set LoadList = SDB.NewStringList
 	Set RelationAttrList = SDB.NewStringList
+
+	If CheckLimitReleases = 0 Then
+		LimitReleases = 50
+	ElseIf CheckLimitReleases = 1 Then
+		LimitReleases = 100
+	ElseIf CheckLimitReleases = 2 Then
+		LimitReleases = 200
+	ElseIf CheckLimitReleases = 3 Then
+		LimitReleases = 400
+	End If
 
 	RelationAttrList.Add "Additional"
 	RelationAttrList.Add "Assistant"
@@ -4536,14 +4555,18 @@ Sub Add_Track_Role(currentTrack, currentArtist, involvedRole, TrackRoles, TrackA
 	Dim tmp4
 	If InStr(currentTrack, "-") <> 0 Then
 		tmp4 = Split(currentTrack, "-")
-		If LeadingZeroTrackPosition = True And tmp4(1) < 10 And Left(cStr(tmp4(1)), 1) <> "0" Then
-			currentTrack = tmp4(0) & "-0" & tmp4(1)
+		If IsNumeric(tmp4(1)) = True Then
+			If LeadingZeroTrackPosition = True And tmp4(1) < 10 And Left(tmp4(1), 1) <> "0" Then
+				currentTrack = tmp4(0) & "-0" & tmp4(1)
+			End If
 		End If
 	End If
 	If InStr(currentTrack, ".") <> 0 Then
 		tmp4 = Split(currentTrack, ".")
-		If LeadingZeroTrackPosition = True And tmp4(1) < 10 And Left(cStr(tmp4(1)), 1) <> "0" Then
-			currentTrack = tmp4(0) & ".0" & tmp4(1)
+		If IsNumeric(tmp4(1)) = True Then
+			If LeadingZeroTrackPosition = True And tmp4(1) < 10 And Left(tmp4(1), 1) <> "0" Then
+				currentTrack = tmp4(0) & ".0" & tmp4(1)
+			End If
 		End If
 	End If
 	WriteLog "currentTrack=" & currentTrack
@@ -6113,6 +6136,7 @@ Function JSONParser_find_result(searchURL, ArrayName, SendArtist, SendAlbum, Sen
 			oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new_v2.php", False
 			oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
 			oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
+			If LimitReleases = 50 Then SendPerPage = 50
 			WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&artist=" & SendArtist & "&album=" & SendAlbum & "&track=" & SendTrack & "&type=" & SendType & "&dbsearch=" & SendDBSearch & "&perpage=" & SendPerPage & "&querypage=" & QueryPage & "&page=1"
 			oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&artist=" & SendArtist & "&album=" & SendAlbum & "&track=" & SendTrack & "&type=" & SendType & "&dbsearch=" & SendDBSearch & "&perpage=" & SendPerPage & "&querypage=" & QueryPage & "&page=1")
 
@@ -6304,9 +6328,9 @@ Function JSONParser_find_result(searchURL, ArrayName, SendArtist, SendAlbum, Sen
 							ResultsReleaseID.Add response(ArrayName)(r)("id")
 						Loop While False
 						SongCount = SongCount + 1
-						If SongCount = 99 Then Exit For
+						If SongCount = LimitReleases Then Exit For
 					Next
-					If SongCount = 99 Then Exit For
+					If SongCount = LimitReleases Then Exit For
 				Next
 				ListCount = 1
 				For r = 1 to Results.Count
