@@ -2,7 +2,12 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.56"
+Const VersionStr = "v5.57"
+
+'Changes from 5.56 to 5.57 by crap_inhuman in 02.2018
+'	Choose artist for tagging back to his old place
+'	Choose Track# and Disc# for tagging back on the main window
+
 
 'Changes from 5.55 to 5.56 by crap_inhuman in 02.2018
 '	Changed some visual things to be more user-friendly
@@ -3984,7 +3989,7 @@ Sub ReloadResults
 
 	For i = 0 To SDB.Tools.WebSearch.NewTracks.Count - 1
 
-		REM If CheckArtist Then SDB.Tools.WebSearch.NewTracks.Item(i).ArtistName = AlbumArtistTitle
+		If CheckArtist Then SDB.Tools.WebSearch.NewTracks.Item(i).ArtistName = AlbumArtistTitle
 		For j = 0 To Tracks.Count - 1
 			If Tracks.Item(j) = SDB.Tools.WebSearch.NewTracks.Item(i).Title Then
 				If UnselectedTracks(j) = "" Then
@@ -3993,7 +3998,7 @@ Sub ReloadResults
 					Else
 						SDB.Tools.WebSearch.NewTracks.Item(i).Title = SDB.Tools.WebSearch.NewTracks.Item(i).Title
 					End If
-					REM If CheckArtist And ((CheckDontFillEmptyFields = True And ArtistTitles.Item(j) <> "") Or CheckDontFillEmptyFields = False) Then SDB.Tools.WebSearch.NewTracks.Item(i).ArtistName = ArtistTitles.Item(j)
+					If CheckArtist And ((CheckDontFillEmptyFields = True And ArtistTitles.Item(j) <> "") Or CheckDontFillEmptyFields = False) Then SDB.Tools.WebSearch.NewTracks.Item(i).ArtistName = ArtistTitles.Item(j)
 					If CheckTrackNum And ((CheckDontFillEmptyFields = True And TracksNum.Item(j) <> "") Or CheckDontFillEmptyFields = False) Then SDB.Tools.WebSearch.NewTracks.Item(i).TrackOrderStr = TracksNum.Item(j)
 					If CheckDiscNum And ((CheckDontFillEmptyFields = True And TracksCD.Item(j) <> "") Or CheckDontFillEmptyFields = False) Then SDB.Tools.WebSearch.NewTracks.Item(i).DiscNumberStr = TracksCD.Item(j)
 					If CheckInvolved And ((CheckDontFillEmptyFields = True And InvolvedArtists.Item(j) <> "") Or CheckDontFillEmptyFields = False) Then SDB.Tools.WebSearch.NewTracks.Item(i).InvolvedPeople = InvolvedArtists.Item(j)
@@ -5071,7 +5076,8 @@ Function GetHeader()
 
 	templateHTML = templateHTML &  "<table border=0 cellspacing=0 cellpadding=2 class=tabletext>"
 	REM templateHTML = templateHTML &  "<tr><td colspan=5></td><td><b>Filter Results: </b></td><td colspan=3> </td></tr>"
-	templateHTML = templateHTML &  "<tr><td colspan=4></td><td><button type=button class=tabletext id=""showadvancedsearch"">Manual Search</button></td><td><b>Filter Results: </b></td><td colspan=3> </td></tr>"
+	templateHTML = templateHTML &  "<tr><td colspan=4></td><td><button type=button class=tabletext id=""showadvancedsearch"">Manual Search</button></td><td><b>Filter Results: </b></td><td colspan=3> </td>"
+	REM <td align=right><img src=""" & SDB.ScriptsPath & "question-mark.png"" alt=""Click here for Help !"" id=""picture""></td></tr>"
 	REM templateHTML = templateHTML &  "<tr><td colspan=3></td><td colspan=2>Search for:<input type=radio id=""searchartist"" name=""SearchFor"" title=""Enter search string in upper dropdown-field and choose what to search for"" value=""Artist"">Artist<input type=radio id=""searchalbum"" name=""SearchFor"" title=""Enter search string in upper dropdown-field and choose what to search for"" value=""Album"">Album<input type=radio id=""searchrelease"" name=""SearchFor"" title=""Enter search string in upper drop-down field and choose what to search for"" value=""Release"">Release</td><td><b>Filter Results: </b></td><td colspan=3> </td></tr>"
 	templateHTML = templateHTML &  "<tr>"
 	templateHTML = templateHTML &  "<td><b></b></td>"
@@ -5360,15 +5366,15 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	End If
 	templateHTML = templateHTML &  "</tr>"
 	templateHTML = templateHTML &  "<tr>"
-	REM templateHTML = templateHTML &  "<td><input type=checkbox id=""artist"" ></td>"
-	REM templateHTML = templateHTML &  "<td>Artist:</td>"
-	REM If QueryPage = "Discogs" Then
-		REM templateHTML = templateHTML &  "<td><a href=""https://www.discogs.com/artist/" & SavedArtistID & """ target=""_blank""><!ARTIST!></a></td>"
-	REM ElseIf QueryPage = "MusicBrainz" Then
-		REM templateHTML = templateHTML &  "<td><a href=""http://www.musicbrainz.org/artist/" & SavedArtistID & """ target=""_blank""><!ARTIST!></a></td>"
-	REM End If
-	REM templateHTML = templateHTML &  "</tr>"
-	REM templateHTML = templateHTML &  "<tr>"
+	templateHTML = templateHTML &  "<td><input type=checkbox id=""artist"" ></td>"
+	templateHTML = templateHTML &  "<td>Artist:</td>"
+	If QueryPage = "Discogs" Then
+		templateHTML = templateHTML &  "<td><a href=""https://www.discogs.com/artist/" & SavedArtistID & """ target=""_blank""><!ARTIST!></a></td>"
+	ElseIf QueryPage = "MusicBrainz" Then
+		templateHTML = templateHTML &  "<td><a href=""http://www.musicbrainz.org/artist/" & SavedArtistID & """ target=""_blank""><!ARTIST!></a></td>"
+	End If
+	templateHTML = templateHTML &  "</tr>"
+	templateHTML = templateHTML &  "<tr>"
 	templateHTML = templateHTML &  "<td><input type=checkbox id=""album"" title=""Store the album name in the album-tag"" ></td>"
 	templateHTML = templateHTML &  "<td>Album:</td>"
 	If QueryPage = "Discogs" Then
@@ -5471,9 +5477,10 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 
 	templateHTML = templateHTML & "<td><input type=checkbox id=""selectall"" title=""Select/Deselect all tracks""></td>"
 	REM templateHTML = templateHTML & "<td align=center><input type=checkbox id=""discnum""></td>"
-	templateHTML = templateHTML & "<td><b>Disc#</b></td>"
+	templateHTML = templateHTML & "<td><input type=checkbox id=""discnum""><b>Disc#</b></td>"
+	REM templateHTML = templateHTML & "<td><b>Disc#</b></td>"
 	REM templateHTML = templateHTML & "<td align=center><input type=checkbox id=""tracknum"" title=""If option NOT set, track numbers will not set automatically (useful when you didn't select all tracks from a release""></td>"
-	templateHTML = templateHTML & "<td><b>Track#</b></td>"
+	templateHTML = templateHTML & "<td><input type=checkbox id=""tracknum"" title=""If option NOT set, track numbers will not set automatically (useful when you didn't select all tracks from a release""><b>Track#</b></td>"
 	templateHTML = templateHTML & "<td align=right><b>Artist</b></td>"
 	templateHTML = templateHTML & "<td> </td>"
 	templateHTML = templateHTML & "<td align=left><b>Title</b></td>"
@@ -5592,9 +5599,9 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Set checkBox = templateHTMLDoc.getElementById("album")
 	checkBox.Checked = CheckAlbum
 	Script.RegisterEvent checkBox, "onclick", "Update"
-	REM Set checkBox = templateHTMLDoc.getElementById("artist")
-	REM checkBox.Checked = CheckArtist
-	REM Script.RegisterEvent checkBox, "onclick", "Update"
+	Set checkBox = templateHTMLDoc.getElementById("artist")
+	checkBox.Checked = CheckArtist
+	Script.RegisterEvent checkBox, "onclick", "Update"
 	Set checkBox = templateHTMLDoc.getElementById("albumartist")
 	checkBox.Checked = CheckAlbumArtist
 	Script.RegisterEvent checkBox, "onclick", "Update"
@@ -5613,6 +5620,8 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Set checkBox = templateHTMLDoc.getElementById("country")
 	checkBox.Checked = CheckCountry
 	Script.RegisterEvent checkBox, "onclick", "Update"
+	Set checkBox = templateHTMLDoc.getElementById("picture")
+	Script.RegisterEvent checkBox, "onclick", "ShowHelp"
 	If QueryPage = "Discogs" Then
 		Set checkBox = templateHTMLDoc.getElementById("genre")
 		checkBox.Checked = CheckGenre
@@ -5658,6 +5667,12 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Script.RegisterEvent checkBox, "onclick", "Update"
 	Set checkBox = templateHTMLDoc.getElementById("producer")
 	checkBox.Checked = CheckProducer
+	Script.RegisterEvent checkBox, "onclick", "Update"
+	Set checkBox = templateHTMLDoc.getElementById("discnum")
+	checkBox.Checked = CheckDiscNum
+	Script.RegisterEvent checkBox, "onclick", "Update"
+	Set checkBox = templateHTMLDoc.getElementById("tracknum")
+	checkBox.Checked = CheckTrackNum
 	Script.RegisterEvent checkBox, "onclick", "Update"
 	Set checkBox = templateHTMLDoc.getElementById("format")
 	checkBox.Checked = CheckFormat
@@ -5785,6 +5800,16 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 End Sub
 
 
+Sub ShowHelp()
+
+	Dim res
+	res = SDB.MessageBox("Short Help MessageBox" & vbCrLf & vbCrLf & "Hoving with the mouse over a checkbox will show a short help." & vbCrLf & "You find some more configuration settings for Discogs Tagger in MediaMonkey menu ->Tools->Options" & vbCrLf & vbCrLf & "If you want more help or information, or if you want to ask for a new feature," & vbCrLf & "please visit the Discogs Tagger on the Mediamonkey forum, we wanna try to help you" & vbCrLf & vbCrLf & "http://www.mediamonkey.com/forum/viewtopic.php?f=2&t=72637", mtInformation, Array(mbOk))
+
+
+End Sub
+
+
+
 Sub Update()
 
 	Dim templateHTMLDoc, checkBox, text, radio, i
@@ -5838,6 +5863,10 @@ Sub Update()
 	CheckConductor = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("producer")
 	CheckProducer = checkBox.Checked
+	Set checkBox = templateHTMLDoc.getElementById("discnum")
+	CheckDiscNum = checkBox.Checked
+	Set checkBox = templateHTMLDoc.getElementById("tracknum")
+	CheckTrackNum = checkBox.Checked
 	If QueryPage = "Discogs" Then
 		Set checkBox = templateHTMLDoc.getElementById("comments")
 		CheckComment = checkBox.Checked
@@ -8873,8 +8902,8 @@ Sub showOptions()
 	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""nodisc"" title=""Prevent the script from interpret sub tracks as disc-numbers"" >Force NO Disc Usage</td></tr>"
 	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""leadingzero"" title=""Track Position: 1 -> 01   2 -> 02 ..."" >Add Leading Zero (Track#)</td></tr>"
 	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""leadingzeroDisc"" title=""Disc-number: 1 -> 01   2 -> 02 ..."" >Add Leading Zero (Disc#)</td></tr>"
-	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""tracknum"" title=""Save the track numbers"" >Save track numbers (Track#)</td></tr>"
-	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""discnum"" title=""Save the disc numbers"" >Save disc numbers (Disc#)</td></tr>"
+	REM optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""tracknum"" title=""Save the track numbers"" >Save track numbers (Track#)</td></tr>"
+	REM optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""discnum"" title=""Save the disc numbers"" >Save disc numbers (Disc#)</td></tr>"
 	optionsHTML = optionsHTML &  "</table>"
 	
 	optionsHTML = optionsHTML &  "</body>"
@@ -8935,10 +8964,10 @@ Sub showOptions()
 	checkBox.Checked = CheckInvolvedPeopleSingleLine
 	Set checkBox = optionsHTMLDoc.getElementById("TheBehindArtist")
 	checkBox.Checked = CheckTheBehindArtist
-	Set checkBox = optionsHTMLDoc.getElementById("tracknum")
-	checkBox.Checked = CheckTrackNum
-	Set checkBox = optionsHTMLDoc.getElementById("discnum")
-	checkBox.Checked = CheckDiscNum
+	REM Set checkBox = optionsHTMLDoc.getElementById("tracknum")
+	REM checkBox.Checked = CheckTrackNum
+	REM Set checkBox = optionsHTMLDoc.getElementById("discnum")
+	REM checkBox.Checked = CheckDiscNum
 	
 	
 	If Form.ShowModal = 1 Then
@@ -8994,10 +9023,10 @@ Sub showOptions()
 		CheckTheBehindArtist = checkBox.Checked
 		Set checkBox = optionsHTMLDoc.getElementById("ignorefeaturing")
 		CheckIgnoreFeatArtist = checkBox.Checked
-		Set checkBox = optionsHTMLDoc.getElementById("tracknum")
-		CheckTrackNum = checkBox.Checked
-		Set checkBox = optionsHTMLDoc.getElementById("discnum")
-		CheckDiscNum = checkBox.Checked
+		REM Set checkBox = optionsHTMLDoc.getElementById("tracknum")
+		REM CheckTrackNum = checkBox.Checked
+		REM Set checkBox = optionsHTMLDoc.getElementById("discnum")
+		REM CheckDiscNum = checkBox.Checked
 		
 		
 		SDB.Objects("WebBrowser2") = Nothing
