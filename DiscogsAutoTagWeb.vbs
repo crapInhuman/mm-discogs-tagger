@@ -2,7 +2,12 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.54"
+Const VersionStr = "v5.55"
+
+'Changes from 5.54 to 5.55 by crap_inhuman in 01.2018
+'	Now choose your favourite tagger (Discogs or MusicBrainz) from options in the right upper corner
+'	Bug removed: a slash (/) in folder-names will not stop the script anymore
+
 
 'Changes from 5.53 to 5.54 by crap_inhuman in 12.2017
 '	Discogs Tagger use the title-name of the first selected track for search at Discogs, if no album name was found
@@ -530,7 +535,7 @@ Dim sTemp
 sTemp = SDB.TemporaryFolder
 
 ' MediaMonkey calls this method whenever a search is started using this script
-Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
+Sub StartSearchType(Panel, SearchTerm, SearchArtist, SearchAlbum, SearchType)
 
 	Dim tmpCountry, tmpCountry2, tmpMediaType, tmpMediaType2, tmpMediaFormat, tmpMediaFormat2, tmpYear, tmpYear2
 	Dim i, a, tmp, ret
@@ -541,6 +546,9 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 
 	OptionsChanged = False
 	NewResult = True
+	
+	If SearchType = 1 Then QueryPage = "Discogs"
+	If SearchType = 2 Then QueryPage = "MusicBrainz"
 
 	'*FilterList.Item(0) = "0" -> No Filter
 	'*FilterList.Item(0) = "1" -> Custom Filter
@@ -750,9 +758,9 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		If ini.StringValue("DiscogsAutoTagWeb","AccessTokenSecret") = "" Then
 			ini.StringValue("DiscogsAutoTagWeb","AccessTokenSecret") = ""
 		End If
-		If ini.StringValue("DiscogsAutoTagWeb","QueryPage") = "" Then
-			ini.StringValue("DiscogsAutoTagWeb","QueryPage") = "Discogs"
-		End If
+		REM If ini.StringValue("DiscogsAutoTagWeb","QueryPage") = "" Then
+			REM ini.StringValue("DiscogsAutoTagWeb","QueryPage") = "Discogs"
+		REM End If
 		If ini.StringValue("DiscogsAutoTagWeb","CheckInvolvedPeopleSingleLine") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","CheckInvolvedPeopleSingleLine") = False
 		End If
@@ -881,7 +889,7 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	CheckTurnOffSubTrack = ini.BoolValue("DiscogsAutoTagWeb","CheckTurnOffSubTrack")
 	AccessToken = ini.StringValue("DiscogsAutoTagWeb","AccessToken")
 	AccessTokenSecret = ini.StringValue("DiscogsAutoTagWeb","AccessTokenSecret")
-	QueryPage = ini.StringValue("DiscogsAutoTagWeb","QueryPage")
+	REM QueryPage = ini.StringValue("DiscogsAutoTagWeb","QueryPage")
 	CheckInvolvedPeopleSingleLine = ini.BoolValue("DiscogsAutoTagWeb","CheckInvolvedPeopleSingleLine")
 	CheckDontFillEmptyFields = ini.BoolValue("DiscogsAutoTagWeb","CheckDontFillEmptyFields")
 	CheckNewVersion = ini.BoolValue("DiscogsAutoTagWeb","CheckNewVersion")
@@ -1836,16 +1844,16 @@ Sub FindResults(SearchTerm, QueryPage)
 	ElseIf IsNumeric(SearchTerm) Then
 		Results.Add SearchTerm & " - [search by release id]"
 		ResultsReleaseID.Add SearchTerm
-		QueryPage = "Discogs"
+		REM QueryPage = "Discogs"
 	ElseIf Len(SearchTerm) = 36 And Mid(SearchTerm, 9, 1) = "-" And Mid(SearchTerm, 14, 1) = "-" Then
 		Results.Add SearchTerm & " - [search by release id]"
 		ResultsReleaseID.Add SearchTerm
-		QueryPage = "MusicBrainz"
+		REM QueryPage = "MusicBrainz"
 		'6c3d0635-4fac-4085-b85b-79b6a7b13c21
 	ElseIf (InStr(SearchTerm,"/release/") > 0) Then
 		Results.Add SearchTerm & " - [search by release url]"
 		ResultsReleaseID.Add Mid(SearchTerm,InStrRev(SearchTerm,"/")+1)
-		QueryPage = "Discogs"
+		REM QueryPage = "Discogs"
 	Else
 
 		If QueryPage = "MetalArchives" Then
@@ -4942,7 +4950,7 @@ Function GetHeader()
 	templateHTML = templateHTML &  "<tr><td colspan=3></td><td><button type=button class=tabletext id=""showadvancedsearch"">Advanced Search</button></td><td></td><td><b>Filter Results: </b></td><td colspan=3> </td></tr>"
 	REM templateHTML = templateHTML &  "<tr><td colspan=3></td><td colspan=2>Search for:<input type=radio id=""searchartist"" name=""SearchFor"" title=""Enter search string in upper dropdown-field and choose what to search for"" value=""Artist"">Artist<input type=radio id=""searchalbum"" name=""SearchFor"" title=""Enter search string in upper dropdown-field and choose what to search for"" value=""Album"">Album<input type=radio id=""searchrelease"" name=""SearchFor"" title=""Enter search string in upper drop-down field and choose what to search for"" value=""Release"">Release</td><td><b>Filter Results: </b></td><td colspan=3> </td></tr>"
 	templateHTML = templateHTML &  "<tr>"
-	templateHTML = templateHTML &  "<td><b>Search Page:</b></td>"
+	templateHTML = templateHTML &  "<td><b></b></td>"
 	templateHTML = templateHTML &  "<td><b>                                    </b></td>"
 	templateHTML = templateHTML &  "<td><b>                                    </b></td>"
 	templateHTML = templateHTML &  "<td><b>Load:</b></td>"
@@ -4954,20 +4962,20 @@ Function GetHeader()
 	templateHTML = templateHTML &  "</tr>"
 	templateHTML = templateHTML &  "<tr>"
 	templateHTML = templateHTML &  "<td>"
-	templateHTML = templateHTML &  "<select id=""searchpage"" class=tabletext >"
+	REM templateHTML = templateHTML &  "<select id=""searchpage"" class=tabletext >"
 
 	QueryPageList(0) = "Search at Discogs"
 	QueryPageList(1) = "Search at MusicBrainz"
 	Rem QueryPageList(2) = "Search at MetalArchives"
 	
-	For i = 0 To 1
-		If QueryPage <> Mid(QueryPageList(i), 11) Then
-			templateHTML = templateHTML &  "<option value=""" & QueryPageList(i) & """>" & QueryPageList(i) & "</option>"
-		Else
-			templateHTML = templateHTML &  "<option value=""" & QueryPageList(i) & """ selected>" & QueryPageList(i) & "</option>"
-		End If
-	Next
-	templateHTML = templateHTML &  "</select>"
+	REM For i = 0 To 1
+		REM If QueryPage <> Mid(QueryPageList(i), 11) Then
+			REM templateHTML = templateHTML &  "<option value=""" & QueryPageList(i) & """>" & QueryPageList(i) & "</option>"
+		REM Else
+			REM templateHTML = templateHTML &  "<option value=""" & QueryPageList(i) & """ selected>" & QueryPageList(i) & "</option>"
+		REM End If
+	REM Next
+	REM templateHTML = templateHTML &  "</select>"
 	templateHTML = templateHTML &  "</td>"
 	templateHTML = templateHTML &  "<td>                                    </td>"
 	templateHTML = templateHTML &  "<td>                                    </td>"
@@ -5639,8 +5647,8 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Set submitButton = templateHTMLDoc.getElementById("moreimages")
 	Script.RegisterEvent submitButton, "onclick", "MoreImages"
 
-	Set listBox = templateHTMLDoc.getElementById("searchpage")
-	Script.RegisterEvent listBox, "onchange", "Filter"
+	REM Set listBox = templateHTMLDoc.getElementById("searchpage")
+	REM Script.RegisterEvent listBox, "onchange", "Filter"
 
 	Set submitButton = templateHTMLDoc.getElementById("showadvancedsearch")
 	Script.RegisterEvent submitButton, "onclick", "ShowAdvancedSearch"
@@ -5813,18 +5821,18 @@ Sub Filter()
 		YearFilterList.Item(0) = FilterYear
 	End If
 
-	Set listBox = templateHTMLDoc.getElementById("searchpage")
-	If QueryPage <> Mid(listBox.Value, 11) Then
-		If Mid(listBox.Value, 11) = "Discogs" Then
-			If authorize_script = False Then
-				Exit Sub
-			End If
-		End If
-		QueryPage = Mid(listBox.Value, 11)
-		Set listBox = templateHTMLDoc.getElementById("load")
-		listBox.Item(0).Selected = True
-		ini.StringValue("DiscogsAutoTagWeb","QueryPage") = QueryPage
-	End If
+	REM Set listBox = templateHTMLDoc.getElementById("searchpage")
+	REM If QueryPage <> Mid(listBox.Value, 11) Then
+		REM If Mid(listBox.Value, 11) = "Discogs" Then
+			REM If authorize_script = False Then
+				REM Exit Sub
+			REM End If
+		REM End If
+		REM QueryPage = Mid(listBox.Value, 11)
+		REM Set listBox = templateHTMLDoc.getElementById("load")
+		REM listBox.Item(0).Selected = True
+		REM ini.StringValue("DiscogsAutoTagWeb","QueryPage") = QueryPage
+	REM End If
 
 	Set listBox = templateHTMLDoc.getElementById("load")
 	CurrentLoadType = listBox.Value
@@ -5911,7 +5919,7 @@ Sub SaveOptions()
 		ini.StringValue("DiscogsAutoTagWeb","ArtistSeparator") = ArtistSeparator
 		ini.BoolValue("DiscogsAutoTagWeb","CheckTurnOffSubTrack") = CheckTurnOffSubTrack
 		ini.BoolValue("DiscogsAutoTagWeb","CheckInvolvedPeopleSingleLine") = CheckInvolvedPeopleSingleLine
-		ini.StringValue("DiscogsAutoTagWeb","QueryPage") = QueryPage
+		REM ini.StringValue("DiscogsAutoTagWeb","QueryPage") = QueryPage
 		ini.BoolValue("DiscogsAutoTagWeb","CheckTheBehindArtist") = CheckTheBehindArtist
 		ini.BoolValue("DiscogsAutoTagWeb","CheckIgnoreFeatArtist") = CheckIgnoreFeatArtist
 
@@ -5959,8 +5967,8 @@ Sub FormatErrorMessage(ErrorMessage)
 	WebBrowser.Interf.Visible = true
 	WebBrowser.Common.BringToFront
 
-	Set listBox = templateHTMLDoc.getElementById("searchpage")
-	Script.RegisterEvent listBox, "onchange", "Filter"
+	REM Set listBox = templateHTMLDoc.getElementById("searchpage")
+	REM Script.RegisterEvent listBox, "onchange", "Filter"
 
 	Set listBox = templateHTMLDoc.getElementById("alternative")
 	Script.RegisterEvent listBox, "onchange", "Alternative"
@@ -7920,10 +7928,20 @@ Function AddAlternatives(Song)
 	SavedTitle = Song.Title
 	SavedAlbum = Song.AlbumName
 	SavedAlbumArtist = Song.AlbumArtistName
-	SavedFolderName = Mid(Song.Path, 1, InStrRev(Song.Path,"\")-1)
-	SavedFolderName = Mid(SavedFolderName, InStrRev(SavedFolderName,"\")+1)
-	SavedFileName = Mid(Song.Path, 1, InStrRev(Song.Path,".")-1)
-	SavedFileName = Mid(SavedFileName, InStrRev(SavedFileName,"\")+1)
+	WriteLog("Song.Path=" & Song.Path)
+	If InStr(Song.Path, "\") > 0 Then
+		SavedFolderName = Mid(Song.Path, 1, InStrRev(Song.Path,"\")-1)
+		SavedFolderName = Mid(SavedFolderName, InStrRev(SavedFolderName,"\")+1)
+		SavedFileName = Mid(Song.Path, 1, InStrRev(Song.Path,".")-1)
+		SavedFileName = Mid(SavedFileName, InStrRev(SavedFileName,"\")+1)
+	ElseIf InStr(Song.Path, "/") > 0 Then
+		SavedFolderName = Mid(Song.Path, 1, InStrRev(Song.Path,"/")-1)
+		SavedFolderName = Mid(SavedFolderName, InStrRev(SavedFolderName,"/")+1)
+		SavedFileName = Mid(Song.Path, 1, InStrRev(Song.Path,".")-1)
+		SavedFileName = Mid(SavedFileName, InStrRev(SavedFileName,"/")+1)
+	End If
+	If SavedFileName = "" Then SavedFileName = Song.Path
+	If SavedFolderName = "" Then SavedFolderName = Song.Path
 
 	AddAlternative SavedFolderName
 	If(InStr(SavedFolderName,"(") > 0) Then

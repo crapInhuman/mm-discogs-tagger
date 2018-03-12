@@ -1,4 +1,9 @@
-Dim inip, inif, scriptName
+
+'Add scripts.ini entries
+Dim inip, inif, SDB
+
+Set SDB = CreateObject("SongsDB.SDBApplication")
+
 
 inip = SDB.ApplicationPath&"Scripts\Scripts.ini"
 Set inif = SDB.Tools.IniFileByPath(inip)

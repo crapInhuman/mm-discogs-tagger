@@ -8,12 +8,24 @@ If (Not (SDB.IniFile Is Nothing)) and (MsgBox(MsgDeleteSettings, vbYesNo) = vbYe
 	SDB.IniFile.DeleteSection(iniSec)
 End If
 
-Dim inip
-inip = SDB.ApplicationPath&"Scripts\Scripts.ini"
-Dim inif
+Dim inip, inif
+
+inip = SDB.ApplicationPath & "Scripts\Scripts.ini"
 Set inif = SDB.Tools.IniFileByPath(inip)
 If Not (inif Is Nothing) Then
+	iniSec = "DiscogsAutoTagWeb"
+	inif.DeleteSection(iniSec)
+	iniSec = "MusicbrainzAutoTagWeb"
 	inif.DeleteSection(iniSec)
 	SDB.RefreshScriptItems
 End If
 
+inip = SDB.ScriptsPath & "Scripts.ini"
+Set inif = SDB.Tools.IniFileByPath(inip)
+If Not (inif Is Nothing) Then
+	iniSec = "DiscogsAutoTagWeb"
+	inif.DeleteSection(iniSec)
+	iniSec = "MusicbrainzAutoTagWeb"
+	inif.DeleteSection(iniSec)
+	SDB.RefreshScriptItems
+End If
