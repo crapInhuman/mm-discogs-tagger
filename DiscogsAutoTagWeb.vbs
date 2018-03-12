@@ -2,7 +2,13 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.43"
+Const VersionStr = "v5.44"
+
+'Changes from 5.43 to 5.44 by crap_inhuman in 11.2016
+'	Bug with Release Date / Original Date removed
+'	In Advanced Search hitting enter will trigger search
+'	Changed error message if no release found
+
 
 'Changes from 5.42 to 5.43 by crap_inhuman in 11.2016
 '	Leading/Trailing spaces will now detected and deleted in album-name, too.
@@ -398,7 +404,7 @@ Dim CheckComposer, CheckConductor, CheckProducer, CheckDiscNum, CheckTrackNum, C
 Dim CheckForceNumeric, CheckSidesToDisc, CheckForceDisc, CheckNoDisc, CheckLeadingZero, CheckVarious, TxtVarious
 Dim CheckTitleFeaturing, CheckComment, CheckFeaturingName, TxtFeaturingName, CheckOriginalDiscogsTrack, CheckSaveImage
 Dim CheckStyleField, CheckTurnOffSubTrack, CheckInvolvedPeopleSingleLine, CheckDontFillEmptyFields, CheckTheBehindArtist
-Dim CheckDiscogsCollectionOff, CheckDeleteDuplicatedEntry, StoreDate, StoreOrgDate
+Dim CheckDiscogsCollectionOff, CheckDeleteDuplicatedEntry, StoreDate, StoreOrgDate, OriginalDateRead, ReleaseDateRead
 REM Dim CheckUserCollection
 Dim DiscogsUsername
 Dim SubTrackNameSelection
@@ -3018,7 +3024,6 @@ Sub ReloadResults
 			'----------------------------------DiscogsImages----------------------------------------
 
 			' Get Master ID
-			Dim OriginalDateRead, ReleaseDateRead
 			If CurrentRelease.Exists("master_id") Then
 				theMaster = currentRelease("master_id")
 				If SavedMasterID <> theMaster Then
@@ -3053,6 +3058,7 @@ Sub ReloadResults
 			Else
 				ReleaseDateRead = ""
 			End If
+			WriteLog "ReleaseDateRead=" & ReleaseDateRead
 
 			'Set OriginalDate
 			If OriginalDateRead <> "" Then
@@ -3068,6 +3074,7 @@ Sub ReloadResults
 					End If
 				End If
 			End If
+			WriteLog "OriginalDateRead=" & OriginalDateRead
 
 			'Choose Date field saving
 			If StoreDate = 0 Then
@@ -3087,6 +3094,8 @@ Sub ReloadResults
 				ReleaseDate = OriginalDateRead
 				OriginalDate = OriginalDateRead
 			End If
+			WriteLog "ReleaseDate=" & ReleaseDate
+			WriteLog "OriginalDate=" & OriginalDate
 
 			' Get genres
 			For Each g In CurrentRelease("genres")
@@ -4641,7 +4650,7 @@ Sub ShowResult(ResultID)
 		WriteLog "Start ShowResult Discogs"
 		ReleaseID = ResultsReleaseID.Item(ResultID)
 		WriteLog "ReleaseID=" & ReleaseID
-		If InStr(Results.Item(ResultID), "search returned no results") = 0 Then
+		If InStr(Results.Item(ResultID), "search returned no results") = 0 And InStr(Results.Item(ResultID), "No Release found") = 0 Then
 			If InStr(Results.Item(ResultID), " * ") <> 0 Or Right(Results.Item(ResultID), 8) = "(Master)" Then  'Master-Release
 				searchURL_F = "https://api.discogs.com/masters/"
 				WriteLog "Show Master-Release"
@@ -4670,6 +4679,9 @@ Sub ShowResult(ResultID)
 					ReloadResults
 				End If
 			End If
+		Else
+			ErrorMessage = "Search returned no results / No Release found"
+			FormatErrorMessage ErrorMessage
 		End If
 	End If
 
@@ -8224,6 +8236,7 @@ Function ShowAdvancedSearch()
 
 	Set Btn = SDB.UI.NewButton(Form)
 	Btn.Caption = SDB.Localize("Search")
+	Btn.Default = True
 	Btn.Common.Width = 95
 	Btn.Common.Height = 25
 	Btn.Common.Left = 30
@@ -8254,6 +8267,9 @@ Function ShowAdvancedSearch()
 		WriteLog "NewSearchAlbum=" & NewSearchAlbum
 		WriteLog "NewSearchTrack=" & NewSearchTrack
 
+		SDB.Objects("ShowAdvancedSearchForm") = Nothing
+		SDB.ProcessMessages
+
 
 		If NewSearchArtist <> "" Or NewSearchAlbum <> "" Or NewSearchTrack <> "" Then
 
@@ -8280,11 +8296,9 @@ Function ShowAdvancedSearch()
 			SDB.Tools.WebSearch.ResultIndex = 0
 		End If
 	Else
+		SDB.Objects("ShowAdvancedSearchForm") = Nothing
 		WriteLog "Advanced Search canceled"
 	End If
-
-	SDB.Objects("ShowAdvancedSearchForm") = Nothing
-	SDB.ProcessMessages
 
 End Function
 
