@@ -2,9 +2,15 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.41"
+Const VersionStr = "v5.42"
 
-'Changes from 5.40 to 5.41 by crap_inhuman in 07.2016
+
+'Changes from 5.41 to 5.42 by crap_inhuman in 10.2016
+'	Leading/Trailing spaces will now detected and deleted in track-names and the release number
+'	will be send to mysql db, a busy bee will then fix it at Discogs ;)
+
+
+'Changes from 5.40 to 5.41 by crap_inhuman in 10.2016
 '	Small bugfixes
 
 
@@ -1494,24 +1500,26 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 
 	SearchTerm = Trim(SearchTerm)
 
-	WriteLogInit  'Only use for debugging
+	WriteLogInit
 	WriteLog " "
 	WriteLog "SearchTerm=" & SearchTerm
 	WriteLog "SearchArtist=" & SearchArtist
 	WriteLog "SearchAlbum=" & SearchAlbum
 	WriteLog " "
 
-	tmp = SDB.Tools.WebSearch.NewTracks.Item(0).AlbumArtistName
-	If tmp = "Various" or tmp = "Various Artists" or tmp = TxtVarious Then
-		AddAlternative TxtVarious & " - " & SearchAlbum
-		SearchTerm = "Various " & SearchAlbum
-		SearchArtist = "Various"
-		WriteLog "SearchTerm changed to: " & SearchTerm
-		WriteLog "SearchArtist changed to: Various"
-	Else
-		AddAlternative SearchTerm
-		AddAlternative SearchArtist
-		AddAlternative SearchAlbum
+	If SearchArtist <> "" And SearchAlbum <> "" Then
+		tmp = SDB.Tools.WebSearch.NewTracks.Item(0).AlbumArtistName
+		If tmp = "Various" or tmp = "Various Artists" or tmp = TxtVarious Then
+			AddAlternative TxtVarious & " - " & SearchAlbum
+			SearchTerm = "Various " & SearchAlbum
+			SearchArtist = "Various"
+			WriteLog "SearchTerm changed to: " & SearchTerm
+			WriteLog "SearchArtist changed to: Various"
+		Else
+			AddAlternative SearchTerm
+			AddAlternative SearchArtist
+			AddAlternative SearchAlbum
+		End If
 	End If
 
 	NewSearchTerm = SearchTerm
@@ -2246,10 +2254,10 @@ Sub ReloadResults
 			WriteLog "rTrackPosition.Count=" & rTrackPosition.Count
 
 			For i = 0 To UBound(TitleList)-1
-				writelog(i & " " & ArtistsList(i) &  " - " & TitleList(i))
+				WriteLog i & " " & ArtistsList(i) &  " - " & TitleList(i)
 			next
 			For i = 0 To rSubPosition.count-1
-				writelog(i & " " & rSubPosition.item(i))
+				WriteLog i & " " & rSubPosition.item(i)
 			next
 
 			'Check for leading zero in track-position
@@ -7651,6 +7659,7 @@ Function CleanArtistName(artistname)
 	CleanArtistName = DecodeHtmlChars(artistname)
 	If InStr(CleanArtistName, " (") > 0 Then CleanArtistName = Left(CleanArtistName, InStrRev(CleanArtistName, " (") - 1)
 	If InStr(CleanArtistName, ", The") > 0 Then CleanArtistName = "The " & Left(CleanArtistName, InStrRev(CleanArtistName, ", The") - 1)
+	CleanArtistName = PackSpaces(CleanArtistName)
 
 End Function
 
@@ -7745,6 +7754,10 @@ Function PackSpaces(Text)
 	PackSpaces = Text
 	PackSpaces = Replace(PackSpaces,"  ", " ") 'pack spaces
 	PackSpaces = Replace(PackSpaces,"  ", " ") 'pack spaces left
+	If Left(PackSpaces, 1) = " " Or Right(PackSpaces, 1) = " " Then
+		ReportRelease()
+	End If
+	PackSpaces = Trim(PackSpaces) 'delete leading/trailing spaces
 
 End Function
 
@@ -8319,3 +8332,19 @@ Function UserCollection()
 	End If
 
 End Function
+
+
+Sub ReportRelease()
+
+	'If Trackname has leading and/or trailing spaces the release-id will be stored in database to fix the entry at discogs
+	Dim oXMLHTTP
+	Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+	oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/report_release.php", False
+	oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
+	oXMLHTTP.setRequestHeader "User-Agent", "MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
+	WriteLog "Sending release=" & CurrentReleaseID
+	oXMLHTTP.send("release=" & CurrentReleaseID)
+	Set oXMLHTTP = Nothing
+
+End Sub
+
