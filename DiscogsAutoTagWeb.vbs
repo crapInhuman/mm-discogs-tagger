@@ -2,7 +2,12 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.52"
+Const VersionStr = "v5.53"
+
+'Changes from 5.52 to 5.53 by crap_inhuman in 12.2017
+'	Improved identification of Release/Master/Label/Artist Discogs Numbers e.g. [r12345], [m12345], [l12345], [a12345]
+'	Fixed identification of master url 
+
 
 'Changes from 5.51 to 5.52 by crap_inhuman in 09.2017
 '	Now check status-code while image download
@@ -1773,13 +1778,13 @@ Sub FindResults(SearchTerm, QueryPage)
 
 	' Handle direct urls
 
-	If (InStr(SearchTerm,"/masters/") > 0) Then
+	If (InStr(SearchTerm,"/master/") > 0) Then
 		CurrentLoadType = "Master Release"
 		LoadMasterResults Mid(SearchTerm,InStrRev(SearchTerm,"/")+1)
 		Exit Sub
 	End If
 
-	If (InStr(SearchTerm,"/artists/") > 0) Then
+	If (InStr(SearchTerm,"/artist/") > 0) Then
 		CurrentLoadType = "Releases of Artist"
 		tmp = Mid(SearchTerm,InStrRev(SearchTerm,"/")+1)
 		tmp = Left(tmp, InStr(tmp,"-")-1)
@@ -1787,12 +1792,35 @@ Sub FindResults(SearchTerm, QueryPage)
 		Exit Sub
 	End If
 
-	If (InStr(SearchTerm,"/labels/") > 0) Then
+	If (InStr(SearchTerm,"/label/") > 0) Then
 		CurrentLoadType = "Releases of Label"
 		tmp = Mid(SearchTerm,InStrRev(SearchTerm,"/")+1)
 		tmp = Left(tmp, InStr(tmp,"-")-1)
 		LoadLabelResults tmp
 		Exit Sub
+	End If
+	
+	If Left(SearchTerm, 2) = "[m" Then
+		CurrentLoadType = "Master Release"
+		LoadMasterResults Mid(SearchTerm, 3, Len(SearchTerm)-3)
+		Exit Sub
+	End If
+	
+	If Left(SearchTerm, 2) = "[a" Then
+		CurrentLoadType = "Releases of Artist"
+		LoadArtistResults Mid(SearchTerm, 3, Len(SearchTerm)-3)
+		Exit Sub
+	End If
+	
+	If Left(SearchTerm, 2) = "[l" Then
+		CurrentLoadType = "Releases of Label"
+		LoadLabelResults Mid(SearchTerm, 3, Len(SearchTerm)-3)
+		Exit Sub
+	End If
+	
+	If Left(SearchTerm, 2) = "[r" Then
+		CurrentLoadType = "Search Results"
+		SearchTerm = Mid(SearchTerm, 3, Len(SearchTerm)-3)
 	End If
 
 	SDB.ProcessMessages
@@ -4650,6 +4678,7 @@ Sub ShowResult(ResultID)
 	If ResultsReleaseID.Item(ResultID) = "" Then Exit Sub
 	Dim json
 	Set json = New VbsJson
+	CurrentResultId = ResultID
 	
 	If QueryPage = "MetalArchives" Then
 		searchURL = ResultsReleaseID.Item(ResultID)
@@ -4744,7 +4773,7 @@ Sub ShowResult(ResultID)
 			searchURL = ReleaseID
 			searchURL_L = ""
 
-			Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")   
+			Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 			oXMLHTTP.open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
 			oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
 			oXMLHTTP.setRequestHeader "User-Agent",UserAgent
@@ -4938,7 +4967,7 @@ Function GetHeader()
 	templateHTML = templateHTML &  "<td>                                    </td>"
 	templateHTML = templateHTML &  "<td>                                    </td>"
 	templateHTML = templateHTML &  "<td>"
-	templateHTML = templateHTML &  "<select id=""load"" class=tabletext title=""Search Result=Search with Artist and Album Title" & vbCrLf & "Master Release=Show all releases from the master"">"
+	templateHTML = templateHTML &  "<select id=""load"" class=tabletext title=""Search Result=Search with Artist and Album Title" & vbCrLf & "Master Release=Show master of selected release" & vbCrLf & "Versions of Master=Show all releases of selected master" & vbCrLf & "Releases of Artist=Show all releases of selected artist" & vbCrLf & "Releases of Label=Show all releases of selected label"">"
 
 	For i = 0 To LoadList.Count - 1
 		If LoadList.Item(i) <> CurrentLoadType Then
@@ -5209,7 +5238,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = templateHTML &  "<tr>"
 	templateHTML = templateHTML &  "<td><input type=checkbox id=""releaseid"" ></td>"
 	templateHTML = templateHTML &  "<td>Release:</td>"
-	If InStr(Results.Item(CurrentResultId), " * ") <> 0 Or Right(Results.Item(CurrentResultID), 8) = "(Master)" Then
+	If InStr(Results.Item(CurrentResultId), " * ") <> 0 Or Right(Results.Item(CurrentResultId), 8) = "(Master)" Then
 		templateHTML = templateHTML &  "<td>N/A</a> (Master: <a href=""https://www.discogs.com/master/<!RELEASEID!>"" target=""_blank""><!RELEASEID!></a>)</td>"
 	ElseIf (theMaster <> "") Then
 		templateHTML = templateHTML &  "<td><a href=""https://www.discogs.com/release/<!RELEASEID!>"" target=""_blank""><!RELEASEID!></a> (Master: <a href=""https://www.discogs.com/master/<!MASTERID!>"" target=""_blank""><!MASTERID!></a>)</td>"
@@ -8086,7 +8115,7 @@ Function authorize_script()
 	Dim retIE, retryCnt, start, a
 
 	If AccessToken = "" Or AccessTokenSecret = "" Then
-		SDB.MessageBox "Starting August 15th, access to discogs database will require authentication." & vbNewLine & "This is part of an ongoing effort to improve API uptime and response times" & vbNewLine & vbNewLine & "You need an account at discogs in order to use Discogs Tagger.", mtInformation, Array(mbOk)
+		SDB.MessageBox "Access to discogs database require authentication." & vbNewLine & "This is part of an ongoing effort to improve API uptime and response times" & vbNewLine & vbNewLine & "You need an account at discogs in order to use Discogs Tagger.", mtInformation, Array(mbOk)
 
 		Set TypeLib = CreateObject("Scriptlet.TypeLib")
 
@@ -8100,7 +8129,7 @@ Function authorize_script()
 		IEobj.navigate ("http://www.germanc64.de/mm/oauth/oauth_guid.php?f=" & GUID)
 
 		WriteLog "IE started"
-		SDB.MessageBox "Press Ok after authorize the script", mtInformation, Array(mbOk)
+		SDB.MessageBox "Press Ok AFTER you have authorize the Discogs Tagger", mtInformation, Array(mbOk)
 		
 		Set oXMLHTTP = Nothing
 		Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
