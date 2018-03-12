@@ -1,14 +1,17 @@
 '
 ' MediaMonkey Script
 '
-' NAME: Discogs Tagger Options 3.3
+' NAME: Discogs Tagger Options 3.4
 '
 ' AUTHOR: crap_inhuman
-' DATE : 30/08/2017
+' DATE : 13/09/2017
 '
 '
 ' INSTALL: Automatic installation during Discogs Tagger install
 '
+'Changes from 3.3 to 3.4
+'Added new 'where to store date' option
+
 'Changes from 3.2 to 3.3
 'Changed the 'where to store date' option
 
@@ -415,13 +418,14 @@ Sub InitSheet(Sheet)
 
 	Combo.AddItem ("No (Default)")
 	Combo.AddItem ("Yes, store release date into both date fields")
+	Combo.AddItem ("Yes, store original date into both date fields")
 
 	Combo.ItemIndex = StoreDate
 
 	Set Label2 = UI.NewLabel(GroupBox0)
 	Label2.Common.SetRect 20, 225, 50, 25
 	Label2.Caption = "Use only one release date?"
-	Label2.Common.Hint = "If you choose yes, the release date will be stored in the date field and the master release date in the original date field (only with Discogs)" & vbCrLf & "If you choose no, the release date will be stored into both date fields in mm, ignoring the original release date from the master release."
+	Label2.Common.Hint = "If you choose no, the release date will be stored in the date field and the master release date in the original date field (only with Discogs)" & vbCrLf & "If you choose yes, the release or original date will be stored into both date fields in mm."
 
 	
 	Dim GroupBox1

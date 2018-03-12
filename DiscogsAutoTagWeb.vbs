@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.49"
+Const VersionStr = "v5.50"
+
+'Changes from 5.49 to 5.50 by crap_inhuman in 09.2017
+'	Secure channel error: Replaced 'MSXML2.ServerXMLHTTP.6.0' with 'MSXML2.XMLHTTP.6.0' for image download
+
 
 'Changes from 5.48 to 5.49 by crap_inhuman in 08.2017
 '	Changed the 'where to store date' option
@@ -456,7 +460,7 @@ Dim CheckNewVersion, LastCheck
 
 Dim ReleaseTag, CountryTag, CatalogTag, FormatTag
 Dim OriginalDate, Separator
-Dim OptionsChanged
+Dim OptionsChanged, UserAgent
 Dim AccessToken, AccessTokenSecret
 
 Dim fso, loc, logf
@@ -755,9 +759,6 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		End If
 		If ini.StringValue("DiscogsAutoTagWeb","StoreDate") = "" Then
 			ini.StringValue("DiscogsAutoTagWeb","StoreDate") = 0
-		End If
-		If ini.StringValue("DiscogsAutoTagWeb","StoreDate") = 2 Then
-			ini.StringValue("DiscogsAutoTagWeb","StoreDate") = 1
 		End If
 		If ini.ValueExists("DiscogsAutoTagWeb","StoreOrgDate") Then
 			ini.DeleteKey "DiscogsAutoTagWeb","StoreOrgDate"
@@ -1642,6 +1643,8 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		NewSearchArtist = SearchArtist
 		NewSearchAlbum = SearchAlbum
 	End If
+	
+	UserAgent = "MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " +http://www.mediamonkey.com"
 
 	If CheckNewVersion = True Then
 		Dim iDate, Version, colNodes, objNode
@@ -2050,7 +2053,7 @@ Sub LoadMasterResults(MasterID)
 			Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")   
 			oXMLHTTP.open "GET", searchURL, false
 			oXMLHTTP.setRequestHeader "Content-Type","application/json"
-			oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
+			oXMLHTTP.setRequestHeader "User-Agent",UserAgent
 			oXMLHTTP.send()
 
 			If oXMLHTTP.Status = 200 Then
@@ -3133,9 +3136,15 @@ Sub ReloadResults
 			If StoreDate = 0 Then
 				ReleaseDate = ReleaseDateRead
 				OriginalDate = OriginalDateRead
+				WriteLog "Use StoreDate=Default"
 			ElseIf StoreDate = 1 Then
 				ReleaseDate = ReleaseDateRead
 				OriginalDate = ReleaseDateRead
+				WriteLog "Use release date for both date fields"
+			ElseIf StoreDate = 2 Then
+				ReleaseDate = OriginalDateRead
+				OriginalDate = OriginalDateRead
+				WriteLog "Use original date for both date fields"
 			End If
 
 			WriteLog "ReleaseDate=" & ReleaseDate
@@ -3652,7 +3661,7 @@ Sub ReloadResults
 					Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
 					oXMLHTTP.Open "GET", searchURL, False
 					oXMLHTTP.setRequestHeader "Content-Type", "application/json"
-					oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
+					oXMLHTTP.setRequestHeader "User-Agent",UserAgent
 					oXMLHTTP.send ()
 
 					If oXMLHTTP.Status = 200 Then
@@ -3682,7 +3691,7 @@ Sub ReloadResults
 					ImagesCount = CurrentRelease("cover-art-archive")("count")
 					oXMLHTTP.Open "GET", searchURL, False
 					oXMLHTTP.setRequestHeader "Content-Type", "application/json"
-					oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
+					oXMLHTTP.setRequestHeader "User-Agent",UserAgent
 					oXMLHTTP.send ()
 
 					If oXMLHTTP.Status = 200 Then
@@ -4683,7 +4692,7 @@ Sub ShowResult(ResultID)
 			Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")   
 			oXMLHTTP.Open "GET", searchURL, False
 			oXMLHTTP.setRequestHeader "Content-Type", "application/json"
-			oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
+			oXMLHTTP.setRequestHeader "User-Agent",UserAgent
 			oXMLHTTP.send ()
 
 			If oXMLHTTP.Status = 200 Then
@@ -4727,7 +4736,7 @@ Sub ShowResult(ResultID)
 			Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")   
 			oXMLHTTP.open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
 			oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
-			oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
+			oXMLHTTP.setRequestHeader "User-Agent",UserAgent
 			WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L
 			oXMLHTTP.send("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L)
 
@@ -5975,7 +5984,7 @@ Function JSONParser_find_result(searchURL, ArrayName, SendArtist, SendAlbum, Sen
 
 		oXMLHTTP.Open "GET", searchURL, False
 		oXMLHTTP.setRequestHeader "Content-Type", "application/json"
-		oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
+		oXMLHTTP.setRequestHeader "User-Agent",UserAgent
 		oXMLHTTP.send ()
 
 		If oXMLHTTP.Status = 200 Then
@@ -6190,7 +6199,7 @@ Function JSONParser_find_result(searchURL, ArrayName, SendArtist, SendAlbum, Sen
 		If useOAuth = True Then
 			oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new_v2.php", False
 			oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
-			oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
+			oXMLHTTP.setRequestHeader "User-Agent",UserAgent
 			If LimitReleases = 50 Then SendPerPage = 50
 			WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&artist=" & SendArtist & "&album=" & SendAlbum & "&track=" & SendTrack & "&type=" & SendType & "&dbsearch=" & SendDBSearch & "&perpage=" & SendPerPage & "&querypage=" & QueryPage & "&page=1"
 			oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&artist=" & SendArtist & "&album=" & SendAlbum & "&track=" & SendTrack & "&type=" & SendType & "&dbsearch=" & SendDBSearch & "&perpage=" & SendPerPage & "&querypage=" & QueryPage & "&page=1")
@@ -6213,7 +6222,7 @@ Function JSONParser_find_result(searchURL, ArrayName, SendArtist, SendAlbum, Sen
 
 			oXMLHTTP.Open "GET", searchURL, False
 			oXMLHTTP.setRequestHeader "Content-Type","application/json"
-			oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
+			oXMLHTTP.setRequestHeader "User-Agent",UserAgent
 			oXMLHTTP.send()
 
 			If oXMLHTTP.Status = 200 Then
@@ -6245,7 +6254,7 @@ Function JSONParser_find_result(searchURL, ArrayName, SendArtist, SendAlbum, Sen
 					If Page <> 1 Then
 						oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new_v2.php", False
 						oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"  
-						oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
+						oXMLHTTP.setRequestHeader "User-Agent",UserAgent
 						WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&artist=" & SendArtist & "&album=" & SendAlbum & "&track=" & SendTrack & "&type=" & SendType & "&dbsearch=" & SendDBSearch & "&perpage=" & SendPerPage & "&querypage=" & QueryPage & "&page=" & Page
 						oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&artist=" & SendArtist & "&album=" & SendAlbum & "&track=" & SendTrack & "&type=" & SendType & "&dbsearch=" & SendDBSearch & "&perpage=" & SendPerPage & "&querypage=" & QueryPage & "&page=" & Page)
 						If oXMLHTTP.Status = 200 Then
@@ -6422,7 +6431,7 @@ Function ReloadMaster(SavedMasterID)
 
 	oXMLHTTP.open "GET", masterURL, false
 	oXMLHTTP.setRequestHeader "Content-Type","application/json"
-	oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
+	oXMLHTTP.setRequestHeader "User-Agent",UserAgent
 	oXMLHTTP.send()
 
 	If oXMLHTTP.Status = 200 Then
@@ -7176,12 +7185,13 @@ End Sub
 Function getimages(DownloadDest, LocalFile)
 
 	Dim oXMLHTTP, objStream
-	Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+	Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 	SDB.ProcessMessages
 	WriteLog "Start getimages"
 	oXMLHTTP.open "GET", DownloadDest, False
-	oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
-	oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
+	oXMLHTTP.setRequestHeader "Accept", "*/*"
+	oXMLHTTP.setRequestHeader "User-Agent", UserAgent
+	oXMLHTTP.setRequestHeader "Host", "img.discogs.com"
 	oXMLHTTP.send()
 	If oXMLHTTP.Status = 200 Then
 		Set objStream = CreateObject("ADODB.Stream")
@@ -8401,7 +8411,7 @@ Function UserCollection()
 	If DiscogsUsername = "" Then
 		oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/identity.php", False
 		oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
-		oXMLHTTP.setRequestHeader "User-Agent","MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
+		oXMLHTTP.setRequestHeader "User-Agent",UserAgent
 		WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret
 		oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret)
 
@@ -8422,7 +8432,7 @@ Function UserCollection()
 	If CheckDiscogsCollectionOff = False Then
 		oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/get_release.php", False
 		oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
-		oXMLHTTP.setRequestHeader "User-Agent", "MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
+		oXMLHTTP.setRequestHeader "User-Agent", UserAgent
 		WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&username=" & DiscogsUsername & "&page=1"
 		oXMLHTTP.send("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&username=" & DiscogsUsername & "&page=1")
 		If oXMLHTTP.Status = 200 Then
@@ -8441,7 +8451,7 @@ Function UserCollection()
 						If Page <> 1 Then
 							oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/get_release.php", False
 							oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
-							oXMLHTTP.setRequestHeader "User-Agent", "MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
+							oXMLHTTP.setRequestHeader "User-Agent", UserAgent
 							WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&username=" & DiscogsUsername & "&page=" & Page
 							oXMLHTTP.send("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&username=" & DiscogsUsername & "&page=" & Page)
 							If oXMLHTTP.Status = 200 Then
@@ -8470,7 +8480,7 @@ Function UserCollection()
 
 						oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/add_release.php", False
 						oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
-						oXMLHTTP.setRequestHeader "User-Agent", "MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
+						oXMLHTTP.setRequestHeader "User-Agent", UserAgent
 						WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&username=" & DiscogsUsername & "&release=" & CurrentReleaseID
 						oXMLHTTP.send("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&username=" & DiscogsUsername & "&release=" & CurrentReleaseID)
 						If oXMLHTTP.Status = 200 Then
@@ -8494,7 +8504,7 @@ Function UserCollection()
 	Else
 		oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/add_release.php", False
 		oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
-		oXMLHTTP.setRequestHeader "User-Agent", "MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
+		oXMLHTTP.setRequestHeader "User-Agent", UserAgent
 		WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&username=" & DiscogsUsername & "&release=" & CurrentReleaseID
 		oXMLHTTP.send("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&username=" & DiscogsUsername & "&release=" & CurrentReleaseID)
 		If oXMLHTTP.Status = 200 Then
@@ -8516,7 +8526,7 @@ Sub ReportRelease()
 	Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
 	oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/report_release.php", False
 	oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
-	oXMLHTTP.setRequestHeader "User-Agent", "MediaMonkeyDiscogsAutoTagWeb/" & Mid(VersionStr, 2) & " (http://mediamonkey.com)"
+	oXMLHTTP.setRequestHeader "User-Agent", UserAgent
 	WriteLog "Sending release=" & CurrentReleaseID
 	oXMLHTTP.send("release=" & CurrentReleaseID)
 	Set oXMLHTTP = Nothing
