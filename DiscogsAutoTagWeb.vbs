@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.50"
+Const VersionStr = "v5.51"
+
+'Changes from 5.50 to 5.51 by crap_inhuman in 09.2017
+'	Secure channel error: Replaced all 'MSXML2.ServerXMLHTTP.6.0' with 'MSXML2.XMLHTTP.6.0'
+
 
 'Changes from 5.49 to 5.50 by crap_inhuman in 09.2017
 '	Secure channel error: Replaced 'MSXML2.ServerXMLHTTP.6.0' with 'MSXML2.XMLHTTP.6.0' for image download
@@ -1807,7 +1811,7 @@ Sub FindResults(SearchTerm, QueryPage)
 
 		If QueryPage = "MetalArchives" Then
 			Dim oXMLHTTP, MAReleases
-			Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+			Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 
 			WriteLog "Start FindResults MetalArchives"
 			WriteLog "NewSearchArtist=" & NewSearchArtist
@@ -2035,7 +2039,7 @@ Sub LoadMasterResults(MasterID)
 	WriteLog " "
 	WriteLog "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
 
-	Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+	Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 
 	WriteLog "Load MasterResult"
 	ErrorMessage = ""
@@ -2050,7 +2054,7 @@ Sub LoadMasterResults(MasterID)
 			searchURL = "https://api.discogs.com/masters/" & MasterID
 			WriteLog "searchURL=" & searchURL
 
-			Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")   
+			Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")   
 			oXMLHTTP.open "GET", searchURL, false
 			oXMLHTTP.setRequestHeader "Content-Type","application/json"
 			oXMLHTTP.setRequestHeader "User-Agent",UserAgent
@@ -3658,7 +3662,7 @@ Sub ReloadResults
 				If CurrentRelease("cover-art-archive")("count") > 0 And CurrentRelease("cover-art-archive")("front") = True Then
 					searchURL = "http://coverartarchive.org/release/" & CurrentReleaseId
 					WriteLog searchURL
-					Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+					Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 					oXMLHTTP.Open "GET", searchURL, False
 					oXMLHTTP.setRequestHeader "Content-Type", "application/json"
 					oXMLHTTP.setRequestHeader "User-Agent",UserAgent
@@ -4642,7 +4646,7 @@ Sub ShowResult(ResultID)
 	
 	If QueryPage = "MetalArchives" Then
 		searchURL = ResultsReleaseID.Item(ResultID)
-		Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+		Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 		Call oXMLHTTP.open("GET", searchURL, False)
 		Call oXMLHTTP.send()
 		If oXMLHTTP.Status = 200 Then
@@ -4689,7 +4693,7 @@ Sub ShowResult(ResultID)
 			searchURL = "http://musicbrainz.org/ws/2/release/" & ReleaseID & "?inc=recordings+recording-level-rels+work-rels+work-level-rels+artist-rels+artist-credits+media+release-group-rels+release-groups+labels&fmt=json"
 			WriteLog "searchURL=" & searchURL
 
-			Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")   
+			Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")   
 			oXMLHTTP.Open "GET", searchURL, False
 			oXMLHTTP.setRequestHeader "Content-Type", "application/json"
 			oXMLHTTP.setRequestHeader "User-Agent",UserAgent
@@ -4733,7 +4737,7 @@ Sub ShowResult(ResultID)
 			searchURL = ReleaseID
 			searchURL_L = ""
 
-			Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")   
+			Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")   
 			oXMLHTTP.open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
 			oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
 			oXMLHTTP.setRequestHeader "User-Agent",UserAgent
@@ -5978,7 +5982,7 @@ Function JSONParser_find_result(searchURL, ArrayName, SendArtist, SendAlbum, Sen
 	ErrorMessage = ""
 
 
-	Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+	Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 
 	If QueryPage = "MusicBrainz" Then
 
@@ -6423,7 +6427,7 @@ Function ReloadMaster(SavedMasterID)
 	WriteLog "Start ReloadMaster"
 	Dim oXMLHTTP, masterURL
 	masterURL = "https://api.discogs.com/masters/" & SavedMasterID
-	Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+	Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 
 	Dim json
 	Set json = New VbsJson
@@ -8081,7 +8085,7 @@ Function authorize_script()
 		SDB.MessageBox "Press Ok after authorize the script", mtInformation, Array(mbOk)
 		
 		Set oXMLHTTP = Nothing
-		Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+		Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 		oXMLHTTP.open "GET", "http://www.germanc64.de/mm/oauth/get_oauth_guid.php?f=" & GUID, false
 		oXMLHTTP.send()
 		If oXMLHTTP.Status = 200 Then
@@ -8407,7 +8411,7 @@ Function UserCollection()
 	Dim json
 	Set json = New VbsJson
 	Dim Page, ReleaseCountMax, ReleasePages, r, id, ReleaseFound, ErrorFound
-	Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+	Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 	If DiscogsUsername = "" Then
 		oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/identity.php", False
 		oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
@@ -8523,7 +8527,7 @@ Sub ReportRelease()
 
 	'If Trackname has leading and/or trailing spaces the release-id will be stored in database to fix the entry at discogs
 	Dim oXMLHTTP
-	Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+	Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 	oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/report_release.php", False
 	oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
 	oXMLHTTP.setRequestHeader "User-Agent", UserAgent
