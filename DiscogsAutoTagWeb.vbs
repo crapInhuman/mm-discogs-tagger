@@ -2,7 +2,12 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.47"
+Const VersionStr = "v5.48"
+
+'Changes from 5.47 to 5.48 by crap_inhuman in 06.2017
+'	Added forgotten blank
+'	Added "Ignore featuring artist" option
+
 
 'Changes from 5.46 to 5.47 by crap_inhuman in 06.2017
 '	Added the feature "Add leading zero (Disc#)"
@@ -420,6 +425,7 @@ Dim CheckForceNumeric, CheckSidesToDisc, CheckForceDisc, CheckNoDisc, CheckLeadi
 Dim CheckTitleFeaturing, CheckComment, CheckFeaturingName, TxtFeaturingName, CheckOriginalDiscogsTrack, CheckSaveImage, CheckLimitReleases
 Dim CheckStyleField, CheckTurnOffSubTrack, CheckInvolvedPeopleSingleLine, CheckDontFillEmptyFields, CheckTheBehindArtist
 Dim CheckDiscogsCollectionOff, CheckDeleteDuplicatedEntry, StoreDate, StoreOrgDate, OriginalDateRead, ReleaseDateRead
+Dim CheckIgnoreFeatArtist
 REM Dim CheckUserCollection
 Dim DiscogsUsername
 Dim SubTrackNameSelection
@@ -752,6 +758,9 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		If ini.StringValue("DiscogsAutoTagWeb","LimitReleases") = "" Then
 			ini.StringValue("DiscogsAutoTagWeb","LimitReleases") = 0
 		End If
+		If ini.StringValue("DiscogsAutoTagWeb","CheckIgnoreFeatArtist") = "" Then
+			ini.BoolValue("DiscogsAutoTagWeb","CheckIgnoreFeatArtist") = False
+		End If
 
 
 		'----------------------------------DiscogsImages----------------------------------------
@@ -856,6 +865,7 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	StoreDate = ini.StringValue("DiscogsAutoTagWeb","StoreDate")
 	StoreOrgDate = ini.StringValue("DiscogsAutoTagWeb","StoreOrgDate")
 	CheckLimitReleases = ini.StringValue("DiscogsAutoTagWeb","LimitReleases")
+	CheckIgnoreFeatArtist = ini.BoolValue("DiscogsAutoTagWeb","CheckIgnoreFeatArtist")
 
 	Separator = Left(Separator, Len(Separator)-1)
 	Separator = Right(Separator, Len(Separator)-1)
@@ -2330,7 +2340,11 @@ Sub ReloadResults
 			tmp = getArtistsName(CurrentRelease, "artists", QueryPage)
 
 			AlbumArtist = tmp(2)
-			AlbumArtistTitle = tmp(0) & tmp(1)
+			If tmp(1) <> "" Then
+				AlbumArtistTitle = tmp(0) & " " & tmp(1)
+			Else
+				AlbumArtistTitle = tmp(0)
+			End If
 			Writelog "AlbumArtistTitle=" & AlbumArtistTitle
 
 			If (Not CheckAlbumArtistFirst) Then
@@ -2376,7 +2390,7 @@ Sub ReloadResults
 								currentRole = Trim(rolea(zahltemp))
 							End If
 							WriteLog "currentRole=" & currentRole
-							If LookForFeaturing(currentRole) Then
+							If LookForFeaturing(currentRole) And CheckIgnoreFeatArtist = False Then
 								WriteLog "Featuring found"
 								If InStr(AlbumFeaturing, artistName) = 0 Then
 									If AlbumFeaturing = "" Then
@@ -2743,7 +2757,7 @@ Sub ReloadResults
 						involvedRole = TrackRoles(tmp)
 						involvedArtist = TrackArtist2(tmp)
 
-						If LookForFeaturing(involvedRole) Then
+						If LookForFeaturing(involvedRole) And CheckIgnoreFeatArtist = False Then
 							If InStr(TrackFeaturing, involvedArtist) = 0 Then
 								If TrackFeaturing = "" Then
 									If CheckFeaturingName Then
@@ -2858,7 +2872,7 @@ Sub ReloadResults
 									involvedRole = Trim(rolea(zahltemp))
 								End If
 
-								If LookForFeaturing(involvedRole) Then
+								If LookForFeaturing(involvedRole) And CheckIgnoreFeatArtist = False Then
 									If InStr(artistList, involvedArtist) = 0 Then
 										If TrackFeaturing = "" Then
 											If CheckFeaturingName Then
@@ -2935,7 +2949,7 @@ Sub ReloadResults
 					WriteLog "ExtraArtist end"
 				End If
 
-				If TrackFeaturing <> "" Then
+				If TrackFeaturing <> "" And CheckIgnoreFeatArtist = False Then
 					If CheckTitleFeaturing = True Then
 						tmp = InStrRev(TrackFeaturing, ArtistSeparator)
 						If tmp = 0 Or ArtistLastSeparator = False Then
@@ -3229,7 +3243,11 @@ Sub ReloadResults
 
 			' Get release artist
 			tmp = getArtistsName(CurrentRelease, "artist-credit", QueryPage)
-			AlbumArtistTitle = tmp(0) & tmp(1)
+			If tmp(1) <> "" Then
+				AlbumArtistTitle = tmp(0) & " " & tmp(1)
+			Else
+				AlbumArtistTitle = tmp(0)
+			End If
 			AlbumArtist = tmp(2)
 
 			Writelog "AlbumArtistTitle=" & AlbumArtistTitle
@@ -3427,7 +3445,7 @@ Sub ReloadResults
 							involvedRole = TrackRoles(tmp)
 							involvedArtist = TrackArtist2(tmp)
 		
-							If LookForFeaturing(involvedRole) Then
+							If LookForFeaturing(involvedRole) And CheckIgnoreFeatArtist = False Then
 								If InStr(TrackFeaturing, involvedArtist) = 0 Then
 									If TrackFeaturing = "" Then
 										If CheckFeaturingName Then
@@ -3557,7 +3575,7 @@ Sub ReloadResults
 					End If
 					WriteLog "TrackArtist end"
 
-					If TrackFeaturing <> "" Then
+					If TrackFeaturing <> "" And CheckIgnoreFeatArtist = False Then
 						If CheckTitleFeaturing = True Then
 							tmp = InStrRev(TrackFeaturing, ArtistSeparator)
 							If tmp = 0 Or ArtistLastSeparator = False Then
@@ -4166,7 +4184,7 @@ Function trackNumbering(byRef pos, byRef position, byRef TracksNum, byRef Tracks
 				If CheckForceNumeric Then
 					tracksCD.Add LeadingZeroDisc(iAutoDiscNumber)
 				Else
-					tracksCD.AddLeadingZeroDisc(position)
+					tracksCD.Add LeadingZeroDisc(position)
 				End If
 			ElseIf Len(position) = 2 Then
 				If IsInteger(Mid(position,2,1)) And Not IsInteger(Mid(position,1,1)) Then
@@ -4288,6 +4306,7 @@ Function getinvolvedRole(involvedArtist, involvedRole, byRef artistList, byRef T
 				End If
 			End If
 		End If
+		WriteLog "TrackFeaturing=" & TrackFeaturing
 	Else
 		Do
 			tmp = searchKeyword(LyricistKeywords, involvedRole, TrackLyricists, involvedArtist)
@@ -5105,7 +5124,8 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	End If
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""yearonlydate"" title=""If checked only the Year will be saved (e.g. 14.01.1982 -> 1982)"" >Only Year Of Date</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""deleteduplicatedentry"" title=""If checked the duplicated entries in the label-tag or the catalog-tag will be deleted (e.g. Label-tag: Roadrunner Records; Roadrunner Records  ->  Roadrunner Records"" >Delete duplicated Entries</td></tr>"
-	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""titlefeaturing"" title=""If checked the feat. Artist appears in the title tag (e.g. Aaliyah (ft. Timbaland) - We Need a Resolution  ->  Aaliyah - We Need a Resolution (ft. Timbaland) )"" >feat. Artist behind Title</td></tr>"
+	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""titlefeaturing"" title=""If checked the feat. artist appears in the title tag (e.g. Aaliyah ft. Timbaland - We Need a Resolution  ->  Aaliyah - We Need a Resolution (ft. Timbaland) )"" >feat. Artist behind Title</td></tr>"
+	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""ignorefeaturing"" title=""If checked the feat. artist will be ignored"" >Ignore feat. artist</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""TheBehindArtist"" title=""If checked the ArtistName will be 'Beatles, The' instead of 'The Beatles'"" >Move 'The' in Artist to the end</td></tr>"
 
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""FeaturingName"" title=""Rename 'feat.' to the given word"" >Rename 'feat.' to:</td></tr>"
@@ -5577,6 +5597,10 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Set submitButton = templateHTMLDoc.getElementById("usercollection")
 	Script.RegisterEvent submitButton, "onclick", "UserCollection"
 
+	Set checkBox = templateHTMLDoc.getElementById("ignorefeaturing")
+	checkBox.Checked = CheckIgnoreFeatArtist
+	Script.RegisterEvent checkBox, "onclick", "Update"
+
 End Sub
 
 
@@ -5684,6 +5708,8 @@ Sub Update()
 	CheckInvolvedPeopleSingleLine = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("TheBehindArtist")
 	CheckTheBehindArtist = checkBox.Checked
+	Set checkBox = templateHTMLDoc.getElementById("ignorefeaturing")
+	CheckIgnoreFeatArtist = checkBox.Checked
 
 	OptionsChanged = True
 
@@ -5836,6 +5862,7 @@ Sub SaveOptions()
 		ini.BoolValue("DiscogsAutoTagWeb","CheckInvolvedPeopleSingleLine") = CheckInvolvedPeopleSingleLine
 		ini.StringValue("DiscogsAutoTagWeb","QueryPage") = QueryPage
 		ini.BoolValue("DiscogsAutoTagWeb","CheckTheBehindArtist") = CheckTheBehindArtist
+		ini.BoolValue("DiscogsAutoTagWeb","CheckIgnoreFeatArtist") = CheckIgnoreFeatArtist
 
 		tmp = CountryFilterList.Item(0)
 		For a = 1 To CountryList.Count - 1
@@ -7218,6 +7245,7 @@ Sub WriteOptions()
 	WriteLog "CheckVarious=" & CheckVarious
 	WriteLog "TxtVarious=" & TxtVarious
 	WriteLog "CheckTitleFeaturing=" & CheckTitleFeaturing
+	WriteLog "CheckIgnoreFeatArtist=" & CheckIgnoreFeatArtist
 	WriteLog "CheckDeleteDuplicatedEntry=" & CheckDeleteDuplicatedEntry
 	WriteLog "TxtFeaturingName=" & TxtFeaturingName
 	WriteLog "CheckFeaturingName=" & CheckFeaturingName
@@ -8135,10 +8163,12 @@ Function getArtistsName(Current, Role, QueryPage)
 				If FoundFeaturing = False Then
 					Artists(0) = Artists(0) & tmpArtistSeparator & artistName
 				Else
-					If Artists(1) = "" Then
-						Artists(1) = tmpArtistSeparator & artistName
-					Else
-						Artists(1) = Artists(1) & ArtistSeparator & artistName
+					If CheckIgnoreFeatArtist = False Then
+						If Artists(1) = "" Then
+							Artists(1) = tmpArtistSeparator & artistName
+						Else
+							Artists(1) = Artists(1) & ArtistSeparator & artistName
+						End If
 					End If
 				End If
 			End If
@@ -8155,18 +8185,27 @@ Function getArtistsName(Current, Role, QueryPage)
 			End If
 			WriteLog "Featuring found=" & tmp
 
-			If tmp <> "" Then
-				If tmp = "," Then
-					tmpArtistSeparator = ArtistSeparator
-				ElseIf LookForFeaturing(tmp) And CheckFeaturingName Then
-					tmpArtistSeparator = TxtFeaturingName & " "
-				Else
-					tmpArtistSeparator = " " & tmp & " "
-				End If
-				If LookForFeaturing(tmp) = True Then FoundFeaturing = True
-				WriteLog "FoundFeaturing=" & FoundFeaturing
+			If tmp = "," Then
+				tmpArtistSeparator = ArtistSeparator
 			Else
-				tmpArtistSeparator = ""
+				If tmp <> "" Then
+					If LookForFeaturing(tmp) = False Then
+						tmpArtistSeparator = " " & tmp & " "
+					End If
+					If LookForFeaturing(tmp) = True And CheckIgnoreFeatArtist = False Then
+						If CheckFeaturingName Then
+							tmpArtistSeparator = TxtFeaturingName & " "
+						Else
+							tmpArtistSeparator = " " & tmp & " "
+						End If
+					End If
+					If LookForFeaturing(tmp) = True Then
+						FoundFeaturing = True
+						WriteLog "FoundFeaturing=" & FoundFeaturing
+					End If
+				Else
+					tmpArtistSeparator = ""
+				End If
 			End If
 		Next
 
