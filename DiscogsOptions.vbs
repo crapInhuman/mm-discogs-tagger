@@ -1,7 +1,7 @@
 '
 ' MediaMonkey Script
 '
-' NAME: Discogs Tagger Options 2.9
+' NAME: Discogs Tagger Options 3.0
 '
 ' AUTHOR: crap_inhuman
 ' DATE : 04/04/2016
@@ -9,6 +9,9 @@
 '
 ' INSTALL: Automatic installation during Discogs Tagger install
 '
+'Changes from 2.9 to 3.0
+'Added option for Date tag storing
+
 'Changes from 2.8 to 2.9
 'Added option to turn 'check if it's already in Discogs Collection' off
 
@@ -147,6 +150,12 @@ Sub InitSheet(Sheet)
 		If ini.StringValue("DiscogsAutoTagWeb","CheckDiscogsCollectionOff") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","CheckDiscogsCollectionOff") = True
 		End If
+		If ini.StringValue("DiscogsAutoTagWeb","StoreDate") = "" Then
+			ini.StringValue("DiscogsAutoTagWeb","StoreDate") = 0
+		End If
+		If ini.StringValue("DiscogsAutoTagWeb","StoreOrgDate") = "" Then
+			ini.StringValue("DiscogsAutoTagWeb","StoreOrgDate") = 1
+		End If
 		If ini.ValueExists("DiscogsAutoTagWeb","ImmedSaveImage") Then
 			ini.DeleteKey "DiscogsAutoTagWeb","ImmedSaveImage"
 		End If
@@ -171,6 +180,8 @@ Sub InitSheet(Sheet)
 	CheckDontFillEmptyFields = ini.BoolValue("DiscogsAutoTagWeb","CheckDontFillEmptyFields")
 	CheckNewVersion = ini.BoolValue("DiscogsAutoTagWeb","CheckNewVersion")
 	CheckDiscogsCollectionOff = ini.BoolValue("DiscogsAutoTagWeb","CheckDiscogsCollectionOff")
+	StoreDate = ini.StringValue("DiscogsAutoTagWeb","StoreDate")
+	StoreOrgDate = ini.StringValue("DiscogsAutoTagWeb","StoreOrgDate")
 
 	CustomField1 = "Custom1 (" & ini.StringValue("CustomFields","Fld1Name") & ")"
 	CustomField2 = "Custom2 (" & ini.StringValue("CustomFields","Fld2Name") & ")"
@@ -182,7 +193,7 @@ Sub InitSheet(Sheet)
 	Dim GroupBox0
 	Set GroupBox0 = UI.NewGroupBox(Sheet)
 	GroupBox0.Caption = "Please choose the custom fields, where Discogs Tagger save the information"
-	GroupBox0.Common.SetRect 10, 10, 500, 190
+	GroupBox0.Common.SetRect 10, 10, 500, 250
 
 	Dim Label1
 	Set Label1 = UI.NewLabel(GroupBox0)
@@ -237,7 +248,7 @@ Sub InitSheet(Sheet)
 	Set Label1 = UI.NewLabel(GroupBox0)
 	Label1.Common.SetRect 20, 45, 150, 25
 	Label1.Caption = "Choose field for saving release-number"
-	Label1.Common.Hint = "In brackets you see the name you chose for the custom tag"
+	Label1.Common.Hint = "In brackets you see the name you choose for the custom tag"
 
 	Dim DD2
 	Set DD2 = UI.NewDropDown(GroupBox0)
@@ -276,7 +287,7 @@ Sub InitSheet(Sheet)
 	Set Label2 = UI.NewLabel(GroupBox0)
 	Label2.Common.SetRect 20, 75, 150, 25
 	Label2.Caption = "Choose field for saving catalog number"
-	Label2.Common.Hint = "In brackets you see the name you chose for the custom tag"
+	Label2.Common.Hint = "In brackets you see the name you choose for the custom tag"
 
 	Set DD2 = UI.NewDropDown(GroupBox0)
 	DD2.Common.SetRect 240, 100, 200, 25
@@ -311,7 +322,7 @@ Sub InitSheet(Sheet)
 	Set Label2 = UI.NewLabel(GroupBox0)
 	Label2.Common.SetRect 20, 105, 150, 25
 	Label2.Caption = "Choose field for saving release country"
-	Label2.Common.Hint = "In brackets you see the name you chose for the custom tag"
+	Label2.Common.Hint = "In brackets you see the name you choose for the custom tag"
 
 	Set DD2 = UI.NewDropDown(GroupBox0)
 	DD2.Common.SetRect 240, 130, 200, 25
@@ -346,7 +357,7 @@ Sub InitSheet(Sheet)
 	Set Label2 = UI.NewLabel(GroupBox0)
 	Label2.Common.SetRect 20, 135, 150, 25
 	Label2.Caption = "Choose field for saving media format"
-	Label2.Common.Hint = "In brackets you see the name you chose for the custom tag"
+	Label2.Common.Hint = "In brackets you see the name you choose for the custom tag"
 
 	Dim Combo
 	Set Combo = UI.NewDropDown(GroupBox0)
@@ -383,12 +394,47 @@ Sub InitSheet(Sheet)
 	Set Label2 = UI.NewLabel(GroupBox0)
 	Label2.Common.SetRect 20, 165, 50, 25
 	Label2.Caption = "Choose field for saving Style"
-	Label2.Common.Hint = "In brackets you see the name you chose for the custom tag"
+	Label2.Common.Hint = "In brackets you see the name you choose for the custom tag"
+
+	Set Combo = UI.NewDropDown(GroupBox0)
+	Combo.Common.SetRect 240, 190, 200, 25
+	Combo.Style = 2     ' List
+	Combo.Common.ControlName = "StoreDate"
+
+	Combo.AddItem ("Date")
+	Combo.AddItem ("Date (original)")
+	Combo.AddItem ("both Date Field")
+	Combo.AddItem ("Don't save")
+
+	Combo.ItemIndex = StoreDate
+
+	Set Label2 = UI.NewLabel(GroupBox0)
+	Label2.Common.SetRect 20, 195, 50, 25
+	Label2.Caption = "Choose field for saving Release Date"
+	Label2.Common.Hint = "Choose where to store Release Date (only with Discogs)"
+
+	Set Combo = UI.NewDropDown(GroupBox0)
+	Combo.Common.SetRect 240, 220, 200, 25
+	Combo.Style = 2     ' List
+	Combo.Common.ControlName = "StoreOrgDate"
+
+	Combo.AddItem ("Date")
+	Combo.AddItem ("Date (original)")
+	Combo.AddItem ("both Date Field")
+	Combo.AddItem ("Don't save")
+
+	Combo.ItemIndex = StoreOrgDate
+
+	Set Label2 = UI.NewLabel(GroupBox0)
+	Label2.Common.SetRect 20, 225, 50, 25
+	Label2.Caption = "Choose field for saving Date (original)"
+	Label2.Common.Hint = "Choose where to store original Release Date (only with Discogs)"
+
 
 	Dim GroupBox1
 	Set GroupBox1 = UI.NewGroupBox(Sheet)
 	GroupBox1.Caption = "Cover-Images"
-	GroupBox1.Common.SetRect 10, 210, 500, 100
+	GroupBox1.Common.SetRect 10, 270, 500, 100
 
 	Dim Checkbox1
 	Set Checkbox1 = UI.NewCheckBox(GroupBox1)
@@ -439,7 +485,7 @@ Sub InitSheet(Sheet)
 	Dim GroupBox2
 	Set GroupBox2 = UI.NewGroupBox(Sheet)
 	GroupBox2.Caption = "Misc"
-	GroupBox2.Common.SetRect 10, 320, 500, 170
+	GroupBox2.Common.SetRect 10, 380, 500, 170
 
 
 	Set Label2 = UI.NewLabel(GroupBox2)
@@ -510,7 +556,7 @@ Sub InitSheet(Sheet)
 	Dim GroupBox4
 	Set GroupBox4 = UI.NewGroupBox(Sheet)
 	GroupBox4.Caption = "Discogs Access Token"
-	GroupBox4.Common.SetRect 10, 500, 500, 90
+	GroupBox4.Common.SetRect 10, 560, 500, 90
 
 	Set Label2 = UI.NewLabel(GroupBox4)
 	Label2.Common.SetRect 300, 25, 100, 25
@@ -559,6 +605,10 @@ Sub SaveSheet(Sheet)
 	ini.StringValue("DiscogsAutoTagWeb", "FormatTag") = GetCustom(edt.ItemIndex)
 	Set edt = Sheet.Common.ChildControl("CheckStyleField")
 	ini.StringValue("DiscogsAutoTagWeb", "CheckStyleField") = GetCustom(edt.ItemIndex - 1)
+	Set edt = Sheet.Common.ChildControl("StoreDate")
+	ini.StringValue("DiscogsAutoTagWeb", "StoreDate") = edt.ItemIndex
+	Set edt = Sheet.Common.ChildControl("StoreOrgDate")
+	ini.StringValue("DiscogsAutoTagWeb", "StoreOrgDate") = edt.ItemIndex
 
 	If Sheet.Common.ChildControl("ControlSaveImage1").Checked = False Then
 		ini.StringValue("DiscogsAutoTagWeb", "CheckSaveImage") = 2

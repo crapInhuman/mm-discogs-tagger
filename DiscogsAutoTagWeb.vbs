@@ -2,12 +2,17 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.42"
+Const VersionStr = "v5.43"
+
+'Changes from 5.42 to 5.43 by crap_inhuman in 11.2016
+'	Leading/Trailing spaces will now detected and deleted in album-name, too.
+'	Changing the release will reset the selected tracks
+'	Added option for choosing where to store Release Date/Original Date
 
 
 'Changes from 5.41 to 5.42 by crap_inhuman in 10.2016
 '	Leading/Trailing spaces will now detected and deleted in track-names and the release number
-'	will be send to mysql db, a busy bee will then fix it at Discogs ;)
+'	will be send to mysql db, a busy bee will then fix it at Discogs (Hopefully) ;)
 
 
 'Changes from 5.40 to 5.41 by crap_inhuman in 10.2016
@@ -393,7 +398,7 @@ Dim CheckComposer, CheckConductor, CheckProducer, CheckDiscNum, CheckTrackNum, C
 Dim CheckForceNumeric, CheckSidesToDisc, CheckForceDisc, CheckNoDisc, CheckLeadingZero, CheckVarious, TxtVarious
 Dim CheckTitleFeaturing, CheckComment, CheckFeaturingName, TxtFeaturingName, CheckOriginalDiscogsTrack, CheckSaveImage
 Dim CheckStyleField, CheckTurnOffSubTrack, CheckInvolvedPeopleSingleLine, CheckDontFillEmptyFields, CheckTheBehindArtist
-Dim CheckDiscogsCollectionOff, CheckDeleteDuplicatedEntry
+Dim CheckDiscogsCollectionOff, CheckDeleteDuplicatedEntry, StoreDate, StoreOrgDate
 REM Dim CheckUserCollection
 Dim DiscogsUsername
 Dim SubTrackNameSelection
@@ -415,7 +420,7 @@ Dim iMaxTracks
 Dim iAutoTrackNumber, iAutoDiscNumber, iAutoDiscFormat
 Dim LastDisc
 Dim SelectAll
-ReDim UnselectedTracks(1000)
+Dim UnselectedTracks(1000)
 Dim CheckNewVersion, LastCheck
 
 Dim ReleaseTag, CountryTag, CatalogTag, FormatTag
@@ -714,6 +719,13 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		If ini.StringValue("DiscogsAutoTagWeb","CheckDeleteDuplicatedEntry") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","CheckDeleteDuplicatedEntry") = False
 		End If
+		If ini.StringValue("DiscogsAutoTagWeb","StoreDate") = "" Then
+			ini.StringValue("DiscogsAutoTagWeb","StoreDate") = 0
+		End If
+		If ini.StringValue("DiscogsAutoTagWeb","StoreOrgDate") = "" Then
+			ini.StringValue("DiscogsAutoTagWeb","StoreOrgDate") = 1
+		End If
+
 
 		'----------------------------------DiscogsImages----------------------------------------
 		CoverStorage = ini.StringValue("PreviewSettings","DefaultCoverStorage")
@@ -813,6 +825,8 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	CheckTheBehindArtist = ini.BoolValue("DiscogsAutoTagWeb","CheckTheBehindArtist")
 	CheckDiscogsCollectionOff = ini.BoolValue("DiscogsAutoTagWeb","CheckDiscogsCollectionOff")
 	CheckDeleteDuplicatedEntry = ini.BoolValue("DiscogsAutoTagWeb","CheckDiscogsCollectionOff")
+	StoreDate = ini.StringValue("DiscogsAutoTagWeb","StoreDate")
+	StoreOrgDate = ini.StringValue("DiscogsAutoTagWeb","StoreOrgDate")
 
 	Separator = Left(Separator, Len(Separator)-1)
 	Separator = Right(Separator, Len(Separator)-1)
@@ -1495,6 +1509,9 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 		YearFilterList.Add tmpYear2(a)
 	Next
 
+	For i = 0 to 999
+		UnselectedTracks(i) = ""
+	Next
 
 
 
@@ -2216,8 +2233,8 @@ Sub ReloadResults
 				position = currentTrack("position")
 				DiscogsTracksNum.Add position
 				position = exchange_roman_numbers(position)
-				ReDim Preserve Title_Position(UBound(Title_Position)+1)
 				Title_Position(UBound(Title_Position)) = position
+				ReDim Preserve Title_Position(UBound(Title_Position)+1)
 				TitleList(UBound(TitleList)) = currentTrack("title")
 				ReDim Preserve TitleList(UBound(TitleList)+1)
 				tmp = getArtistsName(currentTrack, "artists", QueryPage)
@@ -2236,8 +2253,8 @@ Sub ReloadResults
 						position = aSubtrack("position")
 						DiscogsTracksNum.Add position
 						position = exchange_roman_numbers(position)
-						ReDim Preserve Title_Position(UBound(Title_Position)+1)
 						Title_Position(UBound(Title_Position)) = position
+						ReDim Preserve Title_Position(UBound(Title_Position)+1)
 						rTrackPosition.Add track
 						rSubPosition.Add subtrack
 						TitleList(UBound(TitleList)) = aSubtrack("title")
@@ -2255,13 +2272,20 @@ Sub ReloadResults
 
 			For i = 0 To UBound(TitleList)-1
 				WriteLog i & " " & ArtistsList(i) &  " - " & TitleList(i)
-			next
+			Next
+
 			For i = 0 To rSubPosition.count-1
 				WriteLog i & " " & rSubPosition.item(i)
-			next
+			Next
 
 			'Check for leading zero in track-position
-			LeadingZeroTrackPosition = CheckLeadingZeroTrackPosition(Title_Position(1))
+			For i = 0 to UBound(Title_Position)-1
+				If Title_Position(i) <> "" Then
+					LeadingZeroTrackPosition = CheckLeadingZeroTrackPosition(Title_Position(i))
+					Exit For
+				End If
+			Next
+			WriteLog "LeadingZeroTrackPosition = " & LeadingZeroTrackPosition
 
 			' Get artist title
 			tmp = getArtistsName(CurrentRelease, "artists", QueryPage)
@@ -2416,7 +2440,7 @@ Sub ReloadResults
 							WriteLog "involvedRole=" & involvedRole
 							If InStr(rTrack, ",") = 0 And InStr(rTrack, " to ") = 0 And InStr(rTrack, " & ") = 0 Then
 								currentTrack = rTrack
-								Add_Track_Role currentTrack, artistName, involvedRole, TrackRoles, TrackArtist2, TrackPos
+								Add_Track_Role currentTrack, artistName, involvedRole, TrackRoles, TrackArtist2, TrackPos, LeadingZeroTrackPosition
 							End If
 							If InStr(rTrack, ",") <> 0 Then
 								tmp = Split(rTrack, ",")
@@ -2426,7 +2450,7 @@ Sub ReloadResults
 									If InStr(currentTrack, " to ") <> 0 Then
 										Track_from_to currentTrack, artistName, involvedRole, Title_Position, TrackRoles, TrackArtist2, TrackPos, LeadingZeroTrackPosition
 									Else
-										Add_Track_Role currentTrack, artistName, involvedRole, TrackRoles, TrackArtist2, TrackPos
+										Add_Track_Role currentTrack, artistName, involvedRole, TrackRoles, TrackArtist2, TrackPos, LeadingZeroTrackPosition
 									End If
 								Next
 							ElseIf InStr(rTrack, " to ") <> 0 Then
@@ -2437,7 +2461,7 @@ Sub ReloadResults
 								zahl2 = UBound(tmp)
 								For zahltemp2 = 0 To zahl2
 									currentTrack = Trim(tmp(zahltemp2))
-									Add_Track_Role currentTrack, artistName, involvedRole, TrackRoles, TrackArtist2, TrackPos
+									Add_Track_Role currentTrack, artistName, involvedRole, TrackRoles, TrackArtist2, TrackPos, LeadingZeroTrackPosition
 								Next
 							End If
 						Next
@@ -2478,6 +2502,7 @@ Sub ReloadResults
 				WriteLog " "
 				WriteLog "Process next track"
 				WriteLog "Tracknumber=" & t
+				WriteLog "Title_position=" & Title_Position(t)
 				SDB.ProcessMessages
 				If rSubPosition.Item(t) <> "" And rSubPosition.Item(t) <> "NewSubTrack" Then
 					WriteLog "Processing Subtrack"
@@ -2489,7 +2514,7 @@ Sub ReloadResults
 				position = currentTrack("position")
 				If Right(position, 1) = "." Then position = Left(position, Len(position)-1)
 				If NoSubTrackUsing = True Then position = Replace(position, ".", "-")
-				trackname = PackSpaces(DecodeHtmlChars(TitleList(t)))
+				trackname = PackSpaces(DecodeHtmlChars(TitleList(t)), True)
 				WriteLog "Trackname=" & trackname
 				WriteLog "Position=" & position
 				WriteLog "t=" & t
@@ -2948,7 +2973,7 @@ Sub ReloadResults
 			End If
 
 			' Get album title
-			AlbumTitle = currentRelease("title")
+			AlbumTitle = PackSpaces(currentRelease("title"), True)
 
 			' Get Album art URL
 			If CurrentRelease.Exists("images") Then
@@ -2993,54 +3018,74 @@ Sub ReloadResults
 			'----------------------------------DiscogsImages----------------------------------------
 
 			' Get Master ID
+			Dim OriginalDateRead, ReleaseDateRead
 			If CurrentRelease.Exists("master_id") Then
 				theMaster = currentRelease("master_id")
 				If SavedMasterID <> theMaster Then
-					OriginalDate = ReloadMaster(theMaster)
+					OriginalDateRead = ReloadMaster(theMaster)
 					SavedMasterID = theMaster
 				End If
 			ElseIf CurrentRelease.Exists("main_release") Then	'Master
 				If CurrentRelease.Exists("year") Then
-					OriginalDate = CurrentRelease("year")
+					OriginalDateRead = CurrentRelease("year")
 				End If
 				SavedMasterID = currentRelease("id")
 			Else
 				theMaster = ""
 				SavedMasterID = theMaster
-				OriginalDate = ""
+				OriginalDateRead = ""
 			End If
 
 			' Get release year/date
 			If CurrentRelease.Exists("released") Then
-				ReleaseDate = CurrentRelease("released")
-				If Len(ReleaseDate) > 4 Then
-					ReleaseSplit = Split(ReleaseDate,"-")
+				ReleaseDateRead = CurrentRelease("released")
+				If Len(ReleaseDateRead) > 4 Then
+					ReleaseSplit = Split(ReleaseDateRead,"-")
 					If ReleaseSplit(2) = "00" Then
-						ReleaseDate = Left(ReleaseDate, 4)
+						ReleaseDateRead = Left(ReleaseDateRead, 4)
 					Else
-						ReleaseDate = ReleaseSplit(2) & "-" & ReleaseSplit(1) & "-" & ReleaseSplit(0)
+						ReleaseDateRead = ReleaseSplit(2) & "-" & ReleaseSplit(1) & "-" & ReleaseSplit(0)
 					End If
 					If CheckYearOnlyDate Then
-						ReleaseDate = Right(ReleaseDate, 4)
+						ReleaseDateRead = Right(ReleaseDateRead, 4)
 					End If
 				End If
 			Else
-				ReleaseDate = ""
+				ReleaseDateRead = ""
 			End If
 
 			'Set OriginalDate
-			If OriginalDate <> "" Then
-				If Len(OriginalDate) > 4 Then
-					ReleaseSplit = Split(OriginalDate,"-")
+			If OriginalDateRead <> "" Then
+				If Len(OriginalDateRead) > 4 Then
+					ReleaseSplit = Split(OriginalDateRead,"-")
 					If ReleaseSplit(2) = "00" Then
-						OriginalDate = Left(OriginalDate, 4)
+						OriginalDateRead = Left(OriginalDateRead, 4)
 					Else
-						OriginalDate = ReleaseSplit(2) & "-" & ReleaseSplit(1) & "-" & ReleaseSplit(0)
+						OriginalDateRead = ReleaseSplit(2) & "-" & ReleaseSplit(1) & "-" & ReleaseSplit(0)
 					End If
 					If CheckYearOnlyDate Then
-						OriginalDate = Right(OriginalDate, 4)
+						OriginalDateRead = Right(OriginalDateRead, 4)
 					End If
 				End If
+			End If
+
+			'Choose Date field saving
+			If StoreDate = 0 Then
+				ReleaseDate = ReleaseDateRead
+			ElseIf StoreDate = 1 Then
+				OriginalDate = ReleaseDateRead
+			ElseIf StoreDate = 2 Then
+				ReleaseDate = ReleaseDateRead
+				OriginalDate = ReleaseDateRead
+			End If
+
+			If StoreOrgDate = 0 Then
+				ReleaseDate = OriginalDateRead
+			ElseIf StoreOrgDate = 1 Then
+				OriginalDate = OriginalDateRead
+			ElseIf StoreOrgDate = 2 Then
+				ReleaseDate = OriginalDateRead
+				OriginalDate = OriginalDateRead
 			End If
 
 			' Get genres
@@ -3246,7 +3291,7 @@ Sub ReloadResults
 				For Each t In CurrentMedia("tracks")
 					Set currentTrack = currentMedia("tracks")(t)
 					position = currentTrack("number")
-					trackName = PackSpaces(DecodeHtmlChars(currentTrack("title")))
+					trackName = PackSpaces(DecodeHtmlChars(currentTrack("title")), False)
 					length = currentTrack("length")
 					If length <> "" And IsNumeric(length) Then
 						min = Int(length / 60000)
@@ -3531,7 +3576,7 @@ Sub ReloadResults
 
 
 			' Get album title
-			AlbumTitle = currentRelease("title")
+			AlbumTitle = PackSpaces(currentRelease("title"), False)
 			Dim json
 			Set json = New VbsJson
 			' Get Album art URL
@@ -4425,8 +4470,14 @@ Sub Track_from_to (currentTrack, currentArtist, involvedRole, Title_Position, Tr
 	If StartSide <> EndSide Then
 		Vinyl_Pos1 = StartSide
 		Vinyl_Pos2 = StartTrack
+		WriteLog "Vinyl_Pos1 = " & StartSide
+		WriteLog "Vinyl_Pos2 = " & StartTrack
+		WriteLog "LeadingZeroTrackPosition = " & LeadingZeroTrackPosition
+		If LeadingZeroTrackPosition = True And EndTrack < 10 And Left(cStr(EndTrack), 1) <> "0" Then
+			EndTrack = "0" & EndTrack
+		End If
 		Do
-			If LeadingZeroTrackPosition = True And Vinyl_Pos2 < 10 Then
+			If LeadingZeroTrackPosition = True And Vinyl_Pos2 < 10 And Left(cStr(Vinyl_Pos2), 1) <> "0" Then
 				Vinyl_Pos2 = "0" & Vinyl_Pos2
 			End If
 			tmp4 = Vinyl_Pos1 & TrackSeparator & Vinyl_Pos2
@@ -4454,7 +4505,7 @@ Sub Track_from_to (currentTrack, currentArtist, involvedRole, Title_Position, Tr
 		Loop While True
 	Else
 		For cnt = StartTrack To EndTrack
-			If LeadingZeroTrackPosition = True And cnt < 10 Then
+			If LeadingZeroTrackPosition = True And cnt < 10 And Left(cStr(cnt), 1) <> "0" Then
 				cnt = "0" & cnt
 			End If
 			ReDim Preserve TrackRoles(UBound(TrackRoles)+1)
@@ -4471,8 +4522,21 @@ Sub Track_from_to (currentTrack, currentArtist, involvedRole, Title_Position, Tr
 End Sub
 
 
-Sub Add_Track_Role(currentTrack, currentArtist, involvedRole, TrackRoles, TrackArtist2, TrackPos)
+Sub Add_Track_Role(currentTrack, currentArtist, involvedRole, TrackRoles, TrackArtist2, TrackPos, LeadingZeroTrackPosition)
 
+	Dim tmp4
+	If InStr(currentTrack, "-") <> 0 Then
+		tmp4 = Split(currentTrack, "-")
+		If LeadingZeroTrackPosition = True And tmp4(1) < 10 And Left(cStr(tmp4(1)), 1) <> "0" Then
+			currentTrack = tmp4(0) & "-0" & tmp4(1)
+		End If
+	End If
+	If InStr(currentTrack, ".") <> 0 Then
+		tmp4 = Split(currentTrack, ".")
+		If LeadingZeroTrackPosition = True And tmp4(1) < 10 And Left(cStr(tmp4(1)), 1) <> "0" Then
+			currentTrack = tmp4(0) & ".0" & tmp4(1)
+		End If
+	End If
 	WriteLog "currentTrack=" & currentTrack
 	currentTrack = exchange_roman_numbers(currentTrack)
 	ReDim Preserve TrackRoles(UBound(TrackRoles)+1)
@@ -4489,7 +4553,10 @@ End Sub
 ' down at the top of the window
 Sub ShowResult(ResultID)
 
-	Dim ReleaseID, searchURL, oXMLHTTP, ResponseHTML, TXTBegin, TXTEnd, Title, SelectedTracks, searchURL_F, searchURL_L
+	Dim ReleaseID, searchURL, oXMLHTTP, ResponseHTML, TXTBegin, TXTEnd, Title, SelectedTracks, searchURL_F, searchURL_L, i
+	For i = 0 to 999
+		UnselectedTracks(i) = ""
+	Next
 	NewResult = True
 	WebBrowser.SetHTMLDocument ""                 ' Deletes visible search result
 	If ResultsReleaseID.Item(ResultID) = "" Then Exit Sub
@@ -5840,6 +5907,8 @@ Function JSONParser_find_result(searchURL, ArrayName, SendArtist, SendAlbum, Sen
 			WriteLog "SongCountMax=" & SongCountMax
 			If Int(SongCountMax) = 0 Then
 				WriteLog "No Release found at MusicBrainz"
+				Results.Add "No Release found at MusicBrainz !! Please change the search parameter."
+				ResultsReleaseID.Add 0
 			Else
 
 				isRelease = False
@@ -6074,6 +6143,8 @@ Function JSONParser_find_result(searchURL, ArrayName, SendArtist, SendAlbum, Sen
 
 			If Int(SongCountMax) = 0 Then
 				WriteLog "No Release found at Discogs !!"
+				Results.Add "No Release found at Discogs !! Please change the search parameter."
+				ResultsReleaseID.Add 0
 			Else
 				isRelease = False
 				If Results.Count = 1 Then isRelease = True
@@ -7104,6 +7175,8 @@ Sub WriteOptions()
 	WriteLog "UnwantedKeywords=" & UnwantedKeywords
 	WriteLog "CheckStyleField=" & CheckStyleField
 	WriteLog "ArtistLastSeparator=" & ArtistLastSeparator
+	WriteLog "StoreDate=" & StoreDate
+	WriteLog "StoreOrgDate=" & StoreOrgDate
 	WriteLog "AccessToken=" & AccessToken
 	WriteLog "AccessTokenSecret=" & AccessTokenSecret
 	WriteLog "-+-+-+-+--+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-"
@@ -7573,16 +7646,16 @@ End Function
 
 Function CheckLeadingZeroTrackPosition(TrackPosition)
 
-	Dim tmpSplit, tmpTrack
+	Dim tmpSplit, tmpTrack, tmpPos
 	If InStr(TrackPosition, "-") <> 0 Then
 		tmpSplit = Split(TrackPosition, "-")
-		TrackPosition = tmpSplit(1)
+		tmpPos = tmpSplit(1)
 	End If
 	If InStr(TrackPosition, ".") <> 0 Then
 		tmpSplit = Split(TrackPosition, ".")
-		TrackPosition = tmpSplit(1)
+		tmpPos = tmpSplit(1)
 	End If
-	If Left(TrackPosition, 1) = "0" Then
+	If Left(tmpPos, 1) = "0" Then
 		CheckLeadingZeroTrackPosition = True
 	Else
 		CheckLeadingZeroTrackPosition = False
@@ -7650,6 +7723,7 @@ Function CleanSearchString(Text)
 	CleanSearchString = Replace(CleanSearchString,"@", " ")
 	CleanSearchString = Replace(CleanSearchString,"_", " ")
 	CleanSearchString = Replace(CleanSearchString,"?", " ")
+	CleanSearchString = PackSpaces(CleanSearchString, False)
 
 End Function
 
@@ -7659,7 +7733,7 @@ Function CleanArtistName(artistname)
 	CleanArtistName = DecodeHtmlChars(artistname)
 	If InStr(CleanArtistName, " (") > 0 Then CleanArtistName = Left(CleanArtistName, InStrRev(CleanArtistName, " (") - 1)
 	If InStr(CleanArtistName, ", The") > 0 Then CleanArtistName = "The " & Left(CleanArtistName, InStrRev(CleanArtistName, ", The") - 1)
-	CleanArtistName = PackSpaces(CleanArtistName)
+	CleanArtistName = PackSpaces(CleanArtistName, False)
 
 End Function
 
@@ -7749,12 +7823,12 @@ Function IsInteger(Str)
 End Function
 
 
-Function PackSpaces(Text)
+Function PackSpaces(Text, Report)
 
 	PackSpaces = Text
 	PackSpaces = Replace(PackSpaces,"  ", " ") 'pack spaces
 	PackSpaces = Replace(PackSpaces,"  ", " ") 'pack spaces left
-	If Left(PackSpaces, 1) = " " Or Right(PackSpaces, 1) = " " Then
+	If (Left(PackSpaces, 1) = " " Or Right(PackSpaces, 1) = " ") And Report = True Then
 		ReportRelease()
 	End If
 	PackSpaces = Trim(PackSpaces) 'delete leading/trailing spaces
@@ -7802,7 +7876,7 @@ End Function
 Function search_involved_track(Text, SearchText)
 
 	Dim i
-	For i = 1 To UBound(Text)
+	For i = 0 To UBound(Text)-1
 		If Left(Text(i), Len(SearchText)) = SearchText Then
 			search_involved_track = i
 			Exit Function
