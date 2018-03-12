@@ -2,7 +2,13 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.51"
+Const VersionStr = "v5.52"
+
+'Changes from 5.51 to 5.52 by crap_inhuman in 09.2017
+'	Now check status-code while image download
+'	Return to 'MSXML2.ServerXMLHTTP.6.0' for MusicBrainz search
+'	Improved some code
+
 
 'Changes from 5.50 to 5.51 by crap_inhuman in 09.2017
 '	Secure channel error: Replaced all 'MSXML2.ServerXMLHTTP.6.0' with 'MSXML2.XMLHTTP.6.0'
@@ -10,6 +16,7 @@ Const VersionStr = "v5.51"
 
 'Changes from 5.49 to 5.50 by crap_inhuman in 09.2017
 '	Secure channel error: Replaced 'MSXML2.ServerXMLHTTP.6.0' with 'MSXML2.XMLHTTP.6.0' for image download
+'	Added third option for date field
 
 
 'Changes from 5.48 to 5.49 by crap_inhuman in 08.2017
@@ -859,7 +866,6 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	ComposerKeywords = ini.StringValue("DiscogsAutoTagWeb","ComposerKeywords")
 	FeaturingKeywords = ini.StringValue("DiscogsAutoTagWeb","FeaturingKeywords")
 	UnwantedKeywords = ini.StringValue("DiscogsAutoTagWeb","UnwantedKeywords")
-	Rem CheckNotAlwaysSaveImage = ini.BoolValue("DiscogsAutoTagWeb","CheckNotAlwaysSaveImage")
 	CheckStyleField = ini.StringValue("DiscogsAutoTagWeb","CheckStyleField")
 	ArtistSeparator = ini.StringValue("DiscogsAutoTagWeb","ArtistSeparator")
 	ArtistLastSeparator = ini.BoolValue("DiscogsAutoTagWeb","ArtistLastSeparator")
@@ -873,7 +879,7 @@ Sub StartSearch(Panel, SearchTerm, SearchArtist, SearchAlbum)
 	LastCheck = ini.StringValue("DiscogsAutoTagWeb","LastCheck")
 	CheckTheBehindArtist = ini.BoolValue("DiscogsAutoTagWeb","CheckTheBehindArtist")
 	CheckDiscogsCollectionOff = ini.BoolValue("DiscogsAutoTagWeb","CheckDiscogsCollectionOff")
-	CheckDeleteDuplicatedEntry = ini.BoolValue("DiscogsAutoTagWeb","CheckDiscogsCollectionOff")
+	CheckDeleteDuplicatedEntry = ini.BoolValue("DiscogsAutoTagWeb","CheckDeleteDuplicatedEntry")
 	StoreDate = ini.StringValue("DiscogsAutoTagWeb","StoreDate")
 	CheckLimitReleases = ini.StringValue("DiscogsAutoTagWeb","LimitReleases")
 	CheckIgnoreFeatArtist = ini.BoolValue("DiscogsAutoTagWeb","CheckIgnoreFeatArtist")
@@ -3662,7 +3668,7 @@ Sub ReloadResults
 				If CurrentRelease("cover-art-archive")("count") > 0 And CurrentRelease("cover-art-archive")("front") = True Then
 					searchURL = "http://coverartarchive.org/release/" & CurrentReleaseId
 					WriteLog searchURL
-					Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
+					Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
 					oXMLHTTP.Open "GET", searchURL, False
 					oXMLHTTP.setRequestHeader "Content-Type", "application/json"
 					oXMLHTTP.setRequestHeader "User-Agent",UserAgent
@@ -3693,6 +3699,7 @@ Sub ReloadResults
 					searchURL = "http://coverartarchive.org/release/" & CurrentRelease("id")
 					WriteLog searchURL
 					ImagesCount = CurrentRelease("cover-art-archive")("count")
+					Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")
 					oXMLHTTP.Open "GET", searchURL, False
 					oXMLHTTP.setRequestHeader "Content-Type", "application/json"
 					oXMLHTTP.setRequestHeader "User-Agent",UserAgent
@@ -4693,7 +4700,7 @@ Sub ShowResult(ResultID)
 			searchURL = "http://musicbrainz.org/ws/2/release/" & ReleaseID & "?inc=recordings+recording-level-rels+work-rels+work-level-rels+artist-rels+artist-credits+media+release-group-rels+release-groups+labels&fmt=json"
 			WriteLog "searchURL=" & searchURL
 
-			Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")   
+			Set oXMLHTTP = CreateObject("MSXML2.ServerXMLHTTP.6.0")   
 			oXMLHTTP.Open "GET", searchURL, False
 			oXMLHTTP.setRequestHeader "Content-Type", "application/json"
 			oXMLHTTP.setRequestHeader "User-Agent",UserAgent
@@ -7192,6 +7199,8 @@ Function getimages(DownloadDest, LocalFile)
 	Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 	SDB.ProcessMessages
 	WriteLog "Start getimages"
+	WriteLog "LocalFile=" & LocalFile
+	WriteLog "User-Agent=" & UserAgent
 	oXMLHTTP.open "GET", DownloadDest, False
 	oXMLHTTP.setRequestHeader "Accept", "*/*"
 	oXMLHTTP.setRequestHeader "User-Agent", UserAgent
@@ -7208,6 +7217,8 @@ Function getimages(DownloadDest, LocalFile)
 		Set oXMLHTTP = Nothing
 		getimages = LocalFile
 	Else
+		WriteLog "Status=" & oXMLHTTP.Status
+		SDB.MessageBox "Getting cover image failed - Status-Code = " & oXMLHTTP.Status, mtInformation, Array(mbOk)
 		Set oXMLHTTP = Nothing
 		getimages = ""
 	End If
@@ -7229,6 +7240,7 @@ Sub WriteOptions()
 	WriteLog "CheckGenre=" & CheckGenre
 	WriteLog "CheckStyle=" & CheckStyle
 	WriteLog "CheckCountry=" & CheckCountry
+	WriteLog "CheckSaveImage=" & CheckSaveImage
 	WriteLog "CheckSmallCover=" & CheckSmallCover
 	WriteLog "CheckCatalog=" & CheckCatalog
 	WriteLog "CheckRelease=" & CheckRelease
@@ -7245,29 +7257,23 @@ Sub WriteOptions()
 	WriteLog "CheckForceNumeric=" & CheckForceNumeric
 	WriteLog "CheckSidesToDisc=" & CheckSidesToDisc
 	WriteLog "CheckForceDisc=" & CheckForceDisc
+	WriteLog "CheckOriginalDiscogsTrack=" & CheckOriginalDiscogsTrack
 	WriteLog "CheckNoDisc=" & CheckNoDisc
-	WriteLog "CheckLeadingZero=" & CheckLeadingZero
-	WriteLog "CheckLeadingZeroDisc=" & CheckLeadingZeroDisc
 	REM WriteLog "CheckUserCollection=" & CheckUserCollection
+	WriteLog "DiscogsUsername=" & DiscogsUsername
 	WriteLog "ReleaseTag=" & ReleaseTag
 	WriteLog "CatalogTag=" & CatalogTag
 	WriteLog "CountryTag=" & CountryTag
 	WriteLog "FormatTag=" & FormatTag
+	WriteLog "CheckLeadingZero=" & CheckLeadingZero
+	WriteLog "CheckLeadingZeroDisc=" & CheckLeadingZeroDisc
 	WriteLog "CheckVarious=" & CheckVarious
 	WriteLog "TxtVarious=" & TxtVarious
 	WriteLog "CheckTitleFeaturing=" & CheckTitleFeaturing
-	WriteLog "CheckIgnoreFeatArtist=" & CheckIgnoreFeatArtist
-	WriteLog "CheckDeleteDuplicatedEntry=" & CheckDeleteDuplicatedEntry
-	WriteLog "TxtFeaturingName=" & TxtFeaturingName
 	WriteLog "CheckFeaturingName=" & CheckFeaturingName
+	WriteLog "TxtFeaturingName=" & TxtFeaturingName
 	WriteLog "CheckComment=" & CheckComment
 	WriteLog "SubTrackNameSelection=" & SubTrackNameSelection
-	WriteLog "CheckTurnOffSubTrack=" & CheckTurnOffSubTrack
-	WriteLog "CheckInvolvedPeopleSingleLine=" & CheckInvolvedPeopleSingleLine
-	WriteLog "CheckTheBehindArtist=" & CheckTheBehindArtist
-	WriteLog "ArtistSeparator=" & ArtistSeparator
-	WriteLog "QueryPage=" & QueryPage
-	WriteLog "CheckDontFillEmptyFields=" & CheckDontFillEmptyFields
 	WriteLog "Separator=" & Separator
 	Set ini = SDB.IniFile
 	WriteLog "CurrentCountryFilter=" & ini.StringValue("DiscogsAutoTagWeb","CurrentCountryFilter")
@@ -7281,10 +7287,22 @@ Sub WriteOptions()
 	WriteLog "FeaturingKeywords=" & FeaturingKeywords
 	WriteLog "UnwantedKeywords=" & UnwantedKeywords
 	WriteLog "CheckStyleField=" & CheckStyleField
+	WriteLog "ArtistSeparator=" & ArtistSeparator
 	WriteLog "ArtistLastSeparator=" & ArtistLastSeparator
-	WriteLog "StoreDate=" & StoreDate
+	WriteLog "CheckTurnOffSubTrack=" & CheckTurnOffSubTrack
 	WriteLog "AccessToken=" & AccessToken
 	WriteLog "AccessTokenSecret=" & AccessTokenSecret
+	WriteLog "QueryPage=" & QueryPage
+	WriteLog "CheckInvolvedPeopleSingleLine=" & CheckInvolvedPeopleSingleLine
+	WriteLog "CheckDontFillEmptyFields=" & CheckDontFillEmptyFields
+	WriteLog "CheckNewVersion=" & CheckNewVersion
+	WriteLog "LastCheck=" & LastCheck
+	WriteLog "CheckTheBehindArtist=" & CheckTheBehindArtist
+	WriteLog "CheckDiscogsCollectionOff=" & CheckDiscogsCollectionOff
+	WriteLog "CheckDeleteDuplicatedEntry=" & CheckDeleteDuplicatedEntry
+	WriteLog "StoreDate=" & StoreDate
+	WriteLog "CheckLimitReleases=" & LimitReleases
+	WriteLog "CheckIgnoreFeatArtist=" & CheckIgnoreFeatArtist
 	WriteLog "-+-+-+-+--+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-"
 
 End Sub
