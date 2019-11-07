@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.68"
+Const VersionStr = "v5.69"
+
+'Changes from 5.68 to 5.69 by crap_inhuman in 07.2019
+'	Added 'Video' to the CD tag list
+
 
 'Changes from 5.67 to 5.68 by crap_inhuman in 05.2019
 '	Now the track-numbering start with the Disc-numbering
@@ -4304,8 +4308,23 @@ Function trackNumbering(ByRef pos, byRef position, byRef TracksNum, byRef Tracks
 					End If
 				End If
 			End If
+			
+			If Left(position,5) = "Video" Then
+				If iAutoDiscFormat <> "Video" Then
+					iAutoDiscFormat = "Video"
+					iAutoTrackNumber = 1
+					iAutoDiscNumber = 1
+				End If
+				If Mid(position,6,1) = "-" Then
+					iAutoDiscNumber = 1
+				Else
+					If iAutoDiscNumber <> Mid(position,6,1) Then
+						iAutoTrackNumber = 1
+					End If
+				End If
+			End If
 
-			If Left(position,2) <> "CD" And Left(position,3) <> "DVD" And Left(position,3) <> "VHS" And IsInteger(Left(position,pos-1)) Then
+			If Left(position,2) <> "CD" And Left(position,3) <> "DVD" And Left(position,3) <> "VHS" And Left(position,5) <> "Video" And IsInteger(Left(position,pos-1)) Then
 				If Int(iAutoDiscNumber) <> Int(Left(position,pos-1)) Then
 					iAutoTrackNumber = 1
 				End If
@@ -4398,7 +4417,20 @@ Function trackNumbering(ByRef pos, byRef position, byRef TracksNum, byRef Tracks
 				iAutoDiscNumber = Mid(position,4,1)
 			End If
 		End If
-		If Left(position,2) <> "CD" And Left(position,3) <> "DVD" And Left(position,3) <> "VHS" Then iAutoDiscNumber = Left(position,pos-1)
+		If Left(position,5) = "Video" Then
+			If iAutoDiscFormat <> "Video" Then
+				iAutoDiscFormat = "Video"
+				iAutoTrackNumber = 1
+				iAutoDiscNumber = 1
+			End If
+			If Mid(position,6,1) = "-" Then
+				'Or Mid(position,3,1) = "." Then
+				iAutoDiscNumber = 1
+			Else
+				iAutoDiscNumber = Mid(position,6,1)
+			End If
+		End If
+		If Left(position,2) <> "CD" And Left(position,3) <> "DVD" And Left(position,3) <> "VHS" And Left(position,5) <> "Video" Then iAutoDiscNumber = Left(position,pos-1)
 		tracksCD.Add LeadingZeroDisc(iAutoDiscNumber)
 	Else ' Apply Track Numbering Schemes
 		WriteLog "Track Numbering Schemes"
@@ -4814,6 +4846,9 @@ Function Remove_CD(TrackPos)
 	End If
 	If UCase(Left(TrackPos, 3)) = "VHS" Then
 		TrackPos = Mid(TrackPos, 4)
+	End If
+	If UCase(Left(TrackPos, 5)) = "VIDEO" Then
+		TrackPos = Mid(TrackPos, 6)
 	End If
 	Return TrackPos
 
