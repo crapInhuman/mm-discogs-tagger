@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.60"
+Const VersionStr = "v5.61"
+
+'Changes from 5.60 to 5.61 by crap_inhuman in 07.2018
+' Bug removed: Format checkbox didn't work
+
 
 'Changes from 5.59 to 5.60 by crap_inhuman in 06.2018
 '	Added new option to store the name of grouped tracks into the grouping tag
@@ -5704,6 +5708,8 @@ Sub Update()
 			Next
 		End If
 	End If
+	Set checkBox = templateHTMLDoc.getElementById("format")
+	CheckFormat = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("country")
 	CheckCountry = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("checkcover")
