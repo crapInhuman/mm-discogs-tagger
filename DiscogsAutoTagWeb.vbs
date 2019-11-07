@@ -2,7 +2,17 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
+<<<<<<< .mine
+Const VersionStr = "v5.59"
+=======
 Const VersionStr = "v5.58"
+>>>>>>> .r91
+
+<<<<<<< .mine
+'Changes from 5.58 to 5.59 by crap_inhuman in 04.2018
+'	The script now use secure channel (https) while fetching data
+'	Workaround for Discogs date of master release bug: date is now empty instead number 0
+
 
 'Changes from 5.57 to 5.58 by crap_inhuman in 02.2018
 '	Repaired the artist tagging
@@ -13,6 +23,17 @@ Const VersionStr = "v5.58"
 '	Choose Track# and Disc# for tagging back on the main window
 
 
+=======
+'Changes from 5.57 to 5.58 by crap_inhuman in 02.2018
+'	Repaired the artist tagging
+
+
+'Changes from 5.56 to 5.57 by crap_inhuman in 02.2018
+'	Choose artist for tagging back to his old place
+'	Choose Track# and Disc# for tagging back on the main window
+
+
+>>>>>>> .r91
 'Changes from 5.55 to 5.56 by crap_inhuman in 02.2018
 '	Changed some visual things to be more user-friendly
 '	Authorize the Discogs Tagger should now be more user-friendly
@@ -1703,7 +1724,7 @@ Sub StartSearchType(Panel, SearchTerm, SearchArtist, SearchAlbum, SearchType)
 			Set xmlDoc = CreateObject("Microsoft.XMLDOM")
 
 			xmlDoc.Async = "False"
-			xmlDoc.Load("http://www.germanc64.de/mm/DiscogsAutoTagWeb.xml")
+			xmlDoc.Load("https://www.germanc64.de/mm/DiscogsAutoTagWeb.xml")
 
 			Set colNodes = xmlDoc.selectNodes("//SoftwareVersion/VersionMajor")
 			For Each objNode in colNodes
@@ -2347,6 +2368,7 @@ Sub ReloadResults
 		Dim rTrack
 		Dim ret
 		Dim LeadingZeroTrackPosition
+		Dim FormatCnt
 		ReDim TrackRoles(0)
 		ReDim TrackArtist2(0)
 		ReDim TrackPos(0)
@@ -2444,7 +2466,12 @@ Sub ReloadResults
 			If AlbumArtistTitle = "Various" And CheckVarious Then
 				AlbumArtistTitle = TxtVarious
 			End If
-
+			
+			If CurrentRelease.Exists("format_quantity") Then
+				FormatCnt = CurrentRelease("format_quantity")
+			Else
+				FormatCnt = 0
+			End If
 
 			WriteLog " "
 			WriteLog "ExtraArtists"
@@ -2829,7 +2856,7 @@ Sub ReloadResults
 						End If
 					End If
 
-					trackNumbering pos, position, TracksNum, TracksCD, iTrackNum
+					trackNumbering pos, position, TracksNum, TracksCD, iTrackNum, FormatCnt
 
 				ElseIf (trackName = "-" And rSubPosition.Item(t) <> "NewSubTrack") Then
 					tracksNum.Add ""
@@ -2847,10 +2874,10 @@ Sub ReloadResults
 						tracksCD.Add ""
 					End If
 					If UnselectedTracks(iTrackNum) = "" Then
-						trackNumbering pos, position, TracksNum, TracksCD, iTrackNum
+						trackNumbering pos, position, TracksNum, TracksCD, iTrackNum, FormatCnt
 					End If
 				Else ' Nothing specified
-					trackNumbering pos, position, TracksNum, TracksCD, iTrackNum
+					trackNumbering pos, position, TracksNum, TracksCD, iTrackNum, FormatCnt
 				End If
 
 				ReDim Involved_R_T(0)
@@ -4049,37 +4076,6 @@ Sub ReloadResults
 					SDB.Tools.WebSearch.NewTracks.Item(i).Genre = NewGenre
 				End If
 			End If
-			
-			REM If CheckGenre And CheckStyle Then
-				REM If Not(Genres = "" And Styles = "" And CheckDontFillEmptyFields = True) Then
-					REM SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Genres & Separator & Styles
-					REM If Genres = "" Then SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Styles
-					REM If Styles = "" Then SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Genres
-				REM End If
-			REM ElseIf CheckGenre Then
-				REM If Not(Genres = "" And CheckDontFillEmptyFields = True) Then
-					REM SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Genres
-				REM End If
-			REM ElseIf CheckStyle Then
-				REM If Not(Styles = "" And CheckDontFillEmptyFields = True) Then
-					REM SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Styles
-				REM End If
-			REM End If
-		REM Else
-			REM If CheckGenre Then
-				REM If Not(Genres = "" And CheckDontFillEmptyFields = True) Then
-					REM SDB.Tools.WebSearch.NewTracks.Item(i).Genre = Genres
-				REM End If
-			REM End If
-			REM If CheckStyle Then
-				REM If Not(Styles = "" And CheckDontFillEmptyFields = True) Then
-					REM If CheckStyleField = "Custom1" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom1 = Styles
-					REM If CheckStyleField = "Custom2" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom2 = Styles
-					REM If CheckStyleField = "Custom3" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom3 = Styles
-					REM If CheckStyleField = "Custom4" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom4 = Styles
-					REM If CheckStyleField = "Custom5" Then SDB.Tools.WebSearch.NewTracks.Item(i).Custom5 = Styles
-				REM End If
-			REM End If
 		End If
 		If CheckLabel And ((CheckDontFillEmptyFields = True And theLabels <> "") Or CheckDontFillEmptyFields = False) Then SDB.Tools.WebSearch.NewTracks.Item(i).Publisher = theLabels
 
@@ -4179,10 +4175,10 @@ End Function
 
 
 
-Function trackNumbering(byRef pos, byRef position, byRef TracksNum, byRef TracksCD, byRef iTrackNum)
+Function trackNumbering(ByRef pos, byRef position, byRef TracksNum, byRef TracksCD, byRef iTrackNum, FormatCnt)
 
 	WriteLog "start trackNumbering"
-	If pos > 1 And CheckNoDisc = False Then ' Disc Number Included
+	If pos > 1 And CheckNoDisc = False And FormatCnt > 1 Then ' Disc Number Included
 		WriteLog "Disc Number Included"
 		If CheckForceNumeric Then
 			If Left(position,2) = "CD" Then
@@ -4613,8 +4609,8 @@ End Function
 Sub Track_from_to (currentTrack, currentArtist, involvedRole, Title_Position, TrackRoles, TrackArtist2, TrackPos, LeadingZeroTrackPosition)
 
 	WriteLog "Start Track_from_to"
-	Dim tmp, tmp4, TrackSeparator, Vinyl_Pos1, Vinyl_Pos2, cnt, ret
-	Dim StartTrack, EndTrack, StartSide, EndSide
+	Dim tmp, tmp4, cnt, ret
+	Dim StartTrack, EndTrack
 	WriteLog "currentTrack=" & currentTrack
 	If InStr(currentTrack, "  ") <> 0 Then
 		WriteLog "Warning: More than one space between the track positions !!!"
@@ -4624,153 +4620,66 @@ Sub Track_from_to (currentTrack, currentArtist, involvedRole, Title_Position, Tr
 		Loop While True
 	End If
 	tmp = Split(currentTrack, " to ")
-	StartSide = ""
-	EndSide = ""
-	TrackSeparator = ""
-	WriteLog "StartTrack=" & tmp(0)
-	WriteLog "EndTrack=" & tmp(1)
 
-	StartTrack = exchange_roman_numbers(tmp(0))
-	EndTrack = exchange_roman_numbers(tmp(1))
+	StartTrack = Trim(tmp(0))
+	EndTrack = trim(tmp(1))
+	WriteLog "StartTrack=" & StartTrack
+	WriteLog "EndTrack=" & EndTrack
+	
 
-	If InStr(StartTrack, "-") <> 0 Then
-		tmp4 = Split(StartTrack, "-")
-		StartSide = Trim(tmp4(0))
-		StartTrack = Trim(tmp4(1))
-		StartTrack = exchange_roman_numbers(StartTrack)
-		TrackSeparator = "-"
-	End If
-	If InStr(EndTrack, "-") <> 0 Then
-		tmp4 = Split(EndTrack, "-")
-		EndSide = Trim(tmp4(0))
-		EndTrack = Trim(tmp4(1))
-		EndTrack = exchange_roman_numbers(EndTrack)
-		TrackSeparator = "-"
-	End If
-	If InStr(StartTrack, ".") <> 0 Then
-		tmp4 = Split(StartTrack, ".")
-		StartSide = Trim(tmp4(0))
-		StartTrack = Trim(tmp4(1))
-		StartTrack = exchange_roman_numbers(StartTrack)
-		TrackSeparator = "."
-	End If
-	If InStr(EndTrack, ".") <> 0 Then
-		tmp4 = Split(EndTrack, ".")
-		EndSide = Trim(tmp4(0))
-		EndTrack = Trim(tmp4(1))
-		EndTrack = exchange_roman_numbers(EndTrack)
-		TrackSeparator = "."
-	End If
 	If Left(StartTrack, 2) = "CD" Then
-		StartSide = "CD"
 		StartTrack = Mid(StartTrack, 3)
 	End If
 	If Left(EndTrack, 2) = "CD" Then
-		EndSide = "CD"
 		EndTrack = Mid(EndTrack, 3)
 	End If
 	If Left(StartTrack, 3) = "DVD" Then
-		StartSide = "DVD"
 		StartTrack = Mid(StartTrack, 4)
 	End If
 	If Left(EndTrack, 3) = "DVD" Then
-		EndSide = "DVD"
 		EndTrack = Mid(EndTrack, 4)
 	End If
 	If UCase(Left(StartTrack, 6)) = "VIDEO " Then
-		StartSide = "VIDEO "
 		StartTrack = Mid(StartTrack, 7)
 	End If
 	If UCase(Left(EndTrack, 6)) = "VIDEO " Then
-		EndSide = "VIDEO "
 		EndTrack = Mid(EndTrack, 7)
 	End If
 	If UCase(Left(StartTrack, 5)) = "VIDEO" Then
-		StartSide = "VIDEO"
 		StartTrack = Mid(StartTrack, 6)
 	End If
 	If UCase(Left(EndTrack, 5)) = "VIDEO" Then
-		EndSide = "VIDEO"
 		EndTrack = Mid(EndTrack, 6)
 	End If
 	WriteLog "StartTrack=" & StartTrack
 	WriteLog "EndTrack=" & EndTrack
-	If IsNumeric(Right(StartTrack,1)) = False And Len(StartTrack) > 1 Then
-		StartTrack = Left(StartTrack, Len(StartTrack)-1)
-	End If
-	If IsNumeric(Right(EndTrack,1)) = False And Len(EndTrack) > 1 Then
-		EndTrack = Left(EndTrack, Len(EndTrack)-1)
-	End If
-	If IsNumeric(StartTrack) = False Then
-		WriteLog "isnotnumeric"
-		If Len(StartTrack) > 1 Then
-			StartSide = Left(StartTrack, 1)
-			StartTrack = Mid(StartTrack, 2)
-		Else
-			StartSide = StartTrack
-			StartTrack = 1
+	tmp4 = False
+	
+	For cnt = 0 To UBound(Title_Position)-1
+		If Title_Position(cnt) = StartTrack Then
+			tmp4 = True
 		End If
-	End If
-	If IsNumeric(EndTrack) = False Then
-		If Len(EndTrack) > 1 Then
-			EndSide = Left(EndTrack, 1)
-			EndTrack = Mid(EndTrack, 2)
-		Else
-			EndSide = EndTrack
-			EndTrack = 1
-		End If
-	End If
-
-	If StartSide <> EndSide Then
-		Vinyl_Pos1 = StartSide
-		Vinyl_Pos2 = StartTrack
-		WriteLog "Vinyl_Pos1 = " & StartSide
-		WriteLog "Vinyl_Pos2 = " & StartTrack
-		WriteLog "LeadingZeroTrackPosition = " & LeadingZeroTrackPosition
-		If LeadingZeroTrackPosition = True And EndTrack < 10 And Left(cStr(EndTrack), 1) <> "0" Then
-			EndTrack = "0" & EndTrack
-		End If
-		Do
-			If LeadingZeroTrackPosition = True And Vinyl_Pos2 < 10 And Left(cStr(Vinyl_Pos2), 1) <> "0" Then
-				Vinyl_Pos2 = "0" & Vinyl_Pos2
-			End If
-			tmp4 = Vinyl_Pos1 & TrackSeparator & Vinyl_Pos2
-			ret = search_involved_track(Title_Position, tmp4)
-			If ret = -1 Then
-				If IsNumeric(Vinyl_Pos1) = True Then
-					If Vinyl_Pos1 > 101 Then Exit Do
-					Vinyl_Pos1 = Vinyl_Pos1 + 1
-				Else
-					If Chr(Asc(Vinyl_Pos1)) = "Z" Then Exit Do
-					Vinyl_Pos1 = Chr(Asc(Vinyl_Pos1) + 1)
-				End If
-				Vinyl_Pos2 = "1"
-			Else
-				ReDim Preserve TrackRoles(UBound(TrackRoles)+1)
-				ReDim Preserve TrackArtist2(UBound(TrackArtist2)+1)
-				ReDim Preserve TrackPos(UBound(TrackPos)+1)
-				TrackArtist2(UBound(TrackArtist2)) = currentArtist
-				TrackRoles(UBound(TrackRoles)) = involvedRole
-				TrackPos(UBound(TrackPos)) = Vinyl_Pos1 & TrackSeparator & Vinyl_Pos2
-				WriteLog "  currentTrack=" & Vinyl_Pos1 & TrackSeparator & Vinyl_Pos2
-				If cStr(Vinyl_Pos1) = cStr(EndSide) And cStr(Vinyl_Pos2) = cStr(EndTrack) Then Exit Do
-				Vinyl_Pos2 = Vinyl_Pos2 + 1
-			End If
-		Loop While True
-	Else
-		For cnt = StartTrack To EndTrack
-			If LeadingZeroTrackPosition = True And cnt < 10 And Left(cStr(cnt), 1) <> "0" Then
-				cnt = "0" & cnt
-			End If
+		If Title_Position(cnt) = EndTrack Then
 			ReDim Preserve TrackRoles(UBound(TrackRoles)+1)
 			ReDim Preserve TrackArtist2(UBound(TrackArtist2)+1)
 			ReDim Preserve TrackPos(UBound(TrackPos)+1)
 			TrackArtist2(UBound(TrackArtist2)) = currentArtist
 			TrackRoles(UBound(TrackRoles)) = involvedRole
-			TrackPos(UBound(TrackPos)) = StartSide & TrackSeparator & cnt
-			WriteLog "  currentTrack=" & StartSide & TrackSeparator & cnt
-		Next
-	End If
+			TrackPos(UBound(TrackPos)) = Title_Position(cnt)
+			WriteLog "Pos: " & Title_Position(cnt) & "  " & currentArtist & " - " & involvedRole
+			Exit For
+		End If
+		If tmp4 = True Then
+			ReDim Preserve TrackRoles(UBound(TrackRoles)+1)
+			ReDim Preserve TrackArtist2(UBound(TrackArtist2)+1)
+			ReDim Preserve TrackPos(UBound(TrackPos)+1)
+			TrackArtist2(UBound(TrackArtist2)) = currentArtist
+			TrackRoles(UBound(TrackRoles)) = involvedRole
+			TrackPos(UBound(TrackPos)) = Title_Position(cnt)
+			WriteLog "Pos: " & Title_Position(cnt) & "  " & currentArtist & " - " & involvedRole
+		End If
+	Next
+			
 	WriteLog "Stop Track_from_to"
 
 End Sub
@@ -4920,7 +4829,7 @@ Sub ShowResult(ResultID)
 			searchURL_L = ""
 
 			Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
-			oXMLHTTP.open "POST", "http://www.germanc64.de/mm/oauth/check_new.php", False
+			oXMLHTTP.open "POST", "https://www.germanc64.de/mm/oauth/check_new.php", False
 			oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
 			oXMLHTTP.setRequestHeader "User-Agent",UserAgent
 			WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&searchURL=" & searchURL & "&searchURL_F=" & searchURL_F & "&searchURL_L=" & searchURL_L & "&version=" & VersionStr
@@ -5071,7 +4980,7 @@ Function GetHeader()
 	templateHTML = templateHTML &  "<table border=0 width=100% cellspacing=0 cellpadding=1 class=tabletext>"
 	templateHTML = templateHTML &  "<tr>"
 	If QueryPage = "Discogs" Then
-		templateHTML = templateHTML &  "<td align=left><a href=""https://www.discogs.com"" target=""_blank""><img src=""http://www.germanc64.de/mm/i-love-discogs.png"" width=""100"" height=""60"" border=""0"" alt=""Discogs Homepage""></a><b>" & VersionStr & "</b></td>"
+		templateHTML = templateHTML &  "<td align=left><a href=""https://www.discogs.com"" target=""_blank""><img src=""https://www.germanc64.de/mm/i-love-discogs.png"" width=""100"" height=""60"" border=""0"" alt=""Discogs Homepage""></a><b>" & VersionStr & "</b></td>"
 	End If
 	If QueryPage = "MusicBrainz" Then
 		templateHTML = templateHTML &  "<td align=left><a href=""http://www.musicbrainz.org"" target=""_blank""><img src=""https://wiki.musicbrainz.org/-/images/e/e4/MusicBrainz_Logo_White.png"" width=""100"" height=""70"" border=""0""/ alt=""MusicBrainz Homepage""></a><b>" & VersionStr & "</b></td>"
@@ -5434,7 +5343,6 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	If QueryPage = "Discogs" Then
 		templateHTML = templateHTML &  "<tr>"
 		templateHTML = templateHTML &  "<td><input type=checkbox id=""genre"" title=""If set, the selected genres will be written in the genre-tag""></td>"
-		REM <input type=checkbox id=""style"" ></td>"
 		templateHTML = templateHTML &  "<td>Genre:</td>"
 		If GenresList.Count > 0 Then
 			templateHTML = templateHTML & "<td><input type=checkbox id=""genre0"" >" & GenresList.Item(0) & "</td>"
@@ -5444,7 +5352,6 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 			For i = 1 To GenresList.Count-1
 				templateHTML = templateHTML &  "<tr><td></td><td></td>"
 				templateHTML = templateHTML & "<td><input type=checkbox id=""genre" & i & """ >" & GenresList.Item(i) & "</td>"
-			REM templateHTML = templateHTML &  "<td><!GENRE!></td>"
 				templateHTML = templateHTML &  "</tr>"
 			Next
 		End If
@@ -5557,33 +5464,6 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	
 	If QueryPage = "Discogs" Then
 		templateHTML = Replace(templateHTML, "<!DATAQUALITY!>", DataQuality)
-		REM templateHTML = Replace(templateHTML, "<!COMMENT!>", Comment)
-	
-		REM theGenres = ""
-
-		REM If Genres <> "" Then
-			REM If CheckGenre Then
-				REM theGenres = Genres
-			REM Else
-				REM theGenres = "<s>" + Genres + "</s>"
-			REM End If
-		REM End If
-
-		REM If Styles <> "" Then
-			REM If theGenres <> "" Then
-				REM If CheckGenre Then
-					REM theGenres = theGenres & Separator
-				REM Else
-					REM theGenres = theGenres & "<s>" & Separator & "</s>"
-				REM End If
-			REM End If
-			REM If CheckStyle Then
-				REM theGenres = theGenres & Styles
-			REM Else
-				REM theGenres = theGenres & "<s>" & Styles & "</s>"
-			REM End If
-		REM End If
-		REM templateHTML = Replace(templateHTML, "<!GENRE!>", theGenres)
 	End If
 
 	
@@ -5681,69 +5561,12 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Set checkBox = templateHTMLDoc.getElementById("format")
 	checkBox.Checked = CheckFormat
 	Script.RegisterEvent checkBox, "onclick", "Update"
-	REM If QueryPage = "Discogs" Then
-		REM Set checkBox = templateHTMLDoc.getElementById("useanv")
-		REM checkBox.Checked = CheckUseAnv
-		REM Script.RegisterEvent checkBox, "onclick", "Update"
-	REM End If
-	REM Set checkBox = templateHTMLDoc.getElementById("yearonlydate")
-	REM checkBox.Checked = CheckYearOnlyDate
-	REM Script.RegisterEvent checkBox, "onclick", "Update"
-	REM If QueryPage = "Discogs" Then
-		REM Set checkBox = templateHTMLDoc.getElementById("forcenumeric")
-		REM checkBox.Checked = CheckForceNumeric
-		REM Script.RegisterEvent checkBox, "onclick", "Update"
-		REM Set checkBox = templateHTMLDoc.getElementById("sidestodisc")
-		REM checkBox.Checked = CheckSidesToDisc
-		REM Script.RegisterEvent checkBox, "onclick", "Update"
-	REM End If
-	REM Set checkBox = templateHTMLDoc.getElementById("forcedisc")
-	REM checkBox.Checked = CheckForceDisc
-	REM Script.RegisterEvent checkBox, "onclick", "Update"
-	REM Set checkBox = templateHTMLDoc.getElementById("nodisc")
-	REM checkBox.Checked = CheckNoDisc
-	REM Script.RegisterEvent checkBox, "onclick", "Update"
-	REM Set checkBox = templateHTMLDoc.getElementById("leadingzero")
-	REM checkBox.Checked = CheckLeadingZero
-	REM Script.RegisterEvent checkBox, "onclick", "Update"
-	REM Set checkBox = templateHTMLDoc.getElementById("leadingzeroDisc")
-	REM checkBox.Checked = CheckLeadingZeroDisc
-	REM Script.RegisterEvent checkBox, "onclick", "Update"
-	REM Set checkBox = templateHTMLDoc.getElementById("titlefeaturing")
-	REM checkBox.Checked = CheckTitleFeaturing
-	REM Script.RegisterEvent checkBox, "onclick", "Update"
-	REM Set checkBox = templateHTMLDoc.getElementById("deleteduplicatedentry")
-	REM checkBox.Checked = CheckDeleteDuplicatedEntry
-	REM Script.RegisterEvent checkBox, "onclick", "Update"
-	REM Set text = templateHTMLDoc.getElementById("TxtFeaturingName")
-	REM text.value = TxtFeaturingName
-	REM Script.RegisterEvent text, "onchange", "Update"
-	REM Set checkbox = templateHTMLDoc.getElementById("FeaturingName")
-	REM checkBox.Checked = CheckFeaturingName
-	REM Script.RegisterEvent checkBox, "onclick", "Update"
+	
 	If QueryPage = "Discogs" Then
 		Set checkBox = templateHTMLDoc.getElementById("comments")
 		checkBox.Checked = CheckComment
 		Script.RegisterEvent checkBox, "onclick", "Update"
 	End If
-	REM Set text = templateHTMLDoc.getElementById("txtvarious")
-	REM text.value = TxtVarious
-	REM Script.RegisterEvent text, "onchange", "Update"
-	REM Set checkBox = templateHTMLDoc.getElementById("various")
-	REM checkBox.Checked = CheckVarious
-	REM Script.RegisterEvent checkBox, "onclick", "Update"
-	REM Set checkBox = templateHTMLDoc.getElementById("SubTrackNameSelection")
-	REM checkBox.Checked = SubTrackNameSelection
-	REM Script.RegisterEvent checkBox, "onclick", "Update"
-	REM Set checkBox = templateHTMLDoc.getElementById("TurnOffSubTrack")
-	REM checkBox.Checked = CheckTurnOffSubTrack
-	REM Script.RegisterEvent checkBox, "onclick", "Update"
-	REM Set checkBox = templateHTMLDoc.getElementById("involvedpeoplesingle")
-	REM checkBox.Checked = CheckInvolvedPeopleSingleLine
-	REM Script.RegisterEvent checkBox, "onclick", "Update"
-	REM Set checkBox = templateHTMLDoc.getElementById("TheBehindArtist")
-	REM checkBox.Checked = CheckTheBehindArtist
-	REM Script.RegisterEvent checkBox, "onclick", "Update"
 
 	Set listBox = templateHTMLDoc.getElementById("filtermediatype")
 	Script.RegisterEvent listBox, "onchange", "Filter"
@@ -6367,12 +6190,12 @@ Function JSONParser_find_result(searchURL, ArrayName, SendArtist, SendAlbum, Sen
 		' use json api with vbsjson class at start of file now
 
 		If useOAuth = True Then
-			oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new_v2.php", False
+			oXMLHTTP.Open "POST", "https://www.germanc64.de/mm/oauth/check_new_v2.php", False
 			oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
 			oXMLHTTP.setRequestHeader "User-Agent",UserAgent
 			If LimitReleases = 50 Then SendPerPage = 50
-			WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&artist=" & SendArtist & "&album=" & SendAlbum & "&track=" & SendTrack & "&type=" & SendType & "&dbsearch=" & SendDBSearch & "&perpage=" & SendPerPage & "&querypage=" & QueryPage & "&page=1"
-			oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&artist=" & SendArtist & "&album=" & SendAlbum & "&track=" & SendTrack & "&type=" & SendType & "&dbsearch=" & SendDBSearch & "&perpage=" & SendPerPage & "&querypage=" & QueryPage & "&page=1")
+			WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&artist=" & SendArtist & "&album=" & SendAlbum & "&track=" & SendTrack & "&type=" & SendType & "&dbsearch=" & SendDBSearch & "&perpage=" & SendPerPage & "&querypage=" & QueryPage & "&page=1" & "&version=" & VersionStr
+			oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&artist=" & SendArtist & "&album=" & SendAlbum & "&track=" & SendTrack & "&type=" & SendType & "&dbsearch=" & SendDBSearch & "&perpage=" & SendPerPage & "&querypage=" & QueryPage & "&page=1" & "&version=" & VersionStr)
 
 			If oXMLHTTP.Status = 200 Then
 				If InStr(oXMLHTTP.responseText, "OAuth client error") <> 0 Then
@@ -6422,11 +6245,11 @@ Function JSONParser_find_result(searchURL, ArrayName, SendArtist, SendAlbum, Sen
 				WriteLog "SongPages=" & SongPages
 				For Page = 1 to SongPages
 					If Page <> 1 Then
-						oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/check_new_v2.php", False
+						oXMLHTTP.Open "POST", "https://www.germanc64.de/mm/oauth/check_new_v2.php", False
 						oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"  
 						oXMLHTTP.setRequestHeader "User-Agent",UserAgent
-						WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&artist=" & SendArtist & "&album=" & SendAlbum & "&track=" & SendTrack & "&type=" & SendType & "&dbsearch=" & SendDBSearch & "&perpage=" & SendPerPage & "&querypage=" & QueryPage & "&page=" & Page
-						oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&artist=" & SendArtist & "&album=" & SendAlbum & "&track=" & SendTrack & "&type=" & SendType & "&dbsearch=" & SendDBSearch & "&perpage=" & SendPerPage & "&querypage=" & QueryPage & "&page=" & Page)
+						WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&artist=" & SendArtist & "&album=" & SendAlbum & "&track=" & SendTrack & "&type=" & SendType & "&dbsearch=" & SendDBSearch & "&perpage=" & SendPerPage & "&querypage=" & QueryPage & "&page=" & Page & "&version=" & VersionStr
+						oXMLHTTP.send ("at=" & AccessToken & "&ats=" & AccessTokenSecret & "&artist=" & SendArtist & "&album=" & SendAlbum & "&track=" & SendTrack & "&type=" & SendType & "&dbsearch=" & SendDBSearch & "&perpage=" & SendPerPage & "&querypage=" & QueryPage & "&page=" & Page & "&version=" & VersionStr)
 						If oXMLHTTP.Status = 200 Then
 							If InStr(oXMLHTTP.responseText, "OAuth client error") <> 0 Then
 								WriteLog "responseText=" & oXMLHTTP.responseText
@@ -6616,6 +6439,7 @@ Function ReloadMaster(SavedMasterID)
 			Else
 				OriginalDate = ""
 			End If
+			If OriginalDate = 0 Then OriginalDate = ""
 		End If
 	End If
 	Set oXMLHTTP = Nothing
@@ -8550,7 +8374,7 @@ Function UserCollection()
 	Dim Page, ReleaseCountMax, ReleasePages, r, id, ReleaseFound, ErrorFound
 	Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 	If DiscogsUsername = "" Then
-		oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/identity.php", False
+		oXMLHTTP.Open "POST", "https://www.germanc64.de/mm/oauth/identity.php", False
 		oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
 		oXMLHTTP.setRequestHeader "User-Agent",UserAgent
 		WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret
@@ -8571,7 +8395,7 @@ Function UserCollection()
 	End If
 
 	If CheckDiscogsCollectionOff = False Then
-		oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/get_release.php", False
+		oXMLHTTP.Open "POST", "https://www.germanc64.de/mm/oauth/get_release.php", False
 		oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
 		oXMLHTTP.setRequestHeader "User-Agent", UserAgent
 		WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&username=" & DiscogsUsername & "&page=1"
@@ -8590,7 +8414,7 @@ Function UserCollection()
 					WriteLog "ReleasePages=" & ReleasePages
 					For Page = 1 To ReleasePages
 						If Page <> 1 Then
-							oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/get_release.php", False
+							oXMLHTTP.Open "POST", "https://www.germanc64.de/mm/oauth/get_release.php", False
 							oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
 							oXMLHTTP.setRequestHeader "User-Agent", UserAgent
 							WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&username=" & DiscogsUsername & "&page=" & Page
@@ -8619,7 +8443,7 @@ Function UserCollection()
 
 					If ReleaseFound = False And ErrorFound = False Then
 
-						oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/add_release.php", False
+						oXMLHTTP.Open "POST", "https://www.germanc64.de/mm/oauth/add_release.php", False
 						oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
 						oXMLHTTP.setRequestHeader "User-Agent", UserAgent
 						WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&username=" & DiscogsUsername & "&release=" & CurrentReleaseID
@@ -8643,7 +8467,7 @@ Function UserCollection()
 			End If
 		End If
 	Else
-		oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/add_release.php", False
+		oXMLHTTP.Open "POST", "https://www.germanc64.de/mm/oauth/add_release.php", False
 		oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
 		oXMLHTTP.setRequestHeader "User-Agent", UserAgent
 		WriteLog "Sending Post at=" & AccessToken & "&ats=" & AccessTokenSecret & "&username=" & DiscogsUsername & "&release=" & CurrentReleaseID
@@ -8665,7 +8489,7 @@ Sub ReportRelease()
 	'If Trackname has leading and/or trailing spaces the release-id will be stored in database to fix the entry at discogs
 	Dim oXMLHTTP
 	Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
-	oXMLHTTP.Open "POST", "http://www.germanc64.de/mm/oauth/report_release.php", False
+	oXMLHTTP.Open "POST", "https://www.germanc64.de/mm/oauth/report_release.php", False
 	oXMLHTTP.setRequestHeader "Content-Type", "application/x-www-form-urlencoded"
 	oXMLHTTP.setRequestHeader "User-Agent", UserAgent
 	WriteLog "Sending release=" & CurrentReleaseID
@@ -8745,7 +8569,7 @@ Function authorize_script(AuthFailed)
 	authHTML = authHTML & "Tagger, you must</span><br class=""auto-style1"" /><br />"
 	authHTML = authHTML & "<span class=""auto-style1""><a href=""https://www.discogs.com"" target=""_blank"">"
 	authHTML = authHTML & "1. Create an account on the Discogs website</a>,<br /><br />"
-	authHTML = authHTML & "<a href=""http://www.germanc64.de/mm/oauth/oauth_guid.php?f=" & GUID & """ target=""_blank"">2. Authorize the Discogs"
+	authHTML = authHTML & "<a href=""https://www.germanc64.de/mm/oauth/oauth_guid.php?f=" & GUID & """ target=""_blank"">2. Authorize the Discogs"
 	authHTML = authHTML & "Tagger"
 	authHTML = authHTML & " to use your newly-created account.</a><br /></span><br class=""auto-style1"" />"
 	authHTML = authHTML & "<br class=""auto-style1"" />"
@@ -8785,7 +8609,7 @@ Function authorize_script(AuthFailed)
 		SDB.Objects("WebBrowser2") = Nothing
 		Set oXMLHTTP = Nothing
 		Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
-		oXMLHTTP.open "GET", "http://www.germanc64.de/mm/oauth/get_oauth_guid.php?f=" & GUID, false
+		oXMLHTTP.open "GET", "https://www.germanc64.de/mm/oauth/get_oauth_guid.php?f=" & GUID, false
 		oXMLHTTP.send()
 		If oXMLHTTP.Status = 200 Then
 			retIE = oXMLHTTP.responseText
@@ -8875,7 +8699,6 @@ Sub showOptions()
 
 	optionsHTML = optionsHTML &  "<tr><td align=center><b>Tagging options:</b></td></tr>"
 	If QueryPage = "Discogs" Then
-		Rem optionsHTML = optionsHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""comments"" >Save Comment</td></tr>"
 		optionsHTML = optionsHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""useanv"" title=""Artist Name Variation - Using no name variation (e.g. nickname)"" >Don't Use ANV's</td></tr>"
 	End If
 	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""yearonlydate"" title=""If checked only the Year will be saved (e.g. 14.01.1982 -> 1982)"" >Only Year Of Date</td></tr>"
@@ -8906,8 +8729,12 @@ Sub showOptions()
 	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""nodisc"" title=""Prevent the script from interpret sub tracks as disc-numbers"" >Force NO Disc Usage</td></tr>"
 	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""leadingzero"" title=""Track Position: 1 -> 01   2 -> 02 ..."" >Add Leading Zero (Track#)</td></tr>"
 	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""leadingzeroDisc"" title=""Disc-number: 1 -> 01   2 -> 02 ..."" >Add Leading Zero (Disc#)</td></tr>"
+<<<<<<< .mine
+
+=======
 	REM optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""tracknum"" title=""Save the track numbers"" >Save track numbers (Track#)</td></tr>"
 	REM optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""discnum"" title=""Save the disc numbers"" >Save disc numbers (Disc#)</td></tr>"
+>>>>>>> .r91
 	optionsHTML = optionsHTML &  "</table>"
 	
 	optionsHTML = optionsHTML &  "</body>"
@@ -8968,12 +8795,17 @@ Sub showOptions()
 	checkBox.Checked = CheckInvolvedPeopleSingleLine
 	Set checkBox = optionsHTMLDoc.getElementById("TheBehindArtist")
 	checkBox.Checked = CheckTheBehindArtist
+<<<<<<< .mine
+
+
+=======
 	REM Set checkBox = optionsHTMLDoc.getElementById("tracknum")
 	REM checkBox.Checked = CheckTrackNum
 	REM Set checkBox = optionsHTMLDoc.getElementById("discnum")
 	REM checkBox.Checked = CheckDiscNum
 	
 	
+>>>>>>> .r91
 	If Form.ShowModal = 1 Then
 		
 		If QueryPage = "Discogs" Then
@@ -9012,7 +8844,7 @@ Sub showOptions()
 		CheckFeaturingName = checkBox.Checked
 		Set text = optionsHTMLDoc.getElementById("TxtFeaturingName")
 		TxtFeaturingName = text.Value
-		
+
 		Set checkBox = optionsHTMLDoc.getElementById("various")
 		CheckVarious = checkBox.Checked
 		Set text = optionsHTMLDoc.getElementById("txtvarious")
@@ -9027,12 +8859,17 @@ Sub showOptions()
 		CheckTheBehindArtist = checkBox.Checked
 		Set checkBox = optionsHTMLDoc.getElementById("ignorefeaturing")
 		CheckIgnoreFeatArtist = checkBox.Checked
+<<<<<<< .mine
+
+
+=======
 		REM Set checkBox = optionsHTMLDoc.getElementById("tracknum")
 		REM CheckTrackNum = checkBox.Checked
 		REM Set checkBox = optionsHTMLDoc.getElementById("discnum")
 		REM CheckDiscNum = checkBox.Checked
 		
 		
+>>>>>>> .r91
 		SDB.Objects("WebBrowser2") = Nothing
 		ReloadResults
 	Else
