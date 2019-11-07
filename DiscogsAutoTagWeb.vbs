@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.69"
+Const VersionStr = "v5.70"
+
+'Changes from 5.69 to 5.70 by crap_inhuman in 09.2019
+'	Bug removed: Track-numbering didn't work with more than one char in rare cases
+
 
 'Changes from 5.68 to 5.69 by crap_inhuman in 07.2019
 '	Added 'Video' to the CD tag list
@@ -4342,37 +4346,34 @@ Function trackNumbering(ByRef pos, byRef position, byRef TracksNum, byRef Tracks
 			End If
 		Else
 			If pos > 0 Then
-				If Len(Mid(position, pos+1)) > 1 Then	'minimum 2 Char after -  (1-1a, 1-II, 1-12)
-					If IsInteger(Mid(position, pos+1, 1)) And Not IsInteger(Right(position, 1)) Then	'First is a Number, Char at the end (1-1a, 1-1b, 1-1c,...) = Sub-Track !
-						If Mid(position,pos + 1, Len(position) - pos - 1) < 10 And CheckLeadingZero = True Then
-							tracksNum.Add "0" & Right(position,Len(position)-pos)
+				TrackPosition = Mid(position, pos+1)
+				If Len(TrackPosition) > 1 Then	'minimum 2 Char after -  (1-1a, 1-II, 1-12)
+					If IsInteger(Left(TrackPosition, 1)) And Not IsInteger(Right(Trackposition, 1)) Then	'Minimum first is a Number, Char at the end (1-1a, 1-1b, 1-1c,...) = maybe Sub-Track !
+						tracksNum.Add TrackPosition
+					ElseIf IsInteger(TrackPosition) Then		'no char at all (1-01, 1-02, 1-12)
+						If CheckLeadingZero = True And Int(TrackPosition) < 10 Then
+							tracksNum.Add "0" & TrackPosition
 						Else
-							tracksNum.Add Right(position,Len(position)-pos)
-						End If
-					ElseIf IsInteger(Mid(position, pos+1)) Then		'no char at all (1-01, 1-02, 1-12)
-						If CheckLeadingZero = True And Right(position,Len(position)-pos) < 10 Then
-							tracksNum.Add "0" & Right(position,Len(position)-pos)
-						Else
-							tracksNum.Add Right(position,Len(position)-pos)
+							tracksNum.Add TrackPosition
 						End If
 					Else
-						tracksNum.Add Right(position,Len(position)-pos)
+						tracksNum.Add TrackPosition
 					End If
-				ElseIf Len(Mid(position, pos+1)) = 1 Then	'1 Char after -  (1-1, 1-I, 1-2)
-					If IsInteger(Mid(position, pos+1)) Then
-						If CheckLeadingZero = True And Mid(position, pos+1) < 10 Then
-							tracksNum.Add "0" & Mid(position, pos+1)
+				ElseIf Len(TrackPosition) = 1 Then	'1 Char after -  (1-1, 1-I, 1-2)
+					If IsInteger(TrackPosition) Then
+						If CheckLeadingZero = True And TrackPosition < 10 Then
+							tracksNum.Add "0" & TrackPosition
 						Else
-							tracksNum.Add Mid(position, pos+1)
+							tracksNum.Add TrackPosition
 						End If
 					Else
-						tracksNum.Add Mid(position, pos+1)
+						tracksNum.Add TrackPosition
 					End If
 				End If
 			End If
 			If UnselectedTracks(iTrackNum) <> "x" Then
-				If IsInteger(Right(position,len(position)-pos)) Then
-					iAutoTrackNumber = Right(position,len(position)-pos) + 1
+				If IsInteger(TrackPosition) Then
+					iAutoTrackNumber = TrackPosition + 1
 				Else
 					iAutoTrackNumber = iAutoTrackNumber + 1
 				End If
