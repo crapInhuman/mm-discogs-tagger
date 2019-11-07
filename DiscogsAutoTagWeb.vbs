@@ -2,7 +2,13 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.63"
+Const VersionStr = "v5.64"
+
+'Changes from 5.63 to 5.64 by crap_inhuman in 11.2018
+'	Bug removed with mixed media format
+'	Select Grouping (not ready yet)
+'	Add Start/Stop button for track refresh
+
 
 'Changes from 5.62 to 5.63 by crap_inhuman in 09.2018
 '	Musicbrainz: New Bug in Label subroutine removed
@@ -497,7 +503,7 @@ Dim CheckForceNumeric, CheckSidesToDisc, CheckForceDisc, CheckNoDisc, CheckLeadi
 Dim CheckTitleFeaturing, CheckComment, CheckFeaturingName, TxtFeaturingName, CheckOriginalDiscogsTrack, CheckSaveImage, CheckLimitReleases
 Dim CheckStyleField, CheckTurnOffSubTrack, CheckInvolvedPeopleSingleLine, CheckDontFillEmptyFields, CheckTheBehindArtist
 Dim CheckDiscogsCollectionOff, CheckDeleteDuplicatedEntry, StoreDate, OriginalDateRead, ReleaseDateRead
-Dim CheckIgnoreFeatArtist, SubTrackSeparator
+Dim CheckIgnoreFeatArtist, SubTrackSeparator, trackRefresh
 REM Dim CheckUserCollection
 Dim DiscogsUsername
 Dim SubTrackNameSelection
@@ -512,7 +518,7 @@ Dim SavedMasterID, SavedArtistID, SavedLabelID
 Dim FilterMediaType, FilterCountry, FilterYear, FilterMediaFormat, CurrentLoadType
 Dim NewGenre, GenresList, GenresSelect
 Dim MediaTypeList, MediaFormatList, CountryList, CountryCode, YearList, AlternativeList, LoadList, RelationAttrList
-Dim ArtistSeparator, ArtistLastSeparator, LimitReleases
+Dim ArtistSeparator, ArtistLastSeparator, LimitReleases, Grouping
 
 Dim FirstTrack, Errormessage
 Dim AlbumArtURL, AlbumArtThumbNail
@@ -1648,6 +1654,7 @@ Sub StartSearchType(Panel, SearchTerm, SearchArtist, SearchAlbum, SearchType)
 		UnselectedTrackNames(i) = ""
 	Next
 
+	trackrefresh = True
 
 
 	SearchTerm = Trim(SearchTerm)
@@ -2414,7 +2421,7 @@ Sub ReloadResults
 					WriteLog "Heading Track found"
 					currentHeading = PackSpaces(DecodeHtmlChars(currentTrack("title")), False)
 					WriteLog "Heading Track found"
-					Grouping(UBound(Grouping)) = ""
+					Grouping(UBound(Grouping)) = "|Heading|"
 					ReDim Preserve Grouping(UBound(Grouping)+1)
 				Else
 					If currentHeading <> "" Then
@@ -2470,9 +2477,9 @@ Sub ReloadResults
 				WriteLog i & " " & ArtistsList(i) &  " - " & TitleList(i)
 			Next
 
-			For i = 0 To rSubPosition.count-1
-				WriteLog i & " " & rSubPosition.item(i)
-			Next
+			REM For i = 0 To rSubPosition.count-1
+				REM WriteLog i & " " & rSubPosition.item(i)
+			REM Next
 
 			'Check for leading zero in track-position
 			For i = 0 to UBound(Title_Position)-1
@@ -2935,7 +2942,7 @@ Sub ReloadResults
 				End If
 
 				For tmp = 1 To UBound(TrackPos)
-					If TrackPos(tmp) = position Then
+					If TrackPos(tmp) = position And position <> "" Then
 						WriteLog "trackpos(" & tmp & ")=" & trackpos(tmp)
 						involvedRole = TrackRoles(tmp)
 						involvedArtist = TrackArtist2(tmp)
@@ -3156,43 +3163,52 @@ Sub ReloadResults
 
 				ArtistTitles.Add artistList
 
-				TrackLyricists = FindArtist(TrackLyricists, AlbumLyricist)
-				If AlbumLyricist <> "" and TrackLyricists <> "" Then
-					Lyricists.Add AlbumLyricist & ArtistSeparator & TrackLyricists
-				Else
-					Lyricists.Add AlbumLyricist & TrackLyricists
-				End If
-				TrackComposers = FindArtist(TrackComposers, AlbumComposer)
-				If AlbumComposer <> "" and TrackComposers <> "" Then
-					Composers.Add AlbumComposer & ArtistSeparator & TrackComposers
-				Else
-					Composers.Add AlbumComposer & TrackComposers
-				End If
-				TrackConductors = FindArtist(TrackConductors, AlbumConductor)
-				If AlbumConductor <> "" and TrackConductors <> "" Then
-					Conductors.Add AlbumConductor & ArtistSeparator & TrackConductors
-				Else
-					Conductors.Add AlbumConductor & TrackConductors
-				End If
+				If position <> "" Then
+					TrackLyricists = FindArtist(TrackLyricists, AlbumLyricist)
+					If AlbumLyricist <> "" and TrackLyricists <> "" Then
+						Lyricists.Add AlbumLyricist & ArtistSeparator & TrackLyricists
+					Else
+						Lyricists.Add AlbumLyricist & TrackLyricists
+					End If
+					TrackComposers = FindArtist(TrackComposers, AlbumComposer)
+					If AlbumComposer <> "" and TrackComposers <> "" Then
+						Composers.Add AlbumComposer & ArtistSeparator & TrackComposers
+					Else
+						Composers.Add AlbumComposer & TrackComposers
+					End If
+					TrackConductors = FindArtist(TrackConductors, AlbumConductor)
+					If AlbumConductor <> "" and TrackConductors <> "" Then
+						Conductors.Add AlbumConductor & ArtistSeparator & TrackConductors
+					Else
+						Conductors.Add AlbumConductor & TrackConductors
+					End If
 
-				TrackProducers = FindArtist(TrackProducers, AlbumProducer)
-				If AlbumProducer <> "" and TrackProducers <> "" Then
-					Producers.Add AlbumProducer & ArtistSeparator & TrackProducers
-				Else
-					Producers.Add AlbumProducer & TrackProducers
-				End If
+					TrackProducers = FindArtist(TrackProducers, AlbumProducer)
+					If AlbumProducer <> "" and TrackProducers <> "" Then
+						Producers.Add AlbumProducer & ArtistSeparator & TrackProducers
+					Else
+						Producers.Add AlbumProducer & TrackProducers
+					End If
 
-				If UBound(Involved_R_T) > 0 Then
-					For tmp = 1 To UBound(involved_R_T)
-						TrackInvolvedPeople = TrackInvolvedPeople & Involved_R_T(tmp) & Separator
-					Next
-					TrackInvolvedPeople = Left(TrackInvolvedPeople, Len(TrackInvolvedPeople)-Len(Separator))
-				Else
-					TrackInvolvedPeople = ""
-				End If
+					If UBound(Involved_R_T) > 0 Then
+						For tmp = 1 To UBound(involved_R_T)
+							TrackInvolvedPeople = TrackInvolvedPeople & Involved_R_T(tmp) & Separator
+						Next
+						TrackInvolvedPeople = Left(TrackInvolvedPeople, Len(TrackInvolvedPeople)-Len(Separator))
+					Else
+						TrackInvolvedPeople = ""
+					End If
 
-				InvolvedArtists.Add TrackInvolvedPeople
-				Tracks.Add trackName
+					InvolvedArtists.Add TrackInvolvedPeople
+					Tracks.Add trackName
+				Else
+					Lyricists.Add ""
+					Composers.Add ""
+					Conductors.Add ""
+					Producers.Add ""
+					InvolvedArtists.Add ""
+					Tracks.Add trackName
+				End If
 				iTrackNum = iTrackNum + 1
 			Next
 
@@ -4161,6 +4177,7 @@ Sub ReloadResults
 	Next
 	NewResult = False
 	SDB.Tools.WebSearch.RefreshViews   ' Tell MM that we have made some changes
+	WriteLog "Stop ReloadResults"
 End Sub
 
 
@@ -4252,7 +4269,22 @@ Function trackNumbering(ByRef pos, byRef position, byRef TracksNum, byRef Tracks
 				End If
 			End If
 
-			If Left(position,2) <> "CD" And Left(position,3) <> "DVD" AND IsInteger(Left(position,pos-1)) Then
+			If Left(position,3) = "VHS" Then
+				If iAutoDiscFormat <> "VHS" Then
+					iAutoDiscFormat = "VHS"
+					iAutoTrackNumber = 1
+					iAutoDiscNumber = 1
+				End If
+				If Mid(position,4,1) = "-" Then
+					iAutoDiscNumber = 1
+				Else
+					If iAutoDiscNumber <> Mid(position,4,1) Then
+						iAutoTrackNumber = 1
+					End If
+				End If
+			End If
+
+			If Left(position,2) <> "CD" And Left(position,3) <> "DVD" And Left(position,3) <> "VHS" And IsInteger(Left(position,pos-1)) Then
 				If Int(iAutoDiscNumber) <> Int(Left(position,pos-1)) Then
 					iAutoTrackNumber = 1
 				End If
@@ -4332,7 +4364,20 @@ Function trackNumbering(ByRef pos, byRef position, byRef TracksNum, byRef Tracks
 				iAutoDiscNumber = Mid(position,4,1)
 			End If
 		End If
-		If Left(position,2) <> "CD" And Left(position,3) <> "DVD" Then iAutoDiscNumber = Left(position,pos-1)
+		If Left(position,3) = "VHS" Then
+			If iAutoDiscFormat <> "VHS" Then
+				iAutoDiscFormat = "VHS"
+				iAutoTrackNumber = 1
+				iAutoDiscNumber = 1
+			End If
+			If Mid(position,4,1) = "-" Then
+				'Or Mid(position,3,1) = "." Then
+				iAutoDiscNumber = 1
+			Else
+				iAutoDiscNumber = Mid(position,4,1)
+			End If
+		End If
+		If Left(position,2) <> "CD" And Left(position,3) <> "DVD" And Left(position,3) <> "VHS" Then iAutoDiscNumber = Left(position,pos-1)
 		tracksCD.Add LeadingZeroDisc(iAutoDiscNumber)
 	Else ' Apply Track Numbering Schemes
 		WriteLog "Track Numbering Schemes"
@@ -4666,34 +4711,7 @@ Sub Track_from_to (currentTrack, currentArtist, involvedRole, Title_Position, Tr
 	EndTrack = trim(tmp(1))
 	WriteLog "StartTrack=" & StartTrack
 	WriteLog "EndTrack=" & EndTrack
-	
 
-	If Left(StartTrack, 2) = "CD" Then
-		StartTrack = Mid(StartTrack, 3)
-	End If
-	If Left(EndTrack, 2) = "CD" Then
-		EndTrack = Mid(EndTrack, 3)
-	End If
-	If Left(StartTrack, 3) = "DVD" Then
-		StartTrack = Mid(StartTrack, 4)
-	End If
-	If Left(EndTrack, 3) = "DVD" Then
-		EndTrack = Mid(EndTrack, 4)
-	End If
-	If UCase(Left(StartTrack, 6)) = "VIDEO " Then
-		StartTrack = Mid(StartTrack, 7)
-	End If
-	If UCase(Left(EndTrack, 6)) = "VIDEO " Then
-		EndTrack = Mid(EndTrack, 7)
-	End If
-	If UCase(Left(StartTrack, 5)) = "VIDEO" Then
-		StartTrack = Mid(StartTrack, 6)
-	End If
-	If UCase(Left(EndTrack, 5)) = "VIDEO" Then
-		EndTrack = Mid(EndTrack, 6)
-	End If
-	WriteLog "StartTrack=" & StartTrack
-	WriteLog "EndTrack=" & EndTrack
 	tmp4 = False
 	
 	For cnt = 0 To UBound(Title_Position)-1
@@ -4720,10 +4738,31 @@ Sub Track_from_to (currentTrack, currentArtist, involvedRole, Title_Position, Tr
 			WriteLog "Pos: " & Title_Position(cnt) & "  " & currentArtist & " - " & involvedRole
 		End If
 	Next
-			
+
 	WriteLog "Stop Track_from_to"
 
 End Sub
+
+Function Remove_CD(TrackPos)
+
+	If Left(TrackPos, 2) = "CD" Then
+		TrackPos = Mid(TrackPos, 3)
+	End If
+	If Left(TrackPos, 3) = "DVD" Then
+		TrackPos = Mid(TrackPos, 4)
+	End If
+	If UCase(Left(TrackPos, 6)) = "VIDEO " Then
+		TrackPos = Mid(TrackPos, 7)
+	End If
+	If UCase(Left(TrackPos, 5)) = "VIDEO" Then
+		TrackPos = Mid(TrackPos, 6)
+	End If
+	If UCase(Left(TrackPos, 3)) = "VHS" Then
+		TrackPos = Mid(TrackPos, 4)
+	End If
+	Return TrackPos
+
+End Function
 
 
 Sub Add_Track_Role(currentTrack, currentArtist, involvedRole, TrackRoles, TrackArtist2, TrackPos, LeadingZeroTrackPosition)
@@ -4772,7 +4811,7 @@ Sub ShowResult(ResultID)
 	Dim json
 	Set json = New VbsJson
 	CurrentResultId = ResultID
-	
+
 	If QueryPage = "MetalArchives" Then
 		searchURL = ResultsReleaseID.Item(ResultID)
 		Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
@@ -4788,7 +4827,7 @@ Sub ShowResult(ResultID)
 			Set f = fso.OpenTextFile(SDB.ScriptsPath&"test2.log", 2, true, -1)
 			f.WriteLine ResponseHTML
 			f.Close
-			
+
 			Set SelectedTracks = SDB.NewStringList
 
 			SDB.Tools.WebSearch.ClearTracksData
@@ -4856,9 +4895,9 @@ Sub ShowResult(ResultID)
 		WriteLog "Start ShowResult Discogs"
 		ReleaseID = ResultsReleaseID.Item(ResultID)
 		WriteLog "ReleaseID=" & ReleaseID
-		
+
 		Set GenresSelect = SDB.NewStringList
-		
+
 		If InStr(Results.Item(ResultID), "search returned no results") = 0 And InStr(Results.Item(ResultID), "No Release found") = 0 Then
 			If InStr(Results.Item(ResultID), " * ") <> 0 Or Right(Results.Item(ResultID), 8) = "(Master)" Then  'Master-Release
 				searchURL_F = "https://api.discogs.com/masters/"
@@ -5265,7 +5304,12 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""producer"" title=""If a producer was named in the release, it will be written into the producer tag"" >Save Producer</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""involved"" title=""If other involved people were named in the release, their will be written into the involved people tag"" >Save Involved People</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""grouping"" title=""If tracks are grouped together with heading tracks, the name of it will be add to the grouping tag"" >Save grouping info</td></tr>"
-	
+	If trackRefresh = True Then
+		templateHTML = templateHTML &  "<tr><td colspan=2 align=center><button type=button class=tabletext id=""refresh"" title=""Use this button to start/stop refreshing the track list after de-/select a track. Use it to de-select some tracks without waiting for refresh"">Stop track refresh</button></td></tr>"
+	Else
+		templateHTML = templateHTML &  "<tr><td colspan=2 align=center><button type=button class=tabletext id=""refresh"" title=""Use this button to start/stop refreshing the track list after de-/select a track. Use it to de-select some tracks without waiting for refresh"">Start track refresh</button></td></tr>"
+	End If
+
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=center><br></td></tr>"
 
 	templateHTML = templateHTML &  "</table>"
@@ -5442,48 +5486,71 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 
 	For i=0 To iMaxTracks - 1
 		templateHTML = templateHTML &  "<tr>"
-		
+		If Grouping(i) = "|Heading|" Then
+			templateHTML = templateHTML & "</tr><tr> </tr>"
+			templateHTML = templateHTML & "<tr> </tr>"
+		End If
 		If CheckOriginalDiscogsTrack Then
 			templateHTML = templateHTML & "<td align=center>" & DiscogsTracksNum.Item(i) & "</td>"
 		Else
 			templateHTML = templateHTML & "<td> </td>"
 		End If
-		If(UnselectedTracks(i) = "") Then
-			templateHTML = templateHTML & "<td><input type=checkbox title=""if set, the track will be used for tagging"" id=""unselected["&i&"]"" checked></td>"
+		If Grouping(i) = "|Heading|" Then
+			REM If(UnselectedTracks(i) = "") Then
+				REM templateHTML = templateHTML & "<td><input type=checkbox title=""Select/Deselect all tracks according to the heading"" id=""unselected["&i&"]"" checked></td>"
+				templateHTML = templateHTML & "<td></td>"
+			REM Else
+				REM templateHTML = templateHTML & "<td><input type=checkbox title=""Select/Deselect all tracks according to the heading"" id=""unselected["&i&"]""></td>"
+			REM End If
 		Else
-			templateHTML = templateHTML & "<td><input type=checkbox title=""if set, the track will be used for tagging"" id=""unselected["&i&"]""></td>"
-		End If
-		templateHTML = templateHTML & "<td align=center>" & TracksCD.Item(i) & "</td>"
-		templateHTML = templateHTML & "<td align=center>" & TracksNum.Item(i) & "</td>"
-		templateHTML = templateHTML & "<td align=right>" & ArtistTitles.Item(i) & "</td>"
-		templateHTML = templateHTML & "<td align=center><b>-</b></td>"
-		templateHTML = templateHTML & "<td align=left>"
-		If(UnselectedTrackNames(i) = "") Then
-			templateHTML = templateHTML & "<input type=checkbox title=""if set, the track title will be updated"" id=""unselectedtrackname["&i&"]"" checked>" & Tracks.Item(i) & "</td>"
-		Else
-			templateHTML = templateHTML & "<input type=checkbox title=""if set, the track title will be updated"" id=""unselectedtrackname["&i&"]"">" & Tracks.Item(i) & "</td>"
-		End If
-		templateHTML = templateHTML & "<td align=right>" & Durations.Item(i) & "</td>"
-		templateHTML = templateHTML & "</tr>"
-		If(CheckLyricist and Lyricists.Item(i) <> "") Then templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left>Lyrics: "& Lyricists.Item(i) &"</td></tr>"
-		If(CheckComposer and Composers.Item(i) <> "") Then templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left>Composer: "& Composers.Item(i) &"</td></tr>"
-		If(CheckConductor and Conductors.Item(i) <> "") Then templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left>Conductor: "& Conductors.Item(i) &"</td></tr>"
-		If(CheckProducer and Producers.Item(i) <> "") Then templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left>Producer: "& Producers.Item(i) &"</td></tr>"
-		If(CheckGrouping and Grouping(i) <> "") Then templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left>Grouping: "& Grouping(i) &"</td></tr>"
-		
-		If(CheckInvolved and InvolvedArtists.Item(i) <> "") Then
-			templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left><b>Involved People:</b></td></tr>"
-			'SDB.Localize("Involved People")
-			If CheckInvolvedPeopleSingleLine = True And InStr(InvolvedArtists.Item(i), Separator) <> 0 Then
-				Dim x
-				tmp = Split(InvolvedArtists.Item(i), Separator)
-				For each x in tmp
-					templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left>"& x &"</td></tr>"
-				Next
+			If(UnselectedTracks(i) = "") Then
+				templateHTML = templateHTML & "<td><input type=checkbox title=""if set, the track will be used for tagging"" id=""unselected["&i&"]"" checked></td>"
 			Else
-				templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left>"& InvolvedArtists.Item(i) &"</td></tr>"
+				templateHTML = templateHTML & "<td><input type=checkbox title=""if set, the track will be used for tagging"" id=""unselected["&i&"]""></td>"
 			End If
 		End If
+		If Grouping(i) = "|Heading|" Then
+			templateHTML = templateHTML & "<td align=center></td><td align=center></td><td align=right></td>"
+			templateHTML = templateHTML & "<td align=center></td>"
+			templateHTML = templateHTML & "<td align=left><b>Heading: " & Tracks.Item(i) & "</b></td><td align=right></td>"
+		Else
+			templateHTML = templateHTML & "<td align=center>" & TracksCD.Item(i) & "</td>"
+			templateHTML = templateHTML & "<td align=center>" & TracksNum.Item(i) & "</td>"
+			templateHTML = templateHTML & "<td align=right>" & ArtistTitles.Item(i) & "</td>"
+			templateHTML = templateHTML & "<td align=center><b>-</b></td>"
+			templateHTML = templateHTML & "<td align=left>"
+			If(UnselectedTrackNames(i) = "") Then
+				templateHTML = templateHTML & "<input type=checkbox title=""if set, the track title will be updated"" id=""unselectedtrackname["&i&"]"" checked>" & Tracks.Item(i) & "</td>"
+			Else
+				templateHTML = templateHTML & "<input type=checkbox title=""if set, the track title will be updated"" id=""unselectedtrackname["&i&"]"">" & Tracks.Item(i) & "</td>"
+			End If
+			templateHTML = templateHTML & "<td align=right>" & Durations.Item(i) & "</td>"
+		End If
+		templateHTML = templateHTML & "</tr>"
+		
+		REM If Grouping(i) = "|Heading|" Then
+			REM templateHTML = templateHTML & "<tr></tr><tr></tr>"
+		REM Else
+			If(CheckLyricist and Lyricists.Item(i) <> "") Then templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left>Lyrics: "& Lyricists.Item(i) &"</td></tr>"
+			If(CheckComposer and Composers.Item(i) <> "") Then templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left>Composer: "& Composers.Item(i) &"</td></tr>"
+			If(CheckConductor and Conductors.Item(i) <> "") Then templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left>Conductor: "& Conductors.Item(i) &"</td></tr>"
+			If(CheckProducer and Producers.Item(i) <> "") Then templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left>Producer: "& Producers.Item(i) &"</td></tr>"
+			If(CheckGrouping and Grouping(i) <> "" and Grouping(i) <> "|Heading|") Then templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left>Grouping: "& Grouping(i) &"</td></tr>"
+			
+			If(CheckInvolved and InvolvedArtists.Item(i) <> "") Then
+				templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left><b>Involved People:</b></td></tr>"
+				'SDB.Localize("Involved People")
+				If CheckInvolvedPeopleSingleLine = True And InStr(InvolvedArtists.Item(i), Separator) <> 0 Then
+					Dim x
+					tmp = Split(InvolvedArtists.Item(i), Separator)
+					For each x in tmp
+						templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left>"& x &"</td></tr>"
+					Next
+				Else
+					templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left>"& InvolvedArtists.Item(i) &"</td></tr>"
+				End If
+			End If
+		REM End If
 	Next
 
 	templateHTML = templateHTML &  "</table>"
@@ -5583,6 +5650,8 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Set checkBox = templateHTMLDoc.getElementById("grouping")
 	checkBox.Checked = CheckGrouping
 	Script.RegisterEvent checkBox, "onclick", "Update"
+	Set submitButton = templateHTMLDoc.getElementById("refresh")
+	Script.RegisterEvent submitButton, "onclick", "trackrefreshing"
 	REM Set checkBox = templateHTMLDoc.getElementById("usercollection")
 	REM checkBox.Checked = CheckUserCollection
 	REM Script.RegisterEvent checkBox, "onclick", "Update"
@@ -5625,12 +5694,14 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Set listBox = templateHTMLDoc.getElementById("load")
 	Script.RegisterEvent listBox, "onchange", "Filter"
 
-	For i=0 To iMaxTracks - 1
-		Set checkBox = templateHTMLDoc.getElementById("unselected["&i&"]")
-		Script.RegisterEvent checkBox, "onclick", "Unselect"
-		Set checkBox = templateHTMLDoc.getElementById("unselectedtrackname["&i&"]")
-		Script.RegisterEvent checkBox, "onclick", "Unselect"
-	Next
+	If trackRefresh = True Then
+		For i=0 To iMaxTracks - 1
+			Set checkBox = templateHTMLDoc.getElementById("unselected["&i&"]")
+			Script.RegisterEvent checkBox, "onclick", "Unselect"
+			Set checkBox = templateHTMLDoc.getElementById("unselectedtrackname["&i&"]")
+			Script.RegisterEvent checkBox, "onclick", "Unselect"
+		Next
+	End If
 
 	Set checkBox = templateHTMLDoc.getElementById("selectall")
 	checkBox.Checked = SelectAll
@@ -5681,6 +5752,19 @@ Sub ShowHelp()
 
 End Sub
 
+
+
+Sub trackRefreshing()
+
+	If trackRefresh = True then
+		trackRefresh = False
+		Unselect
+	Else
+		trackRefresh = True
+		UnSelect
+	End If
+
+End Sub
 
 
 Sub Update()
@@ -6534,19 +6618,21 @@ Sub Unselect()
 
 	Set WebBrowser = SDB.Objects("WebBrowser")
 	Set templateHTMLDoc = WebBrowser.Interf.Document
-
+	
 	For i=0 To iMaxTracks - 1
-		Set checkBox = templateHTMLDoc.getElementById("unselected["&i&"]")
-		If checkBox.Checked Then
-			UnselectedTracks(i) = ""
-		Else
-			UnselectedTracks(i) = "x"
-		End If
-		Set checkBox = templateHTMLDoc.getElementById("unselectedtrackname["&i&"]")
-		If checkBox.Checked Then
-			UnselectedTrackNames(i) = ""
-		Else
-			UnselectedTrackNames(i) = "x"
+		If Grouping(i) <> "|Heading|" Then
+			Set checkBox = templateHTMLDoc.getElementById("unselected["&i&"]")
+			If checkBox.Checked Then
+				UnselectedTracks(i) = ""
+			Else
+				UnselectedTracks(i) = "x"
+			End If
+			Set checkBox = templateHTMLDoc.getElementById("unselectedtrackname["&i&"]")
+			If checkBox.Checked Then
+				UnselectedTrackNames(i) = ""
+			Else
+				UnselectedTrackNames(i) = "x"
+			End If
 		End If
 	Next
 
@@ -8918,7 +9004,6 @@ Sub showOptions()
 	Else
 		SDB.Objects("WebBrowser2") = Nothing
 	End If
-	
-	
-	
+
+
 End Sub
