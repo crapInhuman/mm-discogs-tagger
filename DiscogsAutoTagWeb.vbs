@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.67"
+Const VersionStr = "v5.68"
+
+'Changes from 5.67 to 5.68 by crap_inhuman in 05.2019
+'	Now the track-numbering start with the Disc-numbering
+
 
 'Changes from 5.66 to 5.67 by crap_inhuman in 05.2019
 '	Changed the Side to Disc function (2 Vinyl sides are one disc)
@@ -4399,6 +4403,7 @@ Function trackNumbering(ByRef pos, byRef position, byRef TracksNum, byRef Tracks
 	Else ' Apply Track Numbering Schemes
 		WriteLog "Track Numbering Schemes"
 		If Not CheckSidesToDisc Or IsInteger(Left(position,1)) Then
+			WriteLog "Standard track numbering"
 			If CheckForceNumeric Then
 				If UnselectedTracks(iTrackNum) <> "x" Then
 					If CheckLeadingZero = True And iAutoTrackNumber < 10 Then
@@ -4435,6 +4440,7 @@ Function trackNumbering(ByRef pos, byRef position, byRef TracksNum, byRef Tracks
 			End If
 		Else
 			If Len(position) = 1 Then ' Only side is specified
+				WriteLog "Only side is specified"
 				If CheckLeadingZero = True Then
 					tracksNum.Add "01"
 				Else
@@ -4453,17 +4459,32 @@ Function trackNumbering(ByRef pos, byRef position, byRef TracksNum, byRef Tracks
 				End If
 			ElseIf Len(position) = 2 Then
 				If IsInteger(Mid(position,2,1)) And Not IsInteger(Mid(position,1,1)) Then
+					WriteLog "First is Side Second is Track"
 					' First is Side Second is Track
-					If CheckLeadingZero = True And Mid(position,2) < 10 Then
-						tracksNum.Add "0" & Mid(position,2)
-					Else
-						tracksNum.Add Mid(position,2)
-					End If
+					WriteLog iAutoDiscNumber
+					WriteLog iAutoTrackNumber
 					If 	LastDisc <> Left(position,1) Then
 						If LastDisc <> "" And (LastDisc = "B" Or LastDisc = "D" Or LastDisc = "F" Or LastDisc = "H" Or LastDisc = "J") Then
-							iAutoDiscNumber = iAutoDiscNumber + 1
+							If IsInteger(iAutoDiscNumber) Then
+								iAutoDiscNumber = iAutoDiscNumber + 1
+							End If
+							iAutoTrackNumber = 1
 						End If
 						LastDisc = Left(position,1)
+					End If
+					If UnselectedTracks(iTrackNum) <> "x" Then
+						' If CheckLeadingZero = True And Mid(position,2) < 10 Then
+						If CheckLeadingZero = True And iAutoTrackNumber < 10 Then
+							' tracksNum.Add "0" & Mid(position,2)
+							tracksNum.Add "0" & iAutoTrackNumber
+							iAutoTrackNumber = iAutoTrackNumber + 1
+						Else
+							' tracksNum.Add Mid(position,2)
+							tracksNum.Add iAutoTrackNumber
+							iAutoTrackNumber = iAutoTrackNumber + 1
+						End If
+					Else
+						tracksNum.Add ""
 					End If
 					If CheckForceNumeric Then
 						tracksCD.Add LeadingZeroDisc(iAutoDiscNumber)
@@ -4471,6 +4492,7 @@ Function trackNumbering(ByRef pos, byRef position, byRef TracksNum, byRef Tracks
 						tracksCD.Add LeadingZeroDisc(Left(position,1))
 					End If
 				Else ' Two byte side
+					WriteLog "Two byte side"
 					tracksNum.Add "1"
 					If 	LastDisc <>  position Then
 						If 	LastDisc <> "" Then
@@ -4486,10 +4508,15 @@ Function trackNumbering(ByRef pos, byRef position, byRef TracksNum, byRef Tracks
 				End If
 			Else ' More than 2 bytes
 				If IsInteger(Mid(position,2)) And CheckNoDisc = False Then
+					WriteLog "First is Side Latter is Track"
 				'First is Side Latter is Track
-					tracksNum.Add Mid(position,2)
-					If 	LastDisc <>  Left(position,1) Then
-						If 	LastDisc <> "" Then
+					If UnselectedTracks(iTrackNum) <> "x" Then
+						tracksNum.Add Mid(position,2)
+					Else
+						tracksNum.Add ""
+					End If
+					If 	LastDisc <> Left(position,1) Then
+						If LastDisc <> "" Then
 							iAutoDiscNumber = iAutoDiscNumber + 1
 						End If
 						LastDisc = Left(position,1)
@@ -4500,8 +4527,13 @@ Function trackNumbering(ByRef pos, byRef position, byRef TracksNum, byRef Tracks
 						tracksCD.Add LeadingZeroDisc(Left(position,1))
 					End If
 				ElseIf IsInteger(Mid(position,3)) And CheckNoDisc = False Then
+					WriteLog "Two Byte Side, Latter is Track"
 					' Two Byte Side, Latter is Track
-					tracksNum.Add Mid(position,3)
+					If UnselectedTracks(iTrackNum) <> "x" Then
+						tracksNum.Add Mid(position,3)
+					Else
+						tracksNum.Add ""
+					End If
 					If 	LastDisc <>  Left(position,2) Then
 						If 	LastDisc <> "" Then
 							iAutoDiscNumber = iAutoDiscNumber + 1
@@ -4514,9 +4546,15 @@ Function trackNumbering(ByRef pos, byRef position, byRef TracksNum, byRef Tracks
 						tracksCD.Add LeadingZeroDisc(Left(position,2))
 					End If
 				Else ' More than two non numeric bytes!
+					WriteLog "More than two non numeric bytes!"
 					If CheckNoDisc = False Then
-						tracksNum.Add position
-						tracksCD.Add ""
+						If UnselectedTracks(iTrackNum) <> "x" Then
+							tracksNum.Add position
+							tracksCD.Add ""
+						Else
+							tracksNum.Add ""
+							tracksCD.Add ""
+						End If
 					Else
 						If CheckForceNumeric Then
 							If UnselectedTracks(iTrackNum) <> "x" Then
