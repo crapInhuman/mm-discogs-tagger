@@ -2,10 +2,14 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.61"
+Const VersionStr = "v5.62"
+
+'Changes from 5.61 to 5.62 by crap_inhuman in 09.2018
+'	Musicbrainz: Bug removed: Label with no name stop the script
+
 
 'Changes from 5.60 to 5.61 by crap_inhuman in 07.2018
-' Bug removed: Format checkbox didn't work
+'	Bug removed: Format checkbox didn't work
 
 
 'Changes from 5.59 to 5.60 by crap_inhuman in 06.2018
@@ -5998,13 +6002,13 @@ End Sub
 Function JSONParser_find_result(searchURL, ArrayName, SendArtist, SendAlbum, SendTrack, SendType, SendDBSearch, SendPerPage, QueryPage, useOAuth)
 
 	'useOAuth = True -> OAuth needed
-	Dim oXMLHTTP, r, f, a, currentArtist, media
+	Dim oXMLHTTP, r, f, a, currentArtist, media, l
 	Dim json
 	Set json = New VbsJson
 
 	Dim response
 	Dim format, title, country, v_year, label, artist, Rtype, catNo, main_release, tmp, ReleaseDesc, FilterFound, SongCount, SongCountMax, isRelease, listCount
-	Dim Page, SongPages, trackCount
+	Dim Page, SongPages, trackCount, currentLabel
 
 	WriteLog " "
 	WriteLog "+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+"
@@ -6126,16 +6130,26 @@ Function JSONParser_find_result(searchURL, ArrayName, SendArtist, SendAlbum, Sen
 						WriteLog "year=" & v_year
 					End If
 
-					
 					If CurrentRelease.Exists("label-info") Then
-						For Each f In response(ArrayName)(r)("label-info")
-							catNo = response(ArrayName)(r)("label-info")(f)("catalog-number")
-							If label <> "" Then
-								If Left(label, Len(label)-2) <> response(ArrayName)(r)("label-info")(f)("label")("name") Then
-									label = label & response(ArrayName)(r)("label-info")(f)("label")("name") & ", "
+					WriteLog "1"
+						For Each l In CurrentRelease("label-info")
+						WriteLog "2"
+							Set currentLabel = CurrentRelease("label-info")(l)
+							WriteLog "3"
+							If Not IsNull(currentLabel("label")) Then
+								If Not IsNull(currentLabel("label")("name")) Then
+									If label <> "" Then
+										If Left(label, Len(label)-2) <> CleanArtistName(currentLabel("label")("name")) Then
+											label = label & CleanArtistName(currentLabel("label")("name")) & ", "
+										End If
+									Else
+										label = CleanArtistName(currentLabel("label")("name")) & ", "
+									End If
 								End If
-							Else
-								label = response(ArrayName)(r)("label-info")(f)("label")("name") & ", "
+							End If
+							If Not IsNull(currentLabel("catalog-number")) Then
+								catNo = currentLabel("catalog-number")
+								WriteLog "catNo=" & catNo
 							End If
 						Next
 						If Len(label) <> 0 Then label = Left(label, Len(label)-2)
