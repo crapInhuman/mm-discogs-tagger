@@ -2,13 +2,13 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-<<<<<<< .mine
-Const VersionStr = "v5.59"
-=======
-Const VersionStr = "v5.58"
->>>>>>> .r91
+Const VersionStr = "v5.60"
 
-<<<<<<< .mine
+'Changes from 5.59 to 5.60 by crap_inhuman in 06.2018
+'	Added new option to store the name of grouped tracks into the grouping tag
+'	Added changeable separator for sub-tracks
+
+
 'Changes from 5.58 to 5.59 by crap_inhuman in 04.2018
 '	The script now use secure channel (https) while fetching data
 '	Workaround for Discogs date of master release bug: date is now empty instead number 0
@@ -23,17 +23,6 @@ Const VersionStr = "v5.58"
 '	Choose Track# and Disc# for tagging back on the main window
 
 
-=======
-'Changes from 5.57 to 5.58 by crap_inhuman in 02.2018
-'	Repaired the artist tagging
-
-
-'Changes from 5.56 to 5.57 by crap_inhuman in 02.2018
-'	Choose artist for tagging back to his old place
-'	Choose Track# and Disc# for tagging back on the main window
-
-
->>>>>>> .r91
 'Changes from 5.55 to 5.56 by crap_inhuman in 02.2018
 '	Changed some visual things to be more user-friendly
 '	Authorize the Discogs Tagger should now be more user-friendly
@@ -490,13 +479,13 @@ Dim CurrentReleaseId, CurrentResultId
 Dim ini
 
 Dim CheckAlbum, CheckArtist, CheckAlbumArtist, CheckAlbumArtistFirst, CheckLabel, CheckDate, CheckOrigDate, CheckGenre
-Dim CheckCountry, CheckCover, CheckSmallCover, SmallCover, CheckStyle, CheckCatalog, CheckRelease, CheckInvolved, CheckLyricist
+Dim CheckCountry, CheckCover, CheckSmallCover, SmallCover, CheckStyle, CheckCatalog, CheckRelease, CheckInvolved, CheckLyricist, CheckGrouping
 Dim CheckComposer, CheckConductor, CheckProducer, CheckDiscNum, CheckTrackNum, CheckFormat, CheckUseAnv, CheckYearOnlyDate
 Dim CheckForceNumeric, CheckSidesToDisc, CheckForceDisc, CheckNoDisc, CheckLeadingZero, CheckLeadingZeroDisc, CheckVarious, TxtVarious
 Dim CheckTitleFeaturing, CheckComment, CheckFeaturingName, TxtFeaturingName, CheckOriginalDiscogsTrack, CheckSaveImage, CheckLimitReleases
 Dim CheckStyleField, CheckTurnOffSubTrack, CheckInvolvedPeopleSingleLine, CheckDontFillEmptyFields, CheckTheBehindArtist
 Dim CheckDiscogsCollectionOff, CheckDeleteDuplicatedEntry, StoreDate, OriginalDateRead, ReleaseDateRead
-Dim CheckIgnoreFeatArtist
+Dim CheckIgnoreFeatArtist, SubTrackSeparator
 REM Dim CheckUserCollection
 Dim DiscogsUsername
 Dim SubTrackNameSelection
@@ -641,6 +630,9 @@ Sub StartSearchType(Panel, SearchTerm, SearchArtist, SearchAlbum, SearchType)
 		End If
 		If ini.StringValue("DiscogsAutoTagWeb","CheckInvolved") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","CheckInvolved") = False
+		End If
+		If ini.StringValue("DiscogsAutoTagWeb","CheckGrouping") = "" Then
+			ini.BoolValue("DiscogsAutoTagWeb","CheckGrouping") = False
 		End If
 		If ini.StringValue("DiscogsAutoTagWeb","CheckLyricist") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","CheckLyricist") = False
@@ -837,6 +829,9 @@ Sub StartSearchType(Panel, SearchTerm, SearchArtist, SearchAlbum, SearchType)
 		If ini.StringValue("DiscogsAutoTagWeb","CheckIgnoreFeatArtist") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","CheckIgnoreFeatArtist") = False
 		End If
+		If ini.StringValue("DiscogsAutoTagWeb","SubTrackSeparator") = "" Then
+			ini.StringValue("DiscogsAutoTagWeb","SubTrackSeparator") = ", "
+		End If
 
 
 		'----------------------------------DiscogsImages----------------------------------------
@@ -870,6 +865,7 @@ Sub StartSearchType(Panel, SearchTerm, SearchArtist, SearchAlbum, SearchType)
 	CheckCatalog = ini.BoolValue("DiscogsAutoTagWeb","CheckCatalog")
 	CheckRelease = ini.BoolValue("DiscogsAutoTagWeb","CheckRelease")
 	CheckInvolved = ini.BoolValue("DiscogsAutoTagWeb","CheckInvolved")
+	CheckGrouping = ini.BoolValue("DiscogsAutoTagWeb","CheckGrouping")
 	CheckLyricist = ini.BoolValue("DiscogsAutoTagWeb","CheckLyricist")
 	CheckComposer = ini.BoolValue("DiscogsAutoTagWeb","CheckComposer")
 	CheckConductor = ini.BoolValue("DiscogsAutoTagWeb","CheckConductor")
@@ -940,6 +936,7 @@ Sub StartSearchType(Panel, SearchTerm, SearchArtist, SearchAlbum, SearchType)
 	StoreDate = ini.StringValue("DiscogsAutoTagWeb","StoreDate")
 	CheckLimitReleases = ini.StringValue("DiscogsAutoTagWeb","LimitReleases")
 	CheckIgnoreFeatArtist = ini.BoolValue("DiscogsAutoTagWeb","CheckIgnoreFeatArtist")
+	SubTrackSeparator = ini.StringValue("DiscogsAutoTagWeb","SubTrackSeparator")
 
 	Separator = Left(Separator, Len(Separator)-1)
 	Separator = Right(Separator, Len(Separator)-1)
@@ -2375,11 +2372,12 @@ Sub ReloadResults
 		ReDim Title_Position(0)
 		ReDim TitleList(0)
 		ReDim ArtistsList(0)
+		ReDim Grouping(0)
 		SavedArtistID = ""
 		SavedLabelID = ""
 		LeadingZeroTrackPosition = False
 		Dim involvedArtist, involvedTemp, involvedRole, subTrack
-		Dim TrackInvolvedPeople, TrackComposers, TrackConductors, TrackProducers, TrackLyricists, TrackFeaturing
+		Dim TrackInvolvedPeople, TrackComposers, TrackConductors, TrackProducers, TrackLyricists, TrackFeaturing, currentHeading
 		Dim TrackArtist, artistList, min, sec, length
 
 		WriteLog "Start ReloadResults"
@@ -2399,9 +2397,23 @@ Sub ReloadResults
 				ArtistsList(UBound(ArtistsList)) = tmp(0)
 				ReDim Preserve ArtistsList(UBound(ArtistsList)+1)
 				WriteLog "Track=" & track
-
 				rTrackPosition.Add track
-				
+				If currentTrack("type_") = "heading" Then
+					WriteLog "Heading Track found"
+					currentHeading = PackSpaces(DecodeHtmlChars(currentTrack("title")), False)
+					WriteLog "Heading Track found"
+					Grouping(UBound(Grouping)) = ""
+					ReDim Preserve Grouping(UBound(Grouping)+1)
+				Else
+					If currentHeading <> "" Then
+						Grouping(UBound(Grouping)) = currentHeading
+						ReDim Preserve Grouping(UBound(Grouping)+1)
+					Else
+						Grouping(UBound(Grouping)) = ""
+						ReDim Preserve Grouping(UBound(Grouping)+1)
+					End If
+				End If
+					
 				If currentTrack.Exists("sub_tracks") Then
 					WriteLog "SubTrack(s) found"
 					rSubPosition.Add "NewSubTrack"
@@ -2420,6 +2432,20 @@ Sub ReloadResults
 						tmp = getArtistsName(aSubtrack, "artists", QueryPage)
 						ArtistsList(UBound(ArtistsList)) = tmp(0)
 						ReDim Preserve ArtistsList(UBound(ArtistsList)+1)
+						If aSubtrack("type_") = "heading" Then
+							WriteLog "Heading SubTrack found"
+							currentHeading = PackSpaces(DecodeHtmlChars(aSubtrack("title")), False)
+							Grouping(UBound(Grouping)) = currentHeading
+							ReDim Preserve Grouping(UBound(Grouping)+1)
+						Else
+							If currentHeading <> "" Then
+								Grouping(UBound(Grouping)) = currentHeading
+								ReDim Preserve Grouping(UBound(Grouping)+1)
+							Else
+								Grouping(UBound(Grouping)) = ""
+								ReDim Preserve Grouping(UBound(Grouping)+1)
+							End If
+						End If
 					Next
 				Else
 					rSubPosition.Add ""
@@ -2707,9 +2733,9 @@ Sub ReloadResults
 						WriteLog "New Subtrack"
 					Else
 						If ArtistsList(t) <> "" then
-							subTrackTitle = subTrackTitle & ", " & ArtistsList(t) & " - " & trackName
+							subTrackTitle = subTrackTitle & SubTrackSeparator & ArtistsList(t) & " - " & trackName
 						Else
-							subTrackTitle = subTrackTitle & ", " & trackName
+							subTrackTitle = subTrackTitle & SubTrackSeparator & trackName
 						End If
 						If NewResult = True Then
 							UnselectedTracks(iTrackNum) = "x"
@@ -2841,9 +2867,9 @@ Sub ReloadResults
 									End If
 								Else
 									If ArtistsList(t) <> "" Then
-										subTrackTitle = subTrackTitle & ", " & ArtistsList(t) & " - " & trackName
+										subTrackTitle = subTrackTitle & SubTrackSeparator & ArtistsList(t) & " - " & trackName
 									Else
-										subTrackTitle = subTrackTitle & ", " & trackName
+										subTrackTitle = subTrackTitle & SubTrackSeparator & trackName
 									End If
 									If NewResult = True Then
 										UnselectedTracks(iTrackNum) = "x"
@@ -3405,6 +3431,8 @@ Sub ReloadResults
 					position = exchange_roman_numbers(position)
 					ReDim Preserve Title_Position(UBound(Title_Position)+1)
 					Title_Position(UBound(Title_Position)) = position
+					ReDim Preserve Grouping(UBound(Grouping)+1)
+					Grouping(UBound(Grouping)) = ""
 				Next
 			Next
 
@@ -3985,7 +4013,7 @@ Sub ReloadResults
 		End If
 	End If
 
-	FormatSearchResultsViewer Tracks, TracksNum, TracksCD, Durations, AlbumArtist, AlbumArtistTitle, ArtistTitles, AlbumTitle, ReleaseDate, OriginalDate, GenresList, theLabels, theCountry, AlbumArtThumbNail, CurrentReleaseId, theCatalogs, Lyricists, Composers, Conductors, Producers, InvolvedArtists, theFormat, theMaster, comment, DiscogsTracksNum, DataQuality
+	FormatSearchResultsViewer Tracks, TracksNum, TracksCD, Durations, AlbumArtist, AlbumArtistTitle, ArtistTitles, AlbumTitle, ReleaseDate, OriginalDate, GenresList, theLabels, theCountry, AlbumArtThumbNail, CurrentReleaseId, theCatalogs, Lyricists, Composers, Conductors, Producers, InvolvedArtists, theFormat, theMaster, comment, DiscogsTracksNum, DataQuality, Grouping
 
 	Dim SelectedTracks, j
 	Set SelectedTracks = SDB.NewStringList
@@ -4033,6 +4061,7 @@ Sub ReloadResults
 					If CheckTrackNum And ((CheckDontFillEmptyFields = True And TracksNum.Item(j) <> "") Or CheckDontFillEmptyFields = False) Then SDB.Tools.WebSearch.NewTracks.Item(i).TrackOrderStr = TracksNum.Item(j)
 					If CheckDiscNum And ((CheckDontFillEmptyFields = True And TracksCD.Item(j) <> "") Or CheckDontFillEmptyFields = False) Then SDB.Tools.WebSearch.NewTracks.Item(i).DiscNumberStr = TracksCD.Item(j)
 					If CheckInvolved And ((CheckDontFillEmptyFields = True And InvolvedArtists.Item(j) <> "") Or CheckDontFillEmptyFields = False) Then SDB.Tools.WebSearch.NewTracks.Item(i).InvolvedPeople = InvolvedArtists.Item(j)
+					If CheckGrouping And ((CheckDontFillEmptyFields = True And Grouping(j) <> "") Or CheckDontFillEmptyFields = False) Then SDB.Tools.WebSearch.NewTracks.Item(i).Grouping = Grouping(j)
 					If CheckLyricist And ((CheckDontFillEmptyFields = True And Lyricists.Item(j) <> "") Or CheckDontFillEmptyFields = False) Then SDB.Tools.WebSearch.NewTracks.Item(i).Lyricist = Lyricists.Item(j)
 					If CheckComposer And ((CheckDontFillEmptyFields = True And Composers.Item(j) <> "") Or CheckDontFillEmptyFields = False) Then SDB.Tools.WebSearch.NewTracks.Item(i).Author = Composers.Item(j)
 					If CheckConductor And ((CheckDontFillEmptyFields = True And Conductors.Item(j) <> "") Or CheckDontFillEmptyFields = False) Then SDB.Tools.WebSearch.NewTracks.Item(i).Conductor = Conductors.Item(j)
@@ -5170,7 +5199,7 @@ End Function
 
 
 ' We use this procedure to reformat results as soon as they are downloaded
-Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtist, AlbumArtistTitle, ArtistTitles, AlbumTitle, ReleaseDate, OriginalDate, GenresList, theLabels, theCountry, AlbumArtThumbNail, releaseID, Catalog, Lyricists, Composers, Conductors, Producers, InvolvedArtists, theFormat, theMaster, comment, DiscogsTracksNum, DataQuality)
+Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtist, AlbumArtistTitle, ArtistTitles, AlbumTitle, ReleaseDate, OriginalDate, GenresList, theLabels, theCountry, AlbumArtThumbNail, releaseID, Catalog, Lyricists, Composers, Conductors, Producers, InvolvedArtists, theFormat, theMaster, comment, DiscogsTracksNum, DataQuality, Grouping)
 
 	Dim templateHTML, checkBox, radio, text, listBox, submitButton, tmp
 	Dim SelectedTracksCount, UnSelectedTracksCount
@@ -5223,6 +5252,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""conductor"" title=""If a conductor was named in the release, it will be written into the conductor tag"" >Save Conductor</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""producer"" title=""If a producer was named in the release, it will be written into the producer tag"" >Save Producer</td></tr>"
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""involved"" title=""If other involved people were named in the release, their will be written into the involved people tag"" >Save Involved People</td></tr>"
+	templateHTML = templateHTML &  "<tr><td colspan=2 align=left><input type=checkbox id=""grouping"" title=""If tracks are grouped together with heading tracks, the name of it will be add to the grouping tag"" >Save grouping info</td></tr>"
 	
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=center><br></td></tr>"
 
@@ -5427,7 +5457,8 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 		If(CheckComposer and Composers.Item(i) <> "") Then templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left>Composer: "& Composers.Item(i) &"</td></tr>"
 		If(CheckConductor and Conductors.Item(i) <> "") Then templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left>Conductor: "& Conductors.Item(i) &"</td></tr>"
 		If(CheckProducer and Producers.Item(i) <> "") Then templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left>Producer: "& Producers.Item(i) &"</td></tr>"
-
+		If(CheckGrouping and Grouping(i) <> "") Then templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left>Grouping: "& Grouping(i) &"</td></tr>"
+		
 		If(CheckInvolved and InvolvedArtists.Item(i) <> "") Then
 			templateHTML = templateHTML & "<tr><td colspan=6></td><td colspan=2 align=left><b>Involved People:</b></td></tr>"
 			'SDB.Localize("Involved People")
@@ -5536,6 +5567,9 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Script.RegisterEvent checkBox, "onclick", "Update"
 	Set checkBox = templateHTMLDoc.getElementById("involved")
 	checkBox.Checked = CheckInvolved
+	Script.RegisterEvent checkBox, "onclick", "Update"
+	Set checkBox = templateHTMLDoc.getElementById("grouping")
+	checkBox.Checked = CheckGrouping
 	Script.RegisterEvent checkBox, "onclick", "Update"
 	REM Set checkBox = templateHTMLDoc.getElementById("usercollection")
 	REM checkBox.Checked = CheckUserCollection
@@ -5680,6 +5714,8 @@ Sub Update()
 	CheckRelease = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("involved")
 	CheckInvolved = checkBox.Checked
+	Set checkBox = templateHTMLDoc.getElementById("grouping")
+	CheckGrouping = checkBox.Checked
 	REM Set checkBox = templateHTMLDoc.getElementById("usercollection")
 	REM CheckUserCollection = checkBox.Checked
 	Set checkBox = templateHTMLDoc.getElementById("lyricist")
@@ -5816,6 +5852,7 @@ Sub SaveOptions()
 		ini.BoolValue("DiscogsAutoTagWeb","CheckCatalog") = CheckCatalog
 		ini.BoolValue("DiscogsAutoTagWeb","CheckRelease") = CheckRelease
 		ini.BoolValue("DiscogsAutoTagWeb","CheckInvolved") = CheckInvolved
+		ini.BoolValue("DiscogsAutoTagWeb","CheckGrouping") = CheckGrouping
 		ini.BoolValue("DiscogsAutoTagWeb","CheckLyricist") = CheckLyricist
 		ini.BoolValue("DiscogsAutoTagWeb","CheckComposer") = CheckComposer
 		ini.BoolValue("DiscogsAutoTagWeb","CheckConductor") = CheckConductor
@@ -5851,6 +5888,7 @@ Sub SaveOptions()
 		REM ini.StringValue("DiscogsAutoTagWeb","QueryPage") = QueryPage
 		ini.BoolValue("DiscogsAutoTagWeb","CheckTheBehindArtist") = CheckTheBehindArtist
 		ini.BoolValue("DiscogsAutoTagWeb","CheckIgnoreFeatArtist") = CheckIgnoreFeatArtist
+		ini.StringValue("DiscogsAutoTagWeb","SubTrackSeparator") = SubTrackSeparator
 
 		tmp = CountryFilterList.Item(0)
 		For a = 1 To CountryList.Count - 1
@@ -7240,6 +7278,7 @@ Sub WriteOptions()
 	WriteLog "CheckCatalog=" & CheckCatalog
 	WriteLog "CheckRelease=" & CheckRelease
 	WriteLog "CheckInvolved=" & CheckInvolved
+	WriteLog "CheckGrouping=" & CheckGrouping
 	WriteLog "CheckLyricist=" & CheckLyricist
 	WriteLog "CheckComposer=" & CheckComposer
 	WriteLog "CheckConductor=" & CheckConductor
@@ -7298,6 +7337,7 @@ Sub WriteOptions()
 	WriteLog "StoreDate=" & StoreDate
 	WriteLog "CheckLimitReleases=" & LimitReleases
 	WriteLog "CheckIgnoreFeatArtist=" & CheckIgnoreFeatArtist
+	WriteLog "SubTrackSeparator=" & SubTrackSeparator
 	WriteLog "-+-+-+-+--+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-"
 
 End Sub
@@ -8719,7 +8759,8 @@ Sub showOptions()
 	optionsHTML = optionsHTML &  "<tr><td align=center><b>Disc/Track Numbering:</b></td></tr>"
 
 	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""TurnOffSubTrack"" title=""If checked the Sub-Track detection is turned off"" >No Sub-Track detection</td></tr>"
-	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""SubTrackNameSelection"" title=""If checked the Sub-Track will be named like 'Sub-Track 1, Sub-Track 2, Sub Track 3'  if not checked the Sub-Tracks will be named like 'Track Name (Sub-Track 1, Sub-Track 2, Sub Track 3)'"" >Other Sub-Track Naming</td></tr>"
+	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""SubTrackNameSelection"" title=""If checked the sub-track will be named like 'Sub-Track 1, Sub-Track 2, Sub Track 3'  if not checked the Sub-Tracks will be named like 'Track Name (Sub-Track 1, Sub-Track 2, Sub Track 3)'"" >Other Sub-Track Naming</td></tr>"
+	optionsHTML = optionsHTML &  "<tr><td align=left><input type=text id=""SubTrackSeparator"" title=""Choose the separator used for sub-tracks"" size=""5""> Separator for sub-tracks</td></tr>"
 
 	If QueryPage = "Discogs" Then
 		optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""forcenumeric"" title=""Always use numbers instead of letters (Vinyl-releases use A1, A2,..., B1, B2 as track numbering)"" >Force To Numeric</td></tr>"
@@ -8729,12 +8770,7 @@ Sub showOptions()
 	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""nodisc"" title=""Prevent the script from interpret sub tracks as disc-numbers"" >Force NO Disc Usage</td></tr>"
 	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""leadingzero"" title=""Track Position: 1 -> 01   2 -> 02 ..."" >Add Leading Zero (Track#)</td></tr>"
 	optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""leadingzeroDisc"" title=""Disc-number: 1 -> 01   2 -> 02 ..."" >Add Leading Zero (Disc#)</td></tr>"
-<<<<<<< .mine
 
-=======
-	REM optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""tracknum"" title=""Save the track numbers"" >Save track numbers (Track#)</td></tr>"
-	REM optionsHTML = optionsHTML &  "<tr><td align=left><input type=checkbox id=""discnum"" title=""Save the disc numbers"" >Save disc numbers (Disc#)</td></tr>"
->>>>>>> .r91
 	optionsHTML = optionsHTML &  "</table>"
 	
 	optionsHTML = optionsHTML &  "</body>"
@@ -8795,17 +8831,10 @@ Sub showOptions()
 	checkBox.Checked = CheckInvolvedPeopleSingleLine
 	Set checkBox = optionsHTMLDoc.getElementById("TheBehindArtist")
 	checkBox.Checked = CheckTheBehindArtist
-<<<<<<< .mine
+	Set text = optionsHTMLDoc.getElementById("SubTrackSeparator")
+	text.value = SubTrackSeparator
 
 
-=======
-	REM Set checkBox = optionsHTMLDoc.getElementById("tracknum")
-	REM checkBox.Checked = CheckTrackNum
-	REM Set checkBox = optionsHTMLDoc.getElementById("discnum")
-	REM checkBox.Checked = CheckDiscNum
-	
-	
->>>>>>> .r91
 	If Form.ShowModal = 1 Then
 		
 		If QueryPage = "Discogs" Then
@@ -8859,17 +8888,10 @@ Sub showOptions()
 		CheckTheBehindArtist = checkBox.Checked
 		Set checkBox = optionsHTMLDoc.getElementById("ignorefeaturing")
 		CheckIgnoreFeatArtist = checkBox.Checked
-<<<<<<< .mine
+		Set text = optionsHTMLDoc.getElementById("SubTrackSeparator")
+		SubTrackSeparator = text.Value
 
 
-=======
-		REM Set checkBox = optionsHTMLDoc.getElementById("tracknum")
-		REM CheckTrackNum = checkBox.Checked
-		REM Set checkBox = optionsHTMLDoc.getElementById("discnum")
-		REM CheckDiscNum = checkBox.Checked
-		
-		
->>>>>>> .r91
 		SDB.Objects("WebBrowser2") = Nothing
 		ReloadResults
 	Else
