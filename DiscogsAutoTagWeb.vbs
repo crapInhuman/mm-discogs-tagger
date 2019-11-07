@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.65"
+Const VersionStr = "v5.66"
+
+'Changes from 5.65 to 5.66 by crap_inhuman in 04.2019
+'	Changed the Authorize links to work with Windows 10
+
 
 'Changes from 5.64 to 5.65 by crap_inhuman in 04.2019
 '	Added option to change media format separator
@@ -509,7 +513,7 @@ Dim CheckStyleField, CheckTurnOffSubTrack, CheckInvolvedPeopleSingleLine, CheckD
 Dim CheckDiscogsCollectionOff, CheckDeleteDuplicatedEntry, StoreDate, OriginalDateRead, ReleaseDateRead
 Dim CheckIgnoreFeatArtist, SubTrackSeparator, trackRefresh
 REM Dim CheckUserCollection
-Dim DiscogsUsername
+Dim DiscogsUsername, GUID
 Dim SubTrackNameSelection
 Dim CountryFilterList, MediaTypeFilterList, MediaFormatFilterList, YearFilterList
 Dim LyricistKeywords, ConductorKeywords, ProducerKeywords, ComposerKeywords, FeaturingKeywords, UnwantedKeywords
@@ -8683,10 +8687,10 @@ Function authorize_script(AuthFailed)
 
 	WriteLog "Start Authorize Function"
 
-	Dim authHTML, GUID, TypeLib
+	Dim authHTML, TypeLib
 	Dim IEobj, oXMLHTTP
 	Dim retIE, retryCnt, start, a
-	Dim Form, WebBrowser2
+	Dim Form, WebBrowser2, Btn1, Lbl1, Btn2, Btn4
 	
 	If AuthFailed = False And AccessToken <> "" And AccessTokenSecret <> "" Then
 		authorize_script = True
@@ -8698,73 +8702,67 @@ Function authorize_script(AuthFailed)
 	End If
 	
 	Set Form = UI.NewForm
-	Form.Common.Width = 550
-	Form.Common.Height = 260
+	Form.Common.Width = 300
+	Form.Common.Height = 280
 	Form.FormPosition = 4
 	Form.Caption = "Authorize Discogs Tagger"
 	Form.BorderStyle = 3
 	Form.StayOnTop = True
+
+	Set Lbl1 = UI.NewLabel(Form)
+    Lbl1.Common.ControlName = "Lbl1"
+    Lbl1.Common.SetRect 10, 10, 100, 16
+    Lbl1.Caption = "In order to use the Discogs Tagger, you must"
+
+	Set Btn1 = UI.NewButton(Form)
+    Btn1.Common.ControlName = "Btn1"
+    Btn1.Common.SetRect 10, 40, 250, 25
+    Btn1.Caption = "1. Create an account on the Discogs website"
+    Script.RegisterEvent Btn1, "OnClick", "Btn1Click"
+
+	Set Btn2 = UI.NewButton(Form)
+    Btn2.Common.ControlName = "Btn2"
+    Btn2.Common.SetRect 10, 80, 250, 25
+    Btn2.Caption = "2. Authorize the Discogs Tagger"
+    Script.RegisterEvent Btn2, "OnClick", "Btn2Click"
+
+	Set Lbl1 = UI.NewLabel(Form)
+    Lbl1.Common.ControlName = "Lbl1"
+    Lbl1.Common.SetRect 10, 120, 100, 16
+    Lbl1.Caption = "to use your newly-created account."
+	
+	Set Btn4 = UI.NewButton(Form)
+    Btn4.Common.ControlName = "Btn4"
+    Btn4.Common.SetRect 10, 160, 250, 25
+    Btn4.Caption = "Read this PDF if you need help"
+    Script.RegisterEvent Btn4, "OnClick", "Btn4Click"
+
+	Set Lbl1 = UI.NewLabel(Form)
+    Lbl1.Common.ControlName = "Lbl1"
+    Lbl1.Common.SetRect 10, 200, 100, 16
+    Lbl1.Caption = "Press 'OK', once you've authorized the Discogs Tagger."
 
 	Set TypeLib = CreateObject("Scriptlet.TypeLib")
 	
 	GUID = Mid(TypeLib.Guid, 2, 36)
 	WriteLog "GUID=" & GUID
 
-	
-	authHTML = "<HTML>"
-	authHTML = authHTML & "<HEAD>"
-	authHTML = authHTML & "<meta content=""text/html; charset=utf-8"" http-equiv=""Content-Type"" />"
-	authHTML = authHTML & "<title>Authorize Discogs Tagger</title>"
-	authHTML = authHTML & "<style type=""text/css"">"
-	authHTML = authHTML & ".auto-style1 {"
-	authHTML = authHTML & "	font-family: Verdana;"
-	authHTML = authHTML & "}"
-	authHTML = authHTML & "</style>"
-	authHTML = authHTML & "</HEAD>"
-	authHTML = authHTML & "<body>"
-	authHTML = authHTML & "<p><span class=""auto-style1"">In order to use the Discogs"
-	authHTML = authHTML & "Tagger, you must</span><br class=""auto-style1"" /><br />"
-	authHTML = authHTML & "<span class=""auto-style1""><a href=""https://www.discogs.com"" target=""_blank"">"
-	authHTML = authHTML & "1. Create an account on the Discogs website</a>,<br /><br />"
-	authHTML = authHTML & "<a href=""https://www.germanc64.de/mm/oauth/oauth_guid.php?f=" & GUID & """ target=""_blank"">2. Authorize the Discogs"
-	authHTML = authHTML & "Tagger"
-	authHTML = authHTML & " to use your newly-created account.</a><br /></span><br class=""auto-style1"" />"
-	authHTML = authHTML & "<br class=""auto-style1"" />"
-	authHTML = authHTML & "<span class=""auto-style1"">Press 'OK', once you've authorized the Discogs Tagger.</span><br class=""auto-style1"" />"
-	authHTML = authHTML & "</p>"
-	authHTML = authHTML & "</body>"
-	authHTML = authHTML & "</html>"
-
 	Dim Foot : Set Foot = SDB.UI.NewPanel(Form)
 	Foot.Common.Align = 2
 	Foot.Common.Height = 35
 
-	Dim Btn2 : Set Btn2 = SDB.UI.NewButton(Foot)
-	Btn2.Caption = SDB.Localize("Ok")
-	Btn2.Common.Width = 75
-	Btn2.Common.Height = 25
-	Btn2.Common.Left = 237
-	Btn2.Common.Top = 6
-	Btn2.Common.Anchors = 2+4
-	Btn2.UseScript = Script.ScriptPath
-	Btn2.ModalResult = 1
-	Btn2.Default = True
+	Dim Btn3 : Set Btn3 = SDB.UI.NewButton(Foot)
+	Btn3.Caption = SDB.Localize("Ok")
+	Btn3.Common.Width = 75
+	Btn3.Common.Height = 25
+	Btn3.Common.Left = 110
+	Btn3.Common.Top = 6
+	Btn3.Common.Anchors = 2+4
+	Btn3.UseScript = Script.ScriptPath
+	Btn3.ModalResult = 1
+	Btn3.Default = True
 	
-	Set WebBrowser2 = UI.NewActiveX(Form, "Shell.Explorer")
-	WebBrowser2.Common.Align = 5
-	WebBrowser2.Common.ControlName = "WebBrowser2"
-	WebBrowser2.Common.Top = 100
-	WebBrowser2.Common.Left = 100
-
-	SDB.Objects("WebBrowser2") = WebBrowser2
-	WebBrowser2.Interf.Visible = True
-	WebBrowser2.Common.BringToFront
-
-	WebBrowser2.SetHTMLDocument authHTML
-
 	If Form.ShowModal = 1 Then
-		SDB.Objects("WebBrowser2") = Nothing
-		Set oXMLHTTP = Nothing
 		Set oXMLHTTP = CreateObject("MSXML2.XMLHTTP.6.0")
 		oXMLHTTP.open "GET", "https://www.germanc64.de/mm/oauth/get_oauth_guid.php?f=" & GUID, false
 		oXMLHTTP.send()
@@ -8795,7 +8793,6 @@ Function authorize_script(AuthFailed)
 	Else
 		WriteLog "AccessToken found in ini = " & AccessToken
 		WriteLog "AccessTokenSecret found in ini = " & AccessTokenSecret
-		SDB.Objects("WebBrowser2") = Nothing
 		authorize_script = True
 	End If
 	WriteLog "End Authorize Function"
@@ -8803,6 +8800,32 @@ Function authorize_script(AuthFailed)
 
 End Function
 
+
+Sub Btn1Click
+
+	Dim objShell
+	Set objShell = CreateObject("Shell.Application")
+	objShell.ShellExecute "explorer.exe", "https://www.discogs.com"
+
+End Sub
+
+Sub Btn2Click
+
+	Dim objShell, link
+	Set objShell = CreateObject("Shell.Application")
+	link = chr(34) & "https://www.germanc64.de/mm/oauth/oauth_guid.php?f=" & GUID & chr(34)
+	objShell.ShellExecute "explorer.exe", link
+
+End Sub
+
+Sub Btn4Click
+
+	Dim objShell, link
+	Set objShell = CreateObject("Shell.Application")
+	link = chr(34) & "https://www.germanc64.de/mm/oauth/HowTo_authorize_with_discogs.pdf" & chr(34)
+	objShell.ShellExecute "explorer.exe", link
+
+End Sub
 
 Sub showOptions()
 
