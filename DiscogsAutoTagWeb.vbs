@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.70"
+Const VersionStr = "v5.71"
+
+'Changes from 5.70 to 5.71 by crap_inhuman in 09.2019
+'	Small bugfix from new release yesterday
+
 
 'Changes from 5.69 to 5.70 by crap_inhuman in 09.2019
 '	Bug removed: Track-numbering didn't work with more than one char in rare cases
@@ -4265,6 +4269,8 @@ End Function
 Function trackNumbering(ByRef pos, byRef position, byRef TracksNum, byRef TracksCD, byRef iTrackNum, FormatCnt)
 
 	WriteLog "start trackNumbering"
+	Dim TrackPosition
+
 	If pos > 1 And CheckNoDisc = False And FormatCnt > 1 Then ' Disc Number Included
 		WriteLog "Disc Number Included"
 		If CheckForceNumeric Then
