@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.62"
+Const VersionStr = "v5.63"
+
+'Changes from 5.62 to 5.63 by crap_inhuman in 09.2018
+'	Musicbrainz: New Bug in Label subroutine removed
+
 
 'Changes from 5.61 to 5.62 by crap_inhuman in 09.2018
 '	Musicbrainz: Bug removed: Label with no name stop the script
@@ -6131,12 +6135,9 @@ Function JSONParser_find_result(searchURL, ArrayName, SendArtist, SendAlbum, Sen
 					End If
 
 					If CurrentRelease.Exists("label-info") Then
-					WriteLog "1"
 						For Each l In CurrentRelease("label-info")
-						WriteLog "2"
 							Set currentLabel = CurrentRelease("label-info")(l)
-							WriteLog "3"
-							If Not IsNull(currentLabel("label")) Then
+							If currentLabel.Exists("label") Then
 								If Not IsNull(currentLabel("label")("name")) Then
 									If label <> "" Then
 										If Left(label, Len(label)-2) <> CleanArtistName(currentLabel("label")("name")) Then
