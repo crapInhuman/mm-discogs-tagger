@@ -2,7 +2,11 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.64"
+Const VersionStr = "v5.65"
+
+'Changes from 5.64 to 5.65 by crap_inhuman in 04.2019
+'	Added option to change media format separator
+
 
 'Changes from 5.63 to 5.64 by crap_inhuman in 11.2018
 '	Bug removed with mixed media format
@@ -518,7 +522,7 @@ Dim SavedMasterID, SavedArtistID, SavedLabelID
 Dim FilterMediaType, FilterCountry, FilterYear, FilterMediaFormat, CurrentLoadType
 Dim NewGenre, GenresList, GenresSelect
 Dim MediaTypeList, MediaFormatList, CountryList, CountryCode, YearList, AlternativeList, LoadList, RelationAttrList
-Dim ArtistSeparator, ArtistLastSeparator, LimitReleases, Grouping
+Dim FormatSeparator, ArtistSeparator, ArtistLastSeparator, LimitReleases, Grouping
 
 Dim FirstTrack, Errormessage
 Dim AlbumArtURL, AlbumArtThumbNail
@@ -795,6 +799,9 @@ Sub StartSearchType(Panel, SearchTerm, SearchArtist, SearchAlbum, SearchType)
 		If ini.StringValue("DiscogsAutoTagWeb","ArtistLastSeparator") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","ArtistLastSeparator") = True
 		End If
+		If ini.StringValue("DiscogsAutoTagWeb","FormatSeparator") = "" Then
+			ini.StringValue("DiscogsAutoTagWeb","FormatSeparator") = ", "
+		End If
 		If ini.StringValue("DiscogsAutoTagWeb","CheckTurnOffSubTrack") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","CheckTurnOffSubTrack") = False
 		End If
@@ -939,6 +946,7 @@ Sub StartSearchType(Panel, SearchTerm, SearchArtist, SearchAlbum, SearchType)
 	UnwantedKeywords = ini.StringValue("DiscogsAutoTagWeb","UnwantedKeywords")
 	CheckStyleField = ini.StringValue("DiscogsAutoTagWeb","CheckStyleField")
 	ArtistSeparator = ini.StringValue("DiscogsAutoTagWeb","ArtistSeparator")
+	FormatSeparator = ini.StringValue("DiscogsAutoTagWeb","FormatSeparator")
 	ArtistLastSeparator = ini.BoolValue("DiscogsAutoTagWeb","ArtistLastSeparator")
 	CheckTurnOffSubTrack = ini.BoolValue("DiscogsAutoTagWeb","CheckTurnOffSubTrack")
 	AccessToken = ini.StringValue("DiscogsAutoTagWeb","AccessToken")
@@ -3421,7 +3429,7 @@ Sub ReloadResults
 					AddToField theFormat, currentFormat("name")
 					If currentFormat.Exists("descriptions") Then
 						For Each d in currentFormat("descriptions")
-							theFormat = theFormat & ", " & currentFormat("descriptions")(d)
+							theFormat = theFormat & FormatSeparator & currentFormat("descriptions")(d)
 						Next
 					End If
 				Next
@@ -4024,7 +4032,7 @@ Sub ReloadResults
 			If CurrentRelease.Exists("release-group") Then
 				tmp = CurrentRelease("release-group")("primary-type")
 				If theFormat <> "" Then
-					theFormat = theFormat & ", " & tmp
+					theFormat = theFormat & FormatSeparator & tmp
 				Else
 					theFormat = tmp
 				End If
@@ -4032,7 +4040,7 @@ Sub ReloadResults
 				If tmp.Exists("secondary-types") Then
 					For Each f In tmp("secondary-types")
 						If CurrentRelease("release-group")("secondary-types")(f) <> "" Then
-							theFormat = theFormat & ", " & CurrentRelease("release-group")("secondary-types")(f)
+							theFormat = theFormat & FormatSeparator & CurrentRelease("release-group")("secondary-types")(f)
 						End If
 					Next
 				End If
@@ -5981,6 +5989,7 @@ Sub SaveOptions()
 		ini.BoolValue("DiscogsAutoTagWeb","CheckComment") = CheckComment
 		ini.BoolValue("DiscogsAutoTagWeb","SubTrackNameSelection") = SubTrackNameSelection
 		ini.StringValue("DiscogsAutoTagWeb","ArtistSeparator") = ArtistSeparator
+		ini.StringValue("DiscogsAutoTagWeb","FormatSeparator") = FormatSeparator
 		ini.BoolValue("DiscogsAutoTagWeb","CheckTurnOffSubTrack") = CheckTurnOffSubTrack
 		ini.BoolValue("DiscogsAutoTagWeb","CheckInvolvedPeopleSingleLine") = CheckInvolvedPeopleSingleLine
 		REM ini.StringValue("DiscogsAutoTagWeb","QueryPage") = QueryPage
@@ -7430,6 +7439,7 @@ Sub WriteOptions()
 	WriteLog "CheckStyleField=" & CheckStyleField
 	WriteLog "ArtistSeparator=" & ArtistSeparator
 	WriteLog "ArtistLastSeparator=" & ArtistLastSeparator
+	WriteLog "FormatSeparator=" & FormatSeparator
 	WriteLog "CheckTurnOffSubTrack=" & CheckTurnOffSubTrack
 	WriteLog "AccessToken=" & AccessToken
 	WriteLog "AccessTokenSecret=" & AccessTokenSecret

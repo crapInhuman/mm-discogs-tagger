@@ -1,7 +1,7 @@
 '
 ' MediaMonkey Script
 '
-' NAME: Discogs Tagger Options 3.4
+' NAME: Discogs Tagger Options 3.5
 '
 ' AUTHOR: crap_inhuman
 ' DATE : 13/09/2017
@@ -9,6 +9,9 @@
 '
 ' INSTALL: Automatic installation during Discogs Tagger install
 '
+'Changes from 3.4 to 3.5
+'Added "FormatSeparator" option
+
 'Changes from 3.3 to 3.4
 'Added new 'where to store date' option
 
@@ -125,6 +128,9 @@ Sub InitSheet(Sheet)
 		If ini.BoolValue("DiscogsAutoTagWeb","ArtistLastSeparator") = "" Then
 			ini.BoolValue("DiscogsAutoTagWeb","ArtistLastSeparator") = True
 		End If
+		If ini.StringValue("DiscogsAutoTagWeb","FormatSeparator") = "" Then
+			ini.StringValue("DiscogsAutoTagWeb","FormatSeparator") = ", "
+		End If
 		If ini.StringValue("DiscogsAutoTagWeb","CheckSaveImage") = "" Then
 			If ini.ValueExists("DiscogsAutoTagWeb","CheckNotAlwaysSaveimage") Then
 				If ini.BoolValue("DiscogsAutoTagWeb","CheckNotAlwaysSaveimage") = false Then
@@ -187,6 +193,7 @@ Sub InitSheet(Sheet)
 	CheckOriginalDiscogsTrack = ini.BoolValue("DiscogsAutoTagWeb","CheckOriginalDiscogsTrack")
 	CheckStyleField = ini.StringValue("DiscogsAutoTagWeb","CheckStyleField")
 	ArtistSeparator = ini.StringValue("DiscogsAutoTagWeb","ArtistSeparator")
+	FormatSeparator = ini.StringValue("DiscogsAutoTagWeb","FormatSeparator")
 	ArtistLastSeparator = ini.BoolValue("DiscogsAutoTagWeb","ArtistLastSeparator")
 	CheckSaveImage = ini.StringValue("DiscogsAutoTagWeb","CheckSaveImage")			'0 = Always save - 1 = Only when no image found - 2 = always don't save
 	CheckSmallCover = ini.BoolValue("DiscogsAutoTagWeb","CheckSmallCover")
@@ -527,6 +534,17 @@ Sub InitSheet(Sheet)
 	EditArtistSep.Common.Hint = "Standard is ', ' without apostrophe" & vbCrLf & "The artist separator will only be used in the artist tag and the involved people tag"
 
 	Set Label2 = UI.NewLabel(GroupBox2)
+	Label2.Common.SetRect 320, 90, 50, 25
+	Label2.Caption = SDB.Localize("Format Separator")
+	Label2.Common.Hint = "Standard is ', ' without apostrophe" & vbCrLf & "The format separator will only be used in the media format tag"
+
+	Set EditFormatSep = UI.NewEdit(GroupBox2)
+	EditFormatSep.Common.SetRect 320, 105, 50, 35
+	EditFormatSep.Common.ControlName = "FormatSeparator"
+	EditFormatSep.Text = FormatSeparator
+	EditFormatSep.Common.Hint = "Standard is ', ' without apostrophe" & vbCrLf & "The format separator will only be used in the media format tag"
+
+	Set Label2 = UI.NewLabel(GroupBox2)
 	Label2.Common.SetRect 165, 107, 125, 25
 	Label2.Caption = "Artist Last Separator = &&"
 	Label2.Common.Hint = "If checked artist list will be Artist1" & ArtistSeparator & "Artist2 & Artist3" & vbCrLf & "If not checked it will be Artist1" & ArtistSeparator & "Artist2" & ArtistSeparator & "Artist3"
@@ -661,6 +679,9 @@ Sub SaveSheet(Sheet)
 
 	Set edt = Sheet.Common.ChildControl("ArtistSeparator")
 	ini.StringValue("DiscogsAutoTagWeb", "ArtistSeparator") = edt.Text
+
+	Set edt = Sheet.Common.ChildControl("FormatSeparator")
+	ini.StringValue("DiscogsAutoTagWeb", "FormatSeparator") = edt.Text
 
 	Set checkbox = Sheet.Common.ChildControl("CheckDCoff")
 	If checkbox.checked Then
