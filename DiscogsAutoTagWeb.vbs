@@ -2,7 +2,12 @@ Option Explicit
 '
 ' Discogs Tagger Script for MediaMonkey ( Let & eepman & crap_inhuman )
 '
-Const VersionStr = "v5.66"
+Const VersionStr = "v5.67"
+
+'Changes from 5.66 to 5.67 by crap_inhuman in 05.2019
+'	Changed the Side to Disc function (2 Vinyl sides are one disc)
+'	Added a "Deselect all" button
+
 
 'Changes from 5.65 to 5.66 by crap_inhuman in 04.2019
 '	Changed the Authorize links to work with Windows 10
@@ -4454,8 +4459,8 @@ Function trackNumbering(ByRef pos, byRef position, byRef TracksNum, byRef Tracks
 					Else
 						tracksNum.Add Mid(position,2)
 					End If
-					If 	LastDisc <>  Left(position,1) Then
-						If 	LastDisc <> "" Then
+					If 	LastDisc <> Left(position,1) Then
+						If LastDisc <> "" And (LastDisc = "B" Or LastDisc = "D" Or LastDisc = "F" Or LastDisc = "H" Or LastDisc = "J") Then
 							iAutoDiscNumber = iAutoDiscNumber + 1
 						End If
 						LastDisc = Left(position,1)
@@ -5321,6 +5326,7 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Else
 		templateHTML = templateHTML &  "<tr><td colspan=2 align=center><button type=button class=tabletext id=""refresh"" title=""Use this button to start/stop refreshing the track list after de-/select a track. Use it to de-select some tracks without waiting for refresh"">Start track refresh</button></td></tr>"
 	End If
+	templateHTML = templateHTML &  "<tr><td colspan=2 align=center><button type=button class=tabletext id=""deselectall"" title=""Use this button to deselect all"">Deselect all</button></td></tr>"
 
 	templateHTML = templateHTML &  "<tr><td colspan=2 align=center><br></td></tr>"
 
@@ -5664,6 +5670,8 @@ Sub FormatSearchResultsViewer(Tracks, TracksNum, TracksCD, Durations, AlbumArtis
 	Script.RegisterEvent checkBox, "onclick", "Update"
 	Set submitButton = templateHTMLDoc.getElementById("refresh")
 	Script.RegisterEvent submitButton, "onclick", "trackrefreshing"
+	Set submitButton = templateHTMLDoc.getElementById("deselectall")
+	Script.RegisterEvent submitButton, "onclick", "deselectall"
 	REM Set checkBox = templateHTMLDoc.getElementById("usercollection")
 	REM checkBox.Checked = CheckUserCollection
 	REM Script.RegisterEvent checkBox, "onclick", "Update"
@@ -5779,6 +5787,89 @@ Sub trackRefreshing()
 End Sub
 
 
+Sub deselectall()
+
+	Dim checkbox, templateHTMLDoc
+	Set WebBrowser = SDB.Objects("WebBrowser")
+	Set templateHTMLDoc = WebBrowser.Interf.Document
+	
+	Set checkBox = templateHTMLDoc.getElementById("album")
+	CheckAlbum = False
+	checkBox.Checked = False
+	Set checkBox = templateHTMLDoc.getElementById("artist")
+	CheckArtist = False
+	checkBox.Checked = False
+	Set checkBox = templateHTMLDoc.getElementById("albumartist")
+	CheckAlbumArtist = False
+	checkBox.Checked = False
+	Set checkBox = templateHTMLDoc.getElementById("date")
+	CheckDate = False
+	checkBox.Checked = False
+	Set checkBox = templateHTMLDoc.getElementById("origdate")
+	CheckOrigDate = False
+	checkBox.Checked = False
+	Set checkBox = templateHTMLDoc.getElementById("label")
+	CheckLabel = False
+	checkBox.Checked = False
+	If QueryPage = "Discogs" Then
+		Set checkBox = templateHTMLDoc.getElementById("genre")
+		CheckGenre = False
+		checkBox.Checked = False
+	End If
+	Set checkBox = templateHTMLDoc.getElementById("format")
+	CheckFormat = False
+	checkBox.Checked = False
+	Set checkBox = templateHTMLDoc.getElementById("country")
+	CheckCountry = False
+	checkBox.Checked = False
+	Set checkBox = templateHTMLDoc.getElementById("checkcover")
+	CheckCover = False
+	checkBox.Checked = False
+	Set checkBox = templateHTMLDoc.getElementById("catalog")
+	CheckCatalog = False
+	checkBox.Checked = False
+	Set checkBox = templateHTMLDoc.getElementById("releaseid")
+	CheckRelease = False
+	checkBox.Checked = False
+	Set checkBox = templateHTMLDoc.getElementById("involved")
+	CheckInvolved = False
+	checkBox.Checked = False
+	Set checkBox = templateHTMLDoc.getElementById("grouping")
+	CheckGrouping = False
+	checkBox.Checked = False
+	Set checkBox = templateHTMLDoc.getElementById("lyricist")
+	CheckLyricist = False
+	checkBox.Checked = False
+	Set checkBox = templateHTMLDoc.getElementById("composer")
+	CheckComposer = False
+	checkBox.Checked = False
+	Set checkBox = templateHTMLDoc.getElementById("conductor")
+	CheckConductor = False
+	checkBox.Checked = False
+	Set checkBox = templateHTMLDoc.getElementById("producer")
+	CheckProducer = False
+	checkBox.Checked = False
+	Set checkBox = templateHTMLDoc.getElementById("discnum")
+	CheckDiscNum = False
+	checkBox.Checked = False
+	Set checkBox = templateHTMLDoc.getElementById("tracknum")
+	CheckTrackNum = False
+	checkBox.Checked = False
+	If QueryPage = "Discogs" Then
+		Set checkBox = templateHTMLDoc.getElementById("comments")
+		CheckComment = False
+		checkBox.Checked = False
+	End If
+	
+	OptionsChanged = True
+
+	SDB.ProcessMessages
+	ReloadResults
+	
+End Sub
+
+
+
 Sub Update()
 
 	Dim templateHTMLDoc, checkBox, text, radio, i
@@ -5843,7 +5934,7 @@ Sub Update()
 	If QueryPage = "Discogs" Then
 		Set checkBox = templateHTMLDoc.getElementById("comments")
 		CheckComment = checkBox.Checked
-	End If	
+	End If
 
 	OptionsChanged = True
 
